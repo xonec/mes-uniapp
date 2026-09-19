@@ -1,0 +1,227 @@
+<template>
+    <view class="page">
+        <!-- 顶部栏 -->
+        <view class="topbar">
+            <text class="tb-title">用户管理</text>
+            <view class="tb-right">
+                <text class="tb-me">{{ me.nickname || me.username }}</text>
+                <text class="tb-logout" @tap="doLogout">退出</text>
+            </view>
+        </view>
+
+        <!-- 新建用户 -->
+        <view class="card">
+            <view class="card-title">新建账号</view>
+            <view class="field">
+                <text class="lbl">账号</text>
+                <input class="inp" v-model="form.username" type="text" placeholder="登录账号（字母数字）" />
+            </view>
+            <view class="field">
+                <text class="lbl">密码</text>
+                <input class="inp" v-model="form.password" type="text" password placeholder="至少 6 位" />
+            </view>
+            <view class="field">
+                <text class="lbl">昵称</text>
+                <input class="inp" v-model="form.nickname" type="text" placeholder="显示名（可空）" />
+            </view>
+            <view class="field">
+                <text class="lbl">角色</text>
+                <view class="seg">
+                    <view class="seg-item" :class="{ active: form.role === 'user' }" @tap="form.role = 'user'">普通用户</view>
+                    <view class="seg-item" :class="{ active: form.role === 'admin' }" @tap="form.role = 'admin'">管理员</view>
+                </view>
+            </view>
+            <button class="btn primary" :disabled="creating" @tap="createUser">{{ creating ? '创建中…' : '创建账号' }}</button>
+            <text class="err" v-if="formMsg">{{ formMsg }}</text>
+        </view>
+
+        <!-- 用户列表 -->
+        <view class="card">
+            <view class="card-title">账号列表<text class="count">{{ users.length }}</text></view>
+            <view v-if="loading" class="empty">加载中…</view>
+            <view v-else-if="users.length === 0" class="empty">暂无账号</view>
+            <view v-for="u in users" :key="u._id" class="user-row" :class="{ disabled: u.status !== 1 }">
+                <view class="u-main">
+                    <text class="u-name">{{ u.nickname || u.username }}</text>
+                    <text class="u-sub">@{{ u.username }}</text>
+                </view>
+                <view class="u-tags">
+                    <text class="tag" :class="roleClass(u.role)">{{ roleText(u.role) }}</text>
+                    <text class="tag" :class="u.status === 1 ? 'on' : 'off'">{{ u.status === 1 ? '启用' : '禁用' }}</text>
+                </view>
+                <view class="u-actions">
+                    <text class="act" @tap="toggleStatus(u)">{{ u.status === 1 ? '禁用' : '启用' }}</text>
+                    <text class="act danger" @tap="removeUser(u)">删除</text>
+                </view>
+            </view>
+        </view>
+    </view>
+</template>
+
+<script>
+import { getToken, getUser, logout, checkLogin } from '@/utils/auth.js'
+
+export default {
+    data() {
+        return {
+            me: getUser() || {},
+            form: { username: '', password: '', nickname: '', role: 'user' },
+            creating: false,
+            formMsg: '',
+            users: [],
+            loading: false
+        }
+    },
+    async onShow() {
+        // 服务端复核管理员身份（防本地篡改 role）
+        const info = await checkLogin().catch(() => null)
+        if (!info || (info.role || []).indexOf('admin') < 0) {
+            uni.showToast({ title: '无权限', icon: 'none' })
+            setTimeout(() => uni.reLaunch({ url: '/pages/materials/materials' }), 800)
+            return
+        }
+        const u = getUser() || {}
+        u.role = info.role || []
+        uni.setStorageSync('mes_user', u)
+        this.me = u
+        this.loadUsers()
+    },
+    methods: {
+        roleText(role) {
+            return (role || []).indexOf('admin') >= 0 ? '管理员' : '普通用户'
+        },
+        roleClass(role) {
+            return (role || []).indexOf('admin') >= 0 ? 'admin' : 'user'
+        },
+        async callAuth(action, data) {
+            const res = await uniCloud.callFunction({
+                name: 'uni-auth',
+                data: Object.assign({ action, uniIdToken: getToken() }, data)
+            })
+            const r = res && res.result
+            if (!r) throw new Error('云函数无返回')
+            if (r.code === 401) {
+                logout()
+                uni.reLaunch({ url: '/pages/login/login' })
+                throw new Error('登录失效，请重新登录')
+            }
+            if (r.code !== 0) throw new Error(r.message || '操作失败')
+            return r
+        },
+        async loadUsers() {
+            this.loading = true
+            try {
+                const r = await this.callAuth('listUsers')
+                this.users = r.list || []
+            } catch (e) {
+                uni.showToast({ title: e.message || '加载失败', icon: 'none' })
+            } finally {
+                this.loading = false
+            }
+        },
+        async createUser() {
+            const username = (this.form.username || '').trim()
+            const password = this.form.password || ''
+            if (!username) { this.formMsg = '请输入账号'; return }
+            if (password.length < 6) { this.formMsg = '密码至少 6 位'; return }
+            this.creating = true
+            this.formMsg = ''
+            try {
+                await this.callAuth('createUser', {
+                    username,
+                    password,
+                    nickname: (this.form.nickname || '').trim() || username,
+                    role: [this.form.role]
+                })
+                uni.showToast({ title: '创建成功', icon: 'success' })
+                this.form = { username: '', password: '', nickname: '', role: 'user' }
+                this.loadUsers()
+            } catch (e) {
+                this.formMsg = e.message || '创建失败'
+            } finally {
+                this.creating = false
+            }
+        },
+        toggleStatus(u) {
+            const next = u.status === 1 ? 0 : 1
+            uni.showModal({
+                title: next === 0 ? '禁用确认' : '启用确认',
+                content: `确定${next === 0 ? '禁用' : '启用'}账号 @${u.username} 吗？`,
+                success: async (res) => {
+                    if (!res.confirm) return
+                    try {
+                        await this.callAuth('setUserStatus', { username: u.username, status: next })
+                        uni.showToast({ title: next === 0 ? '已禁用' : '已启用', icon: 'none' })
+                        this.loadUsers()
+                    } catch (e) {
+                        uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+                    }
+                }
+            })
+        },
+        removeUser(u) {
+            uni.showModal({
+                title: '删除确认',
+                content: `确定删除账号 @${u.username} 吗？不可恢复。`,
+                success: async (res) => {
+                    if (!res.confirm) return
+                    try {
+                        await this.callAuth('deleteUser', { username: u.username })
+                        uni.showToast({ title: '已删除', icon: 'none' })
+                        this.loadUsers()
+                    } catch (e) {
+                        uni.showToast({ title: e.message || '删除失败', icon: 'none' })
+                    }
+                }
+            })
+        },
+        doLogout() {
+            logout()
+            uni.reLaunch({ url: '/pages/login/login' })
+        }
+    }
+}
+</script>
+
+<style scoped>
+.page { padding: 16rpx; min-height: 100vh; background: #F2F4F3; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 8rpx 20rpx; }
+.tb-title { font-size: 34rpx; font-weight: 700; color: #1f2622; }
+.tb-right { display: flex; align-items: center; gap: 16rpx; }
+.tb-me { font-size: 24rpx; color: #77827D; }
+.tb-logout { font-size: 24rpx; color: #D9534F; padding: 6rpx 16rpx; background: #FBEAE9; border-radius: 999rpx; }
+
+.card { background: #fff; border-radius: 16rpx; padding: 22rpx; margin-bottom: 16rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
+.card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 16rpx; display: flex; align-items: center; gap: 12rpx; }
+.count { font-size: 22rpx; color: #fff; background: #008577; border-radius: 999rpx; padding: 0 14rpx; }
+
+.field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 18rpx; height: 84rpx; margin-bottom: 14rpx; }
+.lbl { width: 90rpx; font-size: 26rpx; color: #77827D; flex-shrink: 0; }
+.inp { flex: 1; height: 84rpx; font-size: 28rpx; background: transparent; }
+.seg { flex: 1; display: flex; background: #F2F4F3; border-radius: 12rpx; padding: 4rpx; gap: 4rpx; }
+.seg-item { flex: 1; text-align: center; font-size: 26rpx; color: #77827D; padding: 16rpx 0; border-radius: 10rpx; }
+.seg-item.active { background: #008577; color: #fff; font-weight: 700; }
+
+.btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #EEF3F1; color: #1f2622; }
+.btn.primary { background: #008577; color: #fff; font-weight: 700; }
+.btn[disabled] { opacity: 0.5; }
+.err { display: block; margin-top: 12rpx; font-size: 24rpx; color: #D9534F; }
+
+.empty { text-align: center; color: #bbb; padding: 40rpx; font-size: 26rpx; }
+
+.user-row { display: flex; align-items: center; gap: 14rpx; padding: 20rpx 6rpx; border-bottom: 1rpx solid #F0F3F1; }
+.user-row:last-child { border-bottom: none; }
+.user-row.disabled { opacity: 0.55; }
+.u-main { flex: 1; min-width: 0; }
+.u-name { font-size: 28rpx; font-weight: 600; color: #1f2622; display: block; }
+.u-sub { font-size: 22rpx; color: #77827D; }
+.u-tags { display: flex; flex-direction: column; gap: 6rpx; flex-shrink: 0; }
+.tag { font-size: 18rpx; padding: 2rpx 12rpx; border-radius: 999rpx; background: #F2F4F3; color: #77827D; text-align: center; }
+.tag.admin { background: #E6F4F1; color: #008577; }
+.tag.user { background: #EEF3F1; color: #4a554f; }
+.tag.on { background: #E6F4F1; color: #008577; }
+.tag.off { background: #F2F4F3; color: #bbb; }
+.u-actions { display: flex; flex-direction: column; gap: 8rpx; flex-shrink: 0; }
+.act { font-size: 24rpx; color: #008577; text-align: center; padding: 4rpx 14rpx; background: #E8F0FE; border-radius: 10rpx; }
+.act.danger { color: #D9534F; background: #FBEAE9; }
+</style>

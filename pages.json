@@ -1,0 +1,30 @@
+{
+    "pages": [
+        {
+            "path": "pages/login/login",
+            "style": {
+                "navigationBarTitleText": "登录",
+                "navigationStyle": "custom"
+            }
+        },
+        {
+            "path": "pages/materials/materials",
+            "style": {
+                "navigationBarTitleText": "包材计算",
+                "enablePullDownRefresh": false
+            }
+        },
+        {
+            "path": "pages/user-manage/user-manage",
+            "style": {
+                "navigationBarTitleText": "用户管理"
+            }
+        }
+    ],
+    "globalStyle": {
+        "navigationBarTextStyle": "white",
+        "navigationBarTitleText": "MES生产助手",
+        "navigationBarBackgroundColor": "#008577",
+        "backgroundColor": "#F2F4F3"
+    }
+}

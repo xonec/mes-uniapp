@@ -1,0 +1,55 @@
+{
+    "bsonType": "object",
+    "description": "用户表（uni-id）：仅云函数可读写，客户端不可直连，账号由管理员通过 uni-auth 云函数创建",
+    "required": ["username", "password"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "用户ID"
+        },
+        "username": {
+            "bsonType": "string",
+            "title": "用户名"
+        },
+        "password": {
+            "bsonType": "string",
+            "title": "密码（加密存储）"
+        },
+        "nickname": {
+            "bsonType": "string",
+            "title": "昵称"
+        },
+        "role": {
+            "bsonType": "array",
+            "title": "角色",
+            "description": "admin 管理员 / user 普通用户"
+        },
+        "status": {
+            "bsonType": "int",
+            "title": "状态",
+            "description": "1 正常 / 0 禁用",
+            "defaultValue": 1
+        },
+        "loginFailCount": {
+            "bsonType": "int",
+            "title": "连续登录失败次数",
+            "description": "达到阈值后锁定，登录成功清零",
+            "defaultValue": 0
+        },
+        "lockUntil": {
+            "bsonType": "number",
+            "title": "锁定截止时间",
+            "description": "毫秒时间戳，0 表示未锁定"
+        },
+        "register_date": {
+            "bsonType": "number",
+            "title": "注册时间",
+            "description": "毫秒时间戳"
+        }
+    }
+}

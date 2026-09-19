@@ -1,0 +1,129 @@
+{
+    "bsonType": "object",
+    "description": "生产记录表：单批号单文档，_id 固定为 rec:<批号>，由云函数 production-records 写入，客户端只读（读走 clientDB，写走云函数）",
+    "required": ["batchNo"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "固定为 rec:<批号>，主键唯一，保证幂等（不产生重复文档）"
+        },
+        "batchNo": {
+            "bsonType": "string",
+            "title": "批号",
+            "description": "11 位、同时含字母与数字"
+        },
+        "productCode": {
+            "bsonType": "string",
+            "title": "产品编码"
+        },
+        "batchStatus": {
+            "bsonType": "string",
+            "title": "本批状态",
+            "description": "incomplete 未完成 | complete 已完成"
+        },
+        "bottlePerCase": {
+            "bsonType": "number",
+            "title": "瓶/件"
+        },
+        "casePerPallet": {
+            "bsonType": "number",
+            "title": "件/托"
+        },
+        "bottleWeight": {
+            "bsonType": "number",
+            "title": "单瓶重量(kg)"
+        },
+        "bottleWeightMin": {
+            "bsonType": "number",
+            "title": "单瓶最低(kg)"
+        },
+        "boxNetWeight": {
+            "bsonType": "number",
+            "title": "单箱净重(kg)"
+        },
+        "boxNetWeightMin": {
+            "bsonType": "number",
+            "title": "单箱净重最低(kg)"
+        },
+        "buckets": {
+            "bsonType": "object",
+            "title": "分桶件数",
+            "description": "A~J 各桶件数"
+        },
+        "bucketCount": {
+            "bsonType": "number",
+            "title": "桶数"
+        },
+        "caseCount": {
+            "bsonType": "number",
+            "title": "件数"
+        },
+        "zeroBottleCount": {
+            "bsonType": "number",
+            "title": "零箱瓶数"
+        },
+        "bottleCount": {
+            "bsonType": "number",
+            "title": "入库瓶数"
+        },
+        "sampleCount": {
+            "bsonType": "number",
+            "title": "取样数(瓶)"
+        },
+        "innerPackageIssued": {
+            "bsonType": "number",
+            "title": "领用内包数"
+        },
+        "totalPallets": {
+            "bsonType": "number",
+            "title": "托数"
+        },
+        "markCount": {
+            "bsonType": "number",
+            "title": "唛头数"
+        },
+        "labelExtra": {
+            "bsonType": "number",
+            "title": "标签追加"
+        },
+        "securityExtra": {
+            "bsonType": "number",
+            "title": "防伪追加"
+        },
+        "materials": {
+            "bsonType": "object",
+            "title": "包材明细",
+            "description": "标签/唛头/纸箱/防伪 的用量"
+        },
+        "savedAt": {
+            "bsonType": "string",
+            "title": "保存时间",
+            "description": "本地保存时的 ISO 时间"
+        },
+        "version": {
+            "bsonType": "number",
+            "title": "版本号",
+            "description": "从 1 递增，每次保存/回滚 +1"
+        },
+        "savedBy": {
+            "bsonType": "string",
+            "title": "操作人",
+            "description": "最近保存/回滚的用户 uid"
+        },
+        "materialInputs": {
+            "bsonType": "object",
+            "title": "包材领用明细",
+            "description": "标签/唛头/纸箱/防伪 的领用、损耗、退回（手动填写，可选）"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "云端更新时间",
+            "description": "写入云端的毫秒时间戳，用于排序"
+        }
+    }
+}

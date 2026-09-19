@@ -1,0 +1,34 @@
+{
+    "bsonType": "object",
+    "description": "生产记录草稿表：按设备隔离，_id = draft:<deviceId>:<批号>，仅本设备可读写（走云函数按 deviceId 过滤），其他设备不可见",
+    "required": ["deviceId", "batchNo"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "draft:<deviceId>:<批号>"
+        },
+        "deviceId": {
+            "bsonType": "string",
+            "title": "设备ID"
+        },
+        "batchNo": {
+            "bsonType": "string",
+            "title": "批号"
+        },
+        "record": {
+            "bsonType": "object",
+            "title": "草稿内容",
+            "description": "完整生产记录（与 production_records 同结构）"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "更新时间",
+            "description": "写入云端的时间（毫秒时间戳）"
+        }
+    }
+}

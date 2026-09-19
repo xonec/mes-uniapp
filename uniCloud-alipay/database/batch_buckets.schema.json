@@ -1,0 +1,58 @@
+{
+    "bsonType": "object",
+    "description": "分桶件数表：单批号单文档，_id 固定为 batch:<批号>。写走云函数 batch-buckets，客户端只读。",
+    "required": ["batchNo", "buckets"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "固定为 batch:<批号>，主键唯一，保证幂等（不产生重复文档）"
+        },
+        "batchNo": {
+            "bsonType": "string",
+            "title": "批号",
+            "description": "11 位、同时含字母与数字"
+        },
+        "buckets": {
+            "bsonType": "object",
+            "title": "分桶件数",
+            "description": "A~J 各桶的件数",
+            "properties": {
+                "A": { "bsonType": "number", "minimum": 0 },
+                "B": { "bsonType": "number", "minimum": 0 },
+                "C": { "bsonType": "number", "minimum": 0 },
+                "D": { "bsonType": "number", "minimum": 0 },
+                "E": { "bsonType": "number", "minimum": 0 },
+                "F": { "bsonType": "number", "minimum": 0 },
+                "G": { "bsonType": "number", "minimum": 0 },
+                "H": { "bsonType": "number", "minimum": 0 },
+                "I": { "bsonType": "number", "minimum": 0 },
+                "J": { "bsonType": "number", "minimum": 0 }
+            }
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "更新时间",
+            "description": "写入云端的时间（毫秒时间戳）"
+        },
+        "savedBy": {
+            "bsonType": "string",
+            "title": "操作人",
+            "description": "最近写入的用户 uid"
+        },
+        "sourceFetchedAt": {
+            "bsonType": "number",
+            "title": "来源取数时间",
+            "description": "帆软取数时间（可选，毫秒时间戳）"
+        },
+        "checksum": {
+            "bsonType": "string",
+            "title": "数据校验和",
+            "description": "可选，用于判断云端数据是否最新"
+        }
+    }
+}

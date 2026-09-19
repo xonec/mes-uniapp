@@ -1,0 +1,12 @@
+[
+    {
+        "IndexName": "batchNo_version_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "batchNo", "Direction": "1", "Type": "varchar" },
+                { "Name": "version", "Direction": "-1", "Type": "long" }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

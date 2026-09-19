@@ -1,0 +1,36 @@
+{
+    "bsonType": "object",
+    "description": "生产记录历史版本表：每次保存前的旧版本快照，_id = ver:<批号>:<版本号>，追加不覆盖，用于追溯每次修改",
+    "required": ["batchNo", "version"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "ver:<批号>:<版本号>，确定性主键，同批号同版本只一条（幂等）"
+        },
+        "batchNo": {
+            "bsonType": "string",
+            "title": "批号",
+            "description": "11 位、同时含字母与数字"
+        },
+        "version": {
+            "bsonType": "number",
+            "title": "版本号",
+            "description": "从 1 递增"
+        },
+        "savedAt": {
+            "bsonType": "string",
+            "title": "该版本保存时间",
+            "description": "该版本当时保存的 ISO 时间"
+        },
+        "snapshot": {
+            "bsonType": "object",
+            "title": "记录快照",
+            "description": "该版本的完整生产记录"
+        }
+    }
+}

@@ -1,0 +1,11 @@
+[
+    {
+        "IndexName": "updatedAt_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "updatedAt", "Direction": "-1", "Type": "long" }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

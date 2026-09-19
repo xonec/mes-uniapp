@@ -1,0 +1,50 @@
+{
+    "name" : "MES生产助手",
+    "appid" : "__UNI__MES0001",
+    "description" : "MES 现场生产助手（安卓 / 微信小程序），含包材计算页面",
+    "versionName" : "1.0.0",
+    "versionCode" : "100",
+    "transformPx" : false,
+    "uniStatistics" : {
+        "enable" : false
+    },
+    "app-plus" : {
+        "usingComponents" : true,
+        "nvueStyleCompiler" : "uni-app",
+        "compilerVersion" : 3,
+        "splashscreen" : {
+            "alwaysShowBeforeRender" : true,
+            "waiting" : true,
+            "autoclose" : true,
+            "delay" : 0
+        },
+        "modules" : {},
+        "distribute" : {
+            "android" : {
+                "permissions" : [
+                    "<uses-permission android:name=\"android.permission.INTERNET\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.CAMERA\"/>"
+                ],
+                "minSdkVersion" : 21
+            },
+            "ios" : {},
+            "sdkConfigs" : {}
+        }
+    },
+    "mp-weixin" : {
+        "appid" : "wxa640c845f511b53c",
+        "setting" : {
+            "urlCheck" : false,
+            "es6" : true,
+            "minified" : true
+        },
+        "usingComponents" : true,
+        "permission" : {}
+    },
+    "h5" : {
+        "router" : {
+            "mode" : "hash"
+        }
+    }
+}

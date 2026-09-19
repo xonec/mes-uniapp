@@ -1,0 +1,12 @@
+// 本文件用于本地调试 batch_buckets 集合（选中语句后 F5 运行，不受 schema 权限限制）
+// 集合结构见 database/batch_buckets.schema.json；正式上线后前端读写受 schema 权限控制：
+//   读：客户端直读（read=true）；写：客户端不可写（统一走云函数 batch-buckets）
+
+// 1) 按固定 _id 查单批号（_id = batch:<批号>）
+db.collection('batch_buckets').doc('batch:OPDG26X1001').get()
+
+// 2) 按批号字段查（等价）
+db.collection('batch_buckets').where({ batchNo: 'OPDG26X1001' }).get()
+
+// 3) 查全部（有返回条数上限，正式场景请加 limit/where）
+db.collection('batch_buckets').limit(100).get()
