@@ -25,131 +25,35 @@
                 </view>
             </view>
             <view v-show="!c.collapsed" class="card-body">
-                <!-- 批号 / 产品 -->
-                <template v-if="c.key==='batch'">
-                    <view class="cmd-grid">
-                        <view class="cmd-info">
-                            <view class="inline-field">
-                                <text class="lbl">产品编码</text>
-                                <input class="inp" v-model="productCode" type="text" maxlength="10"
-                                    placeholder="按批号前四位筛选" @input="onProductInput" />
-                            </view>
-                            <view class="inline-field">
-                                <text class="lbl">批号</text>
-                                <view class="scan-input">
-                                    <input class="inp" v-model="batchNo" type="text" maxlength="11"
-                                        placeholder="11位英文+数字" @input="onBatchInput" />
-                                    <button class="scan-mini" @tap="scanBatch" aria-label="扫码">⊞</button>
-                                </view>
-                            </view>
-                        </view>
-                        <view class="cmd-actions">
-                            <button class="btn primary" @tap="smartFill">智能填充</button>
-                            <button class="btn" @tap="chooseProduct">选择产品</button>
-                        </view>
-                    </view>
-                    <view class="fr-bar">
-                        <button class="btn cloud-btn" :disabled="!batchValid || cloudFetching" @tap="fetchFromCloud">
-                            {{ cloudFetching ? '获取中…' : '从云端获取每桶件数' }}
-                        </button>
-                        <button v-if="isAndroid" class="btn fr-btn" :disabled="!batchValid || fetching" @tap="fetchFromFr">
-                            {{ fetching ? '获取中…' : '从帆软(内网)获取' }}
-                        </button>
-                        <text class="fr-hint" v-if="!batchValid">输入有效批号后可用</text>
-                        <text class="fr-hint" v-else-if="frMsg">{{ frMsg }}</text>
-                        <text class="fr-hint" v-else-if="cloudMsg">{{ cloudMsg }}</text>
-                    </view>
-                </template>
-                <!-- 分桶件数 -->
-                <template v-else-if="c.key==='buckets'">
-                    <view class="bucket-grid">
-                        <view class="bucket" v-for="(key, idx2) in bucketKeys" :key="key">
-                            <text class="blbl">{{ key }}桶</text>
-                            <input class="binp" type="number" min="0" :disabled="isBucketDisabled(idx2)"
-                                :placeholder="'0'" v-model="buckets[key]" @input="calculateMaterial" />
-                        </view>
-                    </view>
-                    <view class="data-grid bucket-tail">
-                        <view class="data-cell">
-                            <text class="dlbl">零箱（瓶）</text>
-                            <input class="dinp" type="number" min="0" v-model="zeroCount" @input="calculateMaterial" />
-                        </view>
-                        <view class="data-cell">
-                            <text class="dlbl">瓶 / 件</text>
-                            <input class="dinp" type="number" min="1" v-model="perCase" @input="calculateMaterial" />
-                        </view>
-                        <view class="data-cell">
-                            <text class="dlbl">件 / 托</text>
-                            <input class="dinp" type="number" min="1" v-model="perPallet" @input="calculateMaterial" />
-                        </view>
-                    </view>
-                </template>
-                <!-- 生产数据 -->
-                <template v-else-if="c.key==='prod'">
-                    <view class="data-grid">
-                        <view class="data-cell"><text class="dlbl">入库瓶数</text><text class="dval">{{ inboundCount }}</text></view>
-                        <view class="data-cell">
-                            <text class="dlbl">取样数（瓶）</text>
-                            <input class="dinp" type="number" min="0" v-model="sampleCount" @input="calculateMaterial" />
-                        </view>
-                        <view class="data-cell"><text class="dlbl">领用内包数</text><text class="dval">{{ innerIssued }}</text></view>
-                        <view class="data-cell"><text class="dlbl">桶数</text><text class="dval">{{ bucketCount }}</text></view>
-                        <view class="data-cell"><text class="dlbl">入库数</text><text class="dval">{{ caseCountText }}</text></view>
-                        <view class="data-cell"><text class="dlbl">托码</text><text class="dval">{{ palletCode }}</text></view>
-                    </view>
-                    <view class="seg-row">
-                        <text class="dlbl">本批状态</text>
-                        <view class="seg">
-                            <view class="seg-item" :class="{ active: batchStatus === 'incomplete' }" @tap="batchStatus = 'incomplete'">未完成</view>
-                            <view class="seg-item" :class="{ active: batchStatus === 'complete' }" @tap="batchStatus = 'complete'">已完成</view>
-                        </view>
-                    </view>
-                    <view class="sync-line"><text>保存后自动同步云端</text></view>
-                    <view class="btn-row">
-                        <button class="btn primary" @tap="save">保存</button>
-                        <button class="btn" @tap="openHistory">历史</button>
-                        <button class="btn danger" @tap="clearAll">清空</button>
-                    </view>
-                </template>
-                <!-- 包材卡片 -->
-                <template v-else-if="c.key==='material'">
-                    <view class="material-addons">
-                        <view class="data-cell"><text class="dlbl">标签追加（张）</text><input class="dinp" type="number" min="0" placeholder="0" v-model="labelExtra" @input="calculateMaterial" /></view>
-                        <view class="data-cell"><text class="dlbl">防伪追加（张）</text><input class="dinp" type="number" min="0" placeholder="0" v-model="securityExtra" @input="calculateMaterial" /></view>
-                    </view>
-                    <view class="material-table">
-                        <view class="material-row head"><text>包材</text><text>领用</text><text>实用</text><text>损耗</text><text>退回</text></view>
-                        <view class="material-row" v-for="(m, i) in materials" :key="i">
-                            <text class="mname">{{ m.name }}</text>
-                            <input class="minp" type="number" min="0" placeholder="0" v-model="m.issued" />
-                            <input class="minp used" :value="m.used" disabled />
-                            <input class="minp" type="number" min="0" placeholder="0" v-model="m.loss" />
-                            <input class="minp" type="number" min="0" placeholder="0" v-model="m.returned" />
-                        </view>
-                    </view>
-                    <text class="hint pad">实用数按生产数据自动计算；领用、损耗、退回可选填，随保存记录。</text>
-                </template>
-                <!-- 重量参数 -->
-                <template v-else-if="c.key==='weight'">
-                    <view class="data-grid">
-                        <view class="data-cell"><text class="dlbl">单箱净重（kg）</text><input class="dinp" type="digit" v-model="boxNetWeight" @input="updateWeightRange" /></view>
-                        <view class="data-cell"><text class="dlbl">单瓶重量（kg）</text><input class="dinp" type="digit" v-model="bottleWeight" @input="updateWeightRange" /></view>
-                        <view class="data-cell"><text class="dlbl">重量范围</text><text class="dval">{{ weightRange }}</text></view>
-                        <view class="data-cell"><text class="dlbl">单瓶最低（kg）</text><input class="dinp" type="digit" v-model="bottleWeightMin" @input="updateWeightRange" /></view>
-                        <view class="data-cell"><text class="dlbl">单箱净重最低（kg）</text><input class="dinp" type="digit" v-model="boxNetWeightMin" @input="updateWeightRange" /></view>
-                    </view>
-                </template>
-                <!-- 托分页 -->
-                <template v-else-if="c.key==='pallet'">
-                    <view class="inline-field pager-summary"><text>件号</text><text class="strong">{{ palletRange }}</text></view>
-                    <view class="inline-field pager-summary" v-if="zeroBoxInfo && currentPallet === totalPallets"><text>零箱</text><text class="strong">{{ zeroBoxInfo }}</text></view>
-                    <view class="pager-actions">
-                        <button class="btn" @tap="goPallet('first')">首托</button>
-                        <button class="btn" @tap="goPallet('prev')">上一托</button>
-                        <button class="btn primary" @tap="goPallet('next')">下一托</button>
-                        <button class="btn" @tap="goPallet('last')">尾托</button>
-                    </view>
-                </template>
+                <batch-card v-if="c.key==='batch'"
+                    :product-code="productCode" :batch-no="batchNo" :batch-valid="batchValid"
+                    :is-android="isAndroid" :cloud-fetching="cloudFetching" :fetching="fetching"
+                    :fr-msg="frMsg" :cloud-msg="cloudMsg"
+                    @update:productCode="onProductInput" @update:batchNo="onBatchInput"
+                    @scan="scanBatch" @smart-fill="smartFill" @choose-product="chooseProduct"
+                    @fetch-cloud="fetchFromCloud" @fetch-fr="fetchFromFr" />
+                <buckets-card v-else-if="c.key==='buckets'"
+                    :buckets.sync="buckets" :bucket-keys="bucketKeys"
+                    :zero-count.sync="zeroCount" :per-case.sync="perCase" :per-pallet.sync="perPallet"
+                    @change="calculateMaterial" />
+                <prod-card v-else-if="c.key==='prod'"
+                    :inbound-count="inboundCount" :sample-count.sync="sampleCount"
+                    :inner-issued="innerIssued" :bucket-count="bucketCount"
+                    :case-count-text="caseCountText" :pallet-code="palletCode"
+                    :batch-status.sync="batchStatus"
+                    @change="calculateMaterial" @save="save" @history="openHistory" @clear="clearAll" />
+                <material-card v-else-if="c.key==='material'"
+                    :label-extra.sync="labelExtra" :security-extra.sync="securityExtra"
+                    :materials="materials" @change="calculateMaterial" />
+                <weight-card v-else-if="c.key==='weight'"
+                    :box-net-weight.sync="boxNetWeight" :bottle-weight.sync="bottleWeight"
+                    :weight-range="weightRange" :bottle-weight-min.sync="bottleWeightMin"
+                    :box-net-weight-min.sync="boxNetWeightMin"
+                    @change="updateWeightRange" />
+                <pallet-card v-else-if="c.key==='pallet'"
+                    :pallet-range="palletRange" :zero-box-info="zeroBoxInfo"
+                    :current-pallet="currentPallet" :total-pallets="totalPallets"
+                    @go="goPallet" />
             </view>
         </view>
 
@@ -210,6 +114,12 @@ import { getDeviceId } from '@/utils/device.js'
 import { saveProductionRecord, fetchProductionRecord, listProductionRecords, listRecordVersions, rollbackProductionRecord, saveDraftRecord, getDraftRecord } from '@/utils/production-db.js'
 import { getUser, checkLogin } from '@/utils/auth.js'
 import { computeMaterial, computeWeightRange } from '@/utils/calc.js'
+import BatchCard from '@/components/batch-card/batch-card.vue'
+import BucketsCard from '@/components/buckets-card/buckets-card.vue'
+import ProdCard from '@/components/prod-card/prod-card.vue'
+import MaterialCard from '@/components/material-card/material-card.vue'
+import WeightCard from '@/components/weight-card/weight-card.vue'
+import PalletCard from '@/components/pallet-card/pallet-card.vue'
 
 const bucketKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
 const STORE_RESULTS = 'mes-material-results'
@@ -229,6 +139,7 @@ const CARD_DEFS = [
 const CARD_KEYS = CARD_DEFS.map(c => c.key)
 
 export default {
+    components: { BatchCard, BucketsCard, ProdCard, MaterialCard, WeightCard, PalletCard },
     data() {
         const buckets = {}
         bucketKeys.forEach(k => { buckets[k] = '' })
@@ -379,18 +290,13 @@ export default {
         }
     },
     methods: {
-        isBucketDisabled(idx) {
-            if (idx === 0) return false
-            const prev = Number(this.buckets[this.bucketKeys[idx - 1]]) || 0
-            return prev <= 0
-        },
-        onBatchInput(e) {
-            let v = (e.detail.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)
+        onBatchInput(v) {
+            v = (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)
             this.batchNo = v
             this.resolveProductOptions()
         },
-        onProductInput(e) {
-            let v = (e.detail.value || '').replace(/\D/g, '').slice(0, 10)
+        onProductInput(v) {
+            v = (v || '').replace(/\D/g, '').slice(0, 10)
             this.productCode = v
             this.applyProduct(v)
         },
@@ -891,65 +797,11 @@ export default {
 .card.dragging { box-shadow: 0 10rpx 30rpx rgba(0,133,119,0.28); opacity: 0.92; transform: scale(1.01); }
 .drag-overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 200; }
 
-.cmd-grid { display: flex; justify-content: space-between; align-items: flex-end; }
-.cmd-info { flex: 1; }
-.inline-field { display: flex; align-items: center; margin-bottom: 10rpx; background: #F4F7F6; border-radius: 12rpx; padding: 0 14rpx; height: 64rpx; }
-.lbl { font-size: 22rpx; color: #77827D; width: 110rpx; flex-shrink: 0; }
-.inp { flex: 1; height: 64rpx; font-size: 26rpx; background: transparent; }
-.scan-input { display: flex; align-items: center; flex: 1; }
-.scan-mini { width: 56rpx; height: 56rpx; margin-left: 8rpx; border-radius: 10rpx; background: #008577; color: #fff; font-size: 28rpx; line-height: 56rpx; padding: 0; }
-.cmd-actions { display: flex; flex-direction: column; margin-left: 12rpx; }
 .btn { font-size: 24rpx; border-radius: 12rpx; padding: 0 18rpx; height: 64rpx; line-height: 64rpx; background: #EEF3F1; color: #1f2622; }
-.btn.primary { background: #008577; color: #fff; }
-.btn.danger { background: #FBEAE9; color: #D9534F; }
-.btn[disabled] { opacity: 0.5; }
 
-.fr-bar { margin-top: 12rpx; display: flex; align-items: center; flex-wrap: wrap; }
-.fr-btn { background: #E6F4F1; color: #008577; height: 60rpx; line-height: 60rpx; }
-.cloud-btn { background: #E8F0FE; color: #2F5597; height: 60rpx; line-height: 60rpx; }
-.fr-hint { font-size: 20rpx; color: #77827D; margin-left: 12rpx; }
-
-.section-line { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
-.h2 { font-size: 28rpx; font-weight: 700; padding-left: 12rpx; border-left: 6rpx solid #008577; }
 .hint { font-size: 20rpx; color: #77827D; }
 .chip { font-size: 20rpx; color: #008577; background: #E6F4F1; padding: 2rpx 12rpx; border-radius: 999rpx; }
 .chip.active { background: #008577; color: #fff; }
-
-.bucket-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10rpx; }
-.bucket-tail { margin-top: 12rpx; }
-.bucket { display: flex; flex-direction: column; }
-.blbl { font-size: 20rpx; color: #77827D; margin-bottom: 4rpx; }
-.binp { height: 60rpx; border: 1rpx solid #E3E8E5; border-radius: 10rpx; font-size: 26rpx; text-align: center; background: #fff; }
-.binp[disabled] { background: #F2F4F3; color: #bbb; }
-
-.data-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12rpx; }
-.data-cell { background: #F7F9F8; border-radius: 12rpx; padding: 10rpx; min-height: 88rpx; display: flex; flex-direction: column; justify-content: center; }
-.dlbl { font-size: 20rpx; color: #77827D; }
-.dinp { margin-top: 4rpx; font-size: 26rpx; background: transparent; height: 40rpx; }
-.dval { margin-top: 4rpx; font-size: 28rpx; font-weight: 700; color: #008577; }
-.picker { margin-top: 4rpx; font-size: 24rpx; background: #fff; border: 1rpx solid #E3E8E5; border-radius: 8rpx; padding: 6rpx 10rpx; }
-.sync-line { font-size: 20rpx; color: #77827D; margin: 12rpx 0; }
-.seg-row { display: flex; align-items: center; gap: 12rpx; margin: 6rpx 0 12rpx; }
-.seg { flex: 1; display: flex; background: #F2F4F3; border-radius: 12rpx; padding: 4rpx; gap: 4rpx; }
-.seg-item { flex: 1; text-align: center; font-size: 24rpx; color: #77827D; padding: 14rpx 0; border-radius: 10rpx; }
-.seg-item.active { background: #008577; color: #fff; font-weight: 700; }
-.btn-row { display: flex; gap: 12rpx; }
-.btn-row .btn { flex: 1; }
-
-.material-addons { display: flex; gap: 12rpx; margin-bottom: 10rpx; }
-.material-table { border: 1rpx solid #E3E8E5; border-radius: 12rpx; overflow: hidden; }
-.material-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; align-items: center; padding: 8rpx 10rpx; border-bottom: 1rpx solid #F0F3F1; font-size: 22rpx; }
-.material-row:last-child { border-bottom: none; }
-.material-row.head { background: #F4F7F6; color: #77827D; font-size: 20rpx; }
-.mname { font-weight: 600; }
-.minp { height: 48rpx; border: 1rpx solid #E3E8E5; border-radius: 8rpx; font-size: 22rpx; text-align: center; background: #fff; margin: 0 2rpx; }
-.minp.used { background: #F2F4F3; color: #555; }
-.pad { display: block; margin-top: 10rpx; }
-
-.inline-field.pager-summary { display: flex; align-items: center; gap: 12rpx; margin-bottom: 10rpx; }
-.strong { font-weight: 700; font-size: 26rpx; }
-.pager-actions { display: flex; gap: 10rpx; }
-.pager-actions .btn { flex: 1; }
 
 .sheet-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: flex-end; z-index: 99; }
 .sheet { background: #fff; width: 100%; border-radius: 24rpx 24rpx 0 0; padding: 24rpx; max-height: 70vh; }
