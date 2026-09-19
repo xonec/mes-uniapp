@@ -35,8 +35,9 @@ export async function login(username, password) {
     if (!r || r.code !== 0) {
         throw new Error((r && r.message) || '登录失败')
     }
-    setToken(r.token)
-    const user = { uid: r.uid, nickname: r.nickname, role: r.role || [] }
+    const d = r.data || {}
+    setToken(d.token)
+    const user = { uid: d.uid, nickname: d.nickname, role: d.role || [] }
     uni.setStorageSync(USER_KEY, user)
     return user
 }
@@ -59,7 +60,10 @@ export async function checkLogin() {
             data: { action: 'checkLogin', uniIdToken: getToken() }
         })
         const r = res && res.result
-        if (r && r.code === 0) return { uid: r.uid, role: r.role || [] }
+        if (r && r.code === 0) {
+            const d = r.data || {}
+            return { uid: d.uid, role: d.role || [] }
+        }
         return null
     } catch (e) {
         return null

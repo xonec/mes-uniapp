@@ -17,6 +17,10 @@
 - `database/production_records.index.json`：updatedAt 索引（历史排序）
 - `database/production_record_versions.index.json`：batchNo+version 复合索引（版本查询）
 
+**公共模块（1 个）**
+
+- `cloudfunctions/common/mes-common/`：token 校验 / 鉴权 / 统一响应封装（3 个云函数共享）
+
 **云函数（3 个）**
 
 - `cloudfunctions/batch-buckets/`：桶件数读写（upsert / get）
@@ -41,7 +45,7 @@
 1. **配置环境变量**：3 个云函数各配 `MES_TOKEN_SECRET`（同一随机值）；如要兼容老账号，再配 `MES_LEGACY_PASSWORD_SECRET`（值 = 旧 passwordSecret）。
 2. **上传 Schema（建集合）**：右键 5 个 `.schema.json` → 「上传数据集合 Schema」。
 3. **初始化索引**：右键 2 个 `.index.json` → 「初始化云数据库索引」。
-4. **上传云函数**：右键 3 个云函数目录 → 「上传部署」→ 「全部文件」。
+4. **上传公共模块 + 云函数**：先右键 `cloudfunctions/common/mes-common` → 「上传公共模块」，再右键 3 个云函数目录 → 「上传部署」→ 「全部文件」（自动带上 mes-common 依赖）。
 5. **初始化 admin 账号**：HBuilderX 云函数测试调 `uni-auth`，参数 `{ "action": "init" }`（仅用户表为空时生效）。不传 password 时会返回随机生成的强密码 `initPassword`，请立即记录并妥善保存。
 
 ## 登录鉴权
@@ -77,4 +81,6 @@
 - 修改 Schema / 云函数后必须重新上传才生效。
 - 轮换 `MES_TOKEN_SECRET` 会导致已下发 token 失效，需重新登录。
 - 微信小程序端连支付宝云，需在小程序后台配置 request 合法域名；App 端无此限制。
-- `uni_modules/` 下的 `uni-id-common` / `uni-config-center` 已弃用（云函数自包含鉴权），可删除。
+- 云函数返回统一协议 `{ code, message, data }`（code 0 成功，data 放结果）。
+- `uni_modules/` 下的 `uni-id-common` / `uni-config-center` 已删除（云函数依赖 `common/mes-common`，自包含鉴权）。
+- 若公共模块解析失败（个别支付宝云环境），可在 HBuilderX 右键云函数 → 「管理公共模块依赖」重新勾选 `mes-common` 生成正确路径。

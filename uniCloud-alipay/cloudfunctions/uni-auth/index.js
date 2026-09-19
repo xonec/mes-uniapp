@@ -1,13 +1,13 @@
 'use strict'
 
-// 云函数：uni-auth（自包含）
+// 云函数：uni-auth
 // 用途：用户名密码登录鉴权 + 管理员建号 + token 签发/校验。
 //
 // 安全说明：
-//   - 密钥不再硬编码。tokenSecret 从环境变量 MES_TOKEN_SECRET 读取（云函数控制台配置）。
-//   - 密码存储改用 scrypt 加盐哈希（格式 scrypt$<salt>$<hash>），替代无盐 sha256。
-//   - 旧格式（无盐 sha256(password:legacySecret)）在登录时仍可验证，验证通过即透明迁移到 scrypt；
-//     迁移用 MES_LEGACY_PASSWORD_SECRET 环境变量（值 = 旧 passwordSecret），全部用户登录一轮后可删除该变量。
+//   - token 签发/校验、鉴权工具来自公共模块 mes-common；tokenSecret 从环境变量 MES_TOKEN_SECRET 读取。
+//   - 密码存储用 scrypt 加盐哈希（scrypt$<salt>$<hash>）。
+//   - 旧格式（无盐 sha256）登录时自动兼容并透明迁移，迁移用 MES_LEGACY_PASSWORD_SECRET 环境变量。
+//   - 登录防爆破：连续失败 5 次锁定 15 分钟。
 //
 // 调用：uniCloud.callFunction({ name: 'uni-auth', data: { action, ... } })
 //   action = 'init' / 'login' / 'createUser' / 'checkLogin' / 'listUsers' / 'deleteUser' / 'setUserStatus'
@@ -16,8 +16,9 @@ const crypto = require('crypto')
 const { promisify } = require('util')
 const scrypt = promisify(crypto.scrypt)
 
+const { createToken, checkToken, getTokenSecret, ok, fail } = require('mes-common')
+
 const COLL = 'uni-id-users'
-const TOKEN_TTL_MS = 7 * 24 * 3600 * 1000 // 7 天
 const LOGIN_FAIL_LIMIT = 5                 // 连续失败次数阈值
 const LOGIN_LOCK_MS = 15 * 60 * 1000       // 达到阈值后锁定 15 分钟
 
@@ -26,18 +27,6 @@ let _db = null
 function getDb() {
     if (!_db) _db = uniCloud.database()
     return _db
-}
-
-// 从环境变量读取密钥（未配置返回 error，不抛顶层异常）
-function getSecrets() {
-    const tokenSecret = process.env.MES_TOKEN_SECRET
-    if (!tokenSecret) {
-        return { error: '服务端未配置环境变量 MES_TOKEN_SECRET，请在云函数控制台配置后重试' }
-    }
-    return {
-        tokenSecret,
-        legacyPasswordSecret: process.env.MES_LEGACY_PASSWORD_SECRET || ''
-    }
 }
 
 // ---------- 密码（scrypt 加盐） ----------
@@ -69,68 +58,41 @@ async function verifyPassword(password, stored, legacySecret) {
     return { ok: false, needsMigrate: false }
 }
 
-// ---------- token ----------
-function b64urlEncode(buf) {
-    return Buffer.from(buf).toString('base64')
-        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-function b64urlDecode(str) {
-    str = String(str).replace(/-/g, '+').replace(/_/g, '/')
-    while (str.length % 4) str += '='
-    return Buffer.from(str, 'base64')
-}
-
-// 签发 token：payload.signature（payload 为 base64url(JSON)，signature 为 HMAC-SHA256(payload)）
-function createToken(payloadObj, tokenSecret) {
-    const iat = Date.now()
-    const exp = iat + TOKEN_TTL_MS
-    const payload = Object.assign({ iat, exp, client: 'mes' }, payloadObj)
-    const payloadStr = b64urlEncode(Buffer.from(JSON.stringify(payload)))
-    const sig = b64urlEncode(crypto.createHmac('sha256', tokenSecret).update(payloadStr).digest())
-    return { token: payloadStr + '.' + sig, tokenExpired: exp }
-}
-
-// 校验 token：返回 payload（成功）或 { errCode, message }
-function checkToken(token, tokenSecret) {
-    if (!token || typeof token !== 'string') return { errCode: 'TOKEN_INVALID', message: '未登录' }
-    const parts = String(token).split('.')
-    if (parts.length !== 2) return { errCode: 'TOKEN_INVALID', message: 'token 格式错误' }
-    const [payloadStr, sig] = parts
-    const expected = b64urlEncode(crypto.createHmac('sha256', tokenSecret).update(payloadStr).digest())
-    if (sig !== expected) return { errCode: 'TOKEN_INVALID', message: '签名校验失败' }
-    let payload
-    try {
-        payload = JSON.parse(b64urlDecode(payloadStr).toString('utf8'))
-    } catch (e) {
-        return { errCode: 'TOKEN_INVALID', message: 'token 解析失败' }
-    }
-    const now = Date.now()
-    if (payload.exp && now > payload.exp) return { errCode: 'TOKEN_EXPIRED', message: '登录已过期' }
-    return payload
-}
-
 // 生成随机初始密码（hex，安全随机）
 function randomPassword(len) {
     return crypto.randomBytes(Math.ceil(len / 2)).toString('hex').slice(0, len)
+}
+
+// 管理员鉴权：验 token + 查用户表验证 status 与 admin 角色（禁用/降级即时生效）
+async function requireAdmin(db, token, tokenSecret) {
+    const payload = checkToken(token, tokenSecret)
+    if (payload.errCode) return { errCode: 401, message: '未登录或登录失效' }
+    if (!payload.uid) return { errCode: 401, message: 'token 缺少 uid' }
+    const res = await db.collection(COLL).doc(payload.uid).get()
+    const u = (res && res.data && res.data[0]) || null
+    if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
+    if ((u.role || []).indexOf('admin') < 0) return { errCode: 403, message: '无权限' }
+    return { errCode: 0, uid: u._id }
 }
 
 exports.main = async (event) => {
     event = event || {}
     const action = event.action
     try {
-        const secrets = getSecrets()
-        if (secrets.error) return { code: 500, message: secrets.error }
+        const tokenSecret = getTokenSecret()
+        if (!tokenSecret) return fail(500, '服务端未配置环境变量 MES_TOKEN_SECRET')
+        const legacyPasswordSecret = process.env.MES_LEGACY_PASSWORD_SECRET || ''
         const db = getDb()
 
         // 首次初始化：用户表为空时创建 admin
         if (action === 'init') {
             const countRes = await db.collection(COLL).count()
-            if (countRes.total > 0) return { code: 1, message: '已初始化，勿重复执行' }
+            if (countRes.total > 0) return fail(1, '已初始化，勿重复执行')
             const username = String(event.username || 'admin').trim()
             let password = String(event.password || '').trim()
             const generated = !password
             if (generated) password = randomPassword(12)
-            if (password.length < 8) return { code: 400, message: '初始密码至少 8 位' }
+            if (password.length < 8) return fail(400, '初始密码至少 8 位')
             await db.collection(COLL).add({
                 username,
                 password: await makePassword(password),
@@ -139,33 +101,27 @@ exports.main = async (event) => {
                 status: 1,
                 register_date: Date.now()
             })
-            return {
-                code: 0,
-                message: '初始化成功，账号：' + username,
-                initPassword: generated ? password : undefined
-            }
+            return ok(generated ? { username, initPassword: password } : { username })
         }
 
-        // 登录（含防爆破：连续失败 LOGIN_FAIL_LIMIT 次锁定）
+        // 登录（含防爆破）
         if (action === 'login') {
             const username = String(event.username || '').trim()
             const password = String(event.password || '')
-            if (!username || !password) return { code: 400, message: '请输入账号和密码' }
+            if (!username || !password) return fail(400, '请输入账号和密码')
             const res = await db.collection(COLL).where({ username }).get()
             const user = res.data && res.data[0]
-            if (!user) return { code: 401, message: '账号不存在' }
-            if (user.status !== 1) return { code: 403, message: '账号已禁用' }
+            if (!user) return fail(401, '账号不存在')
+            if (user.status !== 1) return fail(403, '账号已禁用')
 
-            // 锁定检查
             const lockUntil = Number(user.lockUntil) || 0
             if (lockUntil && Date.now() < lockUntil) {
                 const mins = Math.ceil((lockUntil - Date.now()) / 60000)
-                return { code: 423, message: '登录失败次数过多，请 ' + mins + ' 分钟后再试' }
+                return fail(423, '登录失败次数过多，请 ' + mins + ' 分钟后再试')
             }
 
-            const v = await verifyPassword(password, user.password, secrets.legacyPasswordSecret)
+            const v = await verifyPassword(password, user.password, legacyPasswordSecret)
             if (!v.ok) {
-                // 失败计数与锁定
                 const failCount = (Number(user.loginFailCount) || 0) + 1
                 const upd = { loginFailCount: failCount }
                 if (failCount >= LOGIN_FAIL_LIMIT) {
@@ -174,39 +130,36 @@ exports.main = async (event) => {
                 }
                 try { await db.collection(COLL).doc(user._id).update(upd) } catch (e) {}
                 const remain = Math.max(0, LOGIN_FAIL_LIMIT - failCount)
-                return { code: 401, message: '密码错误' + (remain > 0 ? '（剩余 ' + remain + ' 次机会）' : '') }
+                return fail(401, '密码错误' + (remain > 0 ? '（剩余 ' + remain + ' 次机会）' : ''))
             }
 
-            // 登录成功：重置失败计数 + 旧格式密码透明迁移到 scrypt
+            // 登录成功：重置失败计数 + 旧格式密码透明迁移
             const resetUpd = { loginFailCount: 0, lockUntil: 0 }
             if (v.needsMigrate) {
                 try { resetUpd.password = await makePassword(password) } catch (e) {}
             }
             try { await db.collection(COLL).doc(user._id).update(resetUpd) } catch (e) {}
 
-            const t = createToken({ uid: user._id, role: user.role }, secrets.tokenSecret)
-            return {
-                code: 0,
+            const t = createToken({ uid: user._id, role: user.role }, tokenSecret)
+            return ok({
                 token: t.token,
                 tokenExpired: t.tokenExpired,
                 uid: user._id,
                 nickname: user.nickname || user.username,
                 role: user.role || []
-            }
+            })
         }
 
-        // 建号（需 admin 登录）
+        // 建号（需 admin）
         if (action === 'createUser') {
-            const payload = checkToken(event.uniIdToken, secrets.tokenSecret)
-            if (payload.errCode) return { code: 401, message: '未登录或登录失效' }
-            const roles = payload.role || []
-            if (roles.indexOf('admin') < 0) return { code: 403, message: '无权限建号' }
+            const auth = await requireAdmin(db, event.uniIdToken, tokenSecret)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
             const username = String(event.username || '').trim()
             const password = String(event.password || '')
-            if (!username || !password) return { code: 400, message: '请输入账号和密码' }
-            if (password.length < 6) return { code: 400, message: '密码至少 6 位' }
+            if (!username || !password) return fail(400, '请输入账号和密码')
+            if (password.length < 6) return fail(400, '密码至少 6 位')
             const exist = await db.collection(COLL).where({ username }).get()
-            if (exist.data && exist.data.length) return { code: 409, message: '账号已存在' }
+            if (exist.data && exist.data.length) return fail(409, '账号已存在')
             await db.collection(COLL).add({
                 username,
                 password: await makePassword(password),
@@ -215,25 +168,24 @@ exports.main = async (event) => {
                 status: 1,
                 register_date: Date.now()
             })
-            return { code: 0, message: '创建成功' }
+            return ok()
         }
 
-        // 校验登录状态（吊销：查用户表验证账号有效，返回数据库最新角色）
+        // 校验登录状态（吊销：查用户表，返回数据库最新角色）
         if (action === 'checkLogin') {
-            const payload = checkToken(event.uniIdToken, secrets.tokenSecret)
-            if (payload.errCode) return { code: 401, message: '未登录或登录失效' }
-            if (!payload.uid) return { code: 401, message: 'token 缺少 uid' }
+            const payload = checkToken(event.uniIdToken, tokenSecret)
+            if (payload.errCode) return fail(401, '未登录或登录失效')
+            if (!payload.uid) return fail(401, 'token 缺少 uid')
             const res = await db.collection(COLL).doc(payload.uid).get()
             const u = (res && res.data && res.data[0]) || null
-            if (!u || u.status !== 1) return { code: 401, message: '账号已失效，请重新登录' }
-            return { code: 0, uid: u._id, role: u.role || [] }
+            if (!u || u.status !== 1) return fail(401, '账号已失效，请重新登录')
+            return ok({ uid: u._id, role: u.role || [] })
         }
 
         // 用户列表（需 admin）
         if (action === 'listUsers') {
-            const payload = checkToken(event.uniIdToken, secrets.tokenSecret)
-            if (payload.errCode) return { code: 401, message: '未登录或登录失效' }
-            if ((payload.role || []).indexOf('admin') < 0) return { code: 403, message: '无权限' }
+            const auth = await requireAdmin(db, event.uniIdToken, tokenSecret)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
             const res = await db.collection(COLL).orderBy('register_date', 'asc').limit(200).get()
             const list = (res.data || []).map(u => ({
                 _id: u._id,
@@ -243,43 +195,41 @@ exports.main = async (event) => {
                 status: u.status,
                 register_date: u.register_date || null
             }))
-            return { code: 0, list }
+            return ok({ list })
         }
 
         // 删除用户（需 admin，不能删自己）
         if (action === 'deleteUser') {
-            const payload = checkToken(event.uniIdToken, secrets.tokenSecret)
-            if (payload.errCode) return { code: 401, message: '未登录或登录失效' }
-            if ((payload.role || []).indexOf('admin') < 0) return { code: 403, message: '无权限' }
+            const auth = await requireAdmin(db, event.uniIdToken, tokenSecret)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
             const username = String(event.username || '').trim()
-            if (!username) return { code: 400, message: '缺少 username' }
+            if (!username) return fail(400, '缺少 username')
             const exist = await db.collection(COLL).where({ username }).get()
             const u = exist.data && exist.data[0]
-            if (!u) return { code: 404, message: '账号不存在' }
-            if (u._id === payload.uid) return { code: 400, message: '不能删除自己' }
+            if (!u) return fail(404, '账号不存在')
+            if (u._id === auth.uid) return fail(400, '不能删除自己')
             await db.collection(COLL).doc(u._id).remove()
-            return { code: 0, message: '已删除' }
+            return ok()
         }
 
         // 启用/禁用用户（需 admin，不能禁用自己）
         if (action === 'setUserStatus') {
-            const payload = checkToken(event.uniIdToken, secrets.tokenSecret)
-            if (payload.errCode) return { code: 401, message: '未登录或登录失效' }
-            if ((payload.role || []).indexOf('admin') < 0) return { code: 403, message: '无权限' }
+            const auth = await requireAdmin(db, event.uniIdToken, tokenSecret)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
             const username = String(event.username || '').trim()
-            if (!username) return { code: 400, message: '缺少 username' }
+            if (!username) return fail(400, '缺少 username')
             const status = (event.status === 0 || event.status === '0') ? 0 : 1
             const exist = await db.collection(COLL).where({ username }).get()
             const u = exist.data && exist.data[0]
-            if (!u) return { code: 404, message: '账号不存在' }
-            if (u._id === payload.uid && status === 0) return { code: 400, message: '不能禁用自己' }
+            if (!u) return fail(404, '账号不存在')
+            if (u._id === auth.uid && status === 0) return fail(400, '不能禁用自己')
             await db.collection(COLL).doc(u._id).update({ status })
-            return { code: 0, message: status === 1 ? '已启用' : '已禁用' }
+            return ok()
         }
 
-        return { code: 400, message: '未知 action: ' + action }
+        return fail(400, '未知 action: ' + action)
     } catch (e) {
         console.error('[uni-auth] 运行异常:', e && (e.stack || e.message || e))
-        return { code: 500, message: '内部错误: ' + (e && (e.message || e.errMsg) || JSON.stringify(e)) }
+        return fail(500, '内部错误: ' + (e && (e.message || e.errMsg) || JSON.stringify(e)))
     }
 }

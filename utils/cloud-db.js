@@ -13,21 +13,24 @@ import { getToken } from './auth.js'
 const FN = 'batch-buckets'
 const BUCKET_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
 
-// 统一调用云函数：自动附带 uniIdToken，处理登录失效
+// 统一调用云函数：自动附带 uniIdToken，解析 {code, message, data}，返回 data
 async function callFn(action, payload = {}) {
     const res = await uniCloud.callFunction({
         name: FN,
         data: Object.assign({ action, uniIdToken: getToken() }, payload)
     })
     const r = res && res.result
-    if (r && r.code === 401) {
+    if (!r || typeof r.code === 'undefined') {
+        throw new Error('云端返回异常')
+    }
+    if (r.code === 401) {
         uni.reLaunch({ url: '/pages/login/login' })
         throw new Error(r.message || '登录失效，请重新登录')
     }
-    if (r && r.code && r.code !== 0) {
+    if (r.code !== 0) {
         throw new Error(r.message || '云端操作失败')
     }
-    return r
+    return r.data
 }
 
 // 按批号取每桶件数，返回 {A:n, ..., J:n}
@@ -42,14 +45,10 @@ export async function fetchBatchBucketsFromCloud(batchNo) {
 
 // 写入/更新某批号分桶数据（幂等：同批号始终写同一 _id）
 export async function upsertBatchBuckets(batchNo, buckets, meta = {}) {
-    const r = await callFn('upsert', {
+    return callFn('upsert', {
         batchNo: String(batchNo),
         buckets,
         sourceFetchedAt: meta.sourceFetchedAt || null,
         checksum: meta.checksum || null
     })
-    if (!r || r.ok !== true) {
-        throw new Error((r && r.message) || '云端写入失败')
-    }
-    return r
 }

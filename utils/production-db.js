@@ -9,28 +9,29 @@ import { getToken } from './auth.js'
 
 const FN = 'production-records'
 
-// 统一调用云函数：自动附带 uniIdToken，处理登录失效
+// 统一调用云函数：自动附带 uniIdToken，解析 {code, message, data}，返回 data
 async function callFn(action, payload = {}) {
     const res = await uniCloud.callFunction({
         name: FN,
         data: Object.assign({ action, uniIdToken: getToken() }, payload)
     })
     const r = res && res.result
-    if (r && r.code === 401) {
+    if (!r || typeof r.code === 'undefined') {
+        throw new Error('云端返回异常')
+    }
+    if (r.code === 401) {
         uni.reLaunch({ url: '/pages/login/login' })
         throw new Error(r.message || '登录失效，请重新登录')
     }
-    if (r && r.code && r.code !== 0) {
+    if (r.code !== 0) {
         throw new Error(r.message || '云端操作失败')
     }
-    return r
+    return r.data
 }
 
 // 保存/更新生产记录（幂等：同批号始终写同一 _id）
 export async function saveProductionRecord(record) {
-    const r = await callFn('upsert', { record })
-    if (!r || r.ok !== true) throw new Error((r && r.message) || '云端保存失败')
-    return r
+    return callFn('upsert', { record })
 }
 
 // 读单批号生产记录，无记录返回 null
@@ -52,16 +53,12 @@ export async function listRecordVersions(batchNo, limit = 50) {
 
 // 一键回滚：把某批号回滚到指定历史版本
 export async function rollbackProductionRecord(batchNo, version) {
-    const r = await callFn('rollback', { batchNo: String(batchNo), version: Number(version) })
-    if (!r || r.ok !== true) throw new Error((r && r.message) || '回滚失败')
-    return r
+    return callFn('rollback', { batchNo: String(batchNo), version: Number(version) })
 }
 
 // 保存草稿（按 deviceId 设备隔离，其他设备不可见）
 export async function saveDraftRecord(deviceId, record) {
-    const r = await callFn('saveDraft', { deviceId, record })
-    if (!r || r.ok !== true) throw new Error((r && r.message) || '草稿保存失败')
-    return r
+    return callFn('saveDraft', { deviceId, record })
 }
 
 // 读本设备草稿，返回草稿 record 或 null

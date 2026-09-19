@@ -1,15 +1,14 @@
 'use strict'
 
-// 云函数：batch-buckets（自包含）
+// 云函数：batch-buckets
 // 用途：batch_buckets 集合的受控读写入口（读写均走云函数并鉴权，客户端不直连数据库）。
 //   action = 'upsert'：幂等写入/更新某批号分桶件数（固定 _id = batch:<批号>）
 //   action = 'get'   ：读取某批号分桶件数（需登录）
-// 密钥从环境变量 MES_TOKEN_SECRET 读取，不再硬编码到源码。
+// 依赖公共模块 mes-common（token 校验 / 鉴权 / 响应封装）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
-const crypto = require('crypto')
+const { checkAuth, ok, fail } = require('mes-common')
 
 const COLL = 'batch_buckets'
-const USER_COLL = 'uni-id-users'
 const BUCKET_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
 
 // 延迟初始化数据库：避免顶层 uniCloud.database() 在支付宝云模块加载阶段崩溃（无法被 try/catch 捕获）
@@ -17,47 +16,6 @@ let db = null
 function getDb() {
     if (!db) db = uniCloud.database()
     return db
-}
-
-// ---------- token 校验（与 uni-auth 同算法，密钥从环境变量读取） ----------
-function b64urlDecode(str) {
-    str = String(str).replace(/-/g, '+').replace(/_/g, '/')
-    while (str.length % 4) str += '='
-    return Buffer.from(str, 'base64')
-}
-function checkToken(token, tokenSecret) {
-    if (!token || typeof token !== 'string') return { errCode: 'TOKEN_INVALID', message: '未登录' }
-    const parts = String(token).split('.')
-    if (parts.length !== 2) return { errCode: 'TOKEN_INVALID', message: 'token 格式错误' }
-    const [payloadStr, sig] = parts
-    const expectedSig = Buffer.from(crypto.createHmac('sha256', tokenSecret).update(payloadStr).digest())
-        .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-    if (sig !== expectedSig) return { errCode: 'TOKEN_INVALID', message: '签名校验失败' }
-    let payload
-    try {
-        payload = JSON.parse(b64urlDecode(payloadStr).toString('utf8'))
-    } catch (e) {
-        return { errCode: 'TOKEN_INVALID', message: 'token 解析失败' }
-    }
-    const now = Date.now()
-    if (payload.exp && now > payload.exp) return { errCode: 'TOKEN_EXPIRED', message: '登录已过期' }
-    return payload
-}
-
-// 鉴权：校验登录态 + 查用户表验证账号有效（禁用/删除后 token 立即失效），返回 { errCode, uid }
-async function checkAuth(token, tokenSecret) {
-    if (!token) return { errCode: 401, message: '未登录' }
-    const payload = checkToken(token, tokenSecret)
-    if (payload.errCode) return { errCode: 401, message: '登录失效，请重新登录' }
-    if (!payload.uid) return { errCode: 401, message: 'token 缺少 uid' }
-    try {
-        const res = await db.collection(USER_COLL).doc(payload.uid).get()
-        const u = (res && res.data && res.data[0]) || null
-        if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
-    } catch (e) {
-        console.warn('[checkAuth] 查用户状态失败：', e && e.message)
-    }
-    return { errCode: 0, uid: payload.uid }
 }
 
 function docId(batchNo) {
@@ -116,12 +74,10 @@ exports.main = async (event) => {
     const action = event.action
     try {
         db = getDb()
-        const tokenSecret = process.env.MES_TOKEN_SECRET
-        if (!tokenSecret) return { code: 500, message: '服务端未配置环境变量 MES_TOKEN_SECRET' }
 
         if (action === 'upsert') {
-            const auth = await checkAuth(event.uniIdToken, tokenSecret)
-            if (auth.errCode) return { code: 401, message: auth.message }
+            const auth = await checkAuth(db, event.uniIdToken)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
             const batchNo = normalizeBatchNo(event.batchNo)
             const buckets = normalizeBuckets(event.buckets)
             const id = docId(batchNo)
@@ -134,12 +90,12 @@ exports.main = async (event) => {
                 savedBy: auth.uid
             }
             await upsertDoc(id, data)
-            return { ok: true, _id: id, batchNo, buckets }
+            return ok({ _id: id, batchNo, buckets })
         }
 
         if (action === 'get') {
-            const auth = await checkAuth(event.uniIdToken, tokenSecret)
-            if (auth.errCode) return { code: 401, message: auth.message }
+            const auth = await checkAuth(db, event.uniIdToken)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
             const batchNo = normalizeBatchNo(event.batchNo)
             let res = await db.collection(COLL).doc(docId(batchNo)).get()
             let rows = (res && res.data) || []
@@ -148,12 +104,12 @@ exports.main = async (event) => {
                 const r2 = await db.collection(COLL).where({ batchNo }).get()
                 rows = (r2 && r2.data) || []
             }
-            return rows.length ? rows[0] : null
+            return ok(rows.length ? rows[0] : null)
         }
 
-        throw new Error('未知 action: ' + action)
+        return fail(400, '未知 action: ' + action)
     } catch (e) {
         console.error('[batch-buckets] 运行异常:', e && (e.stack || e.message || e))
-        throw e
+        return fail(500, '内部错误: ' + (e && (e.message || e.errMsg) || JSON.stringify(e)))
     }
 }

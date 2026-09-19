@@ -99,14 +99,14 @@ export default {
                 data: Object.assign({ action, uniIdToken: getToken() }, data)
             })
             const r = res && res.result
-            if (!r) throw new Error('云函数无返回')
+            if (!r || typeof r.code === 'undefined') throw new Error('云函数无返回')
             if (r.code === 401) {
                 logout()
                 uni.reLaunch({ url: '/pages/login/login' })
                 throw new Error('登录失效，请重新登录')
             }
             if (r.code !== 0) throw new Error(r.message || '操作失败')
-            return r
+            return r.data
         },
         async loadUsers() {
             this.loading = true

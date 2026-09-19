@@ -3,5 +3,7 @@
     "version": "1.0.0",
     "description": "batch_buckets 集合受控读写云函数（写收口到云端，客户端只读，登录鉴权）",
     "main": "index.js",
-    "dependencies": {}
+    "dependencies": {
+        "mes-common": "file:../common/mes-common"
+    }
 }

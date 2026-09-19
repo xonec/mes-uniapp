@@ -3,5 +3,7 @@
     "version": "1.0.0",
     "description": "uni-id 登录鉴权云函数（用户名密码 + 管理员建号 + token 校验）",
     "main": "index.js",
-    "dependencies": {}
+    "dependencies": {
+        "mes-common": "file:../common/mes-common"
+    }
 }
