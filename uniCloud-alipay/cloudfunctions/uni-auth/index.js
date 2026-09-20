@@ -63,6 +63,17 @@ function randomPassword(len) {
     return crypto.randomBytes(Math.ceil(len / 2)).toString('hex').slice(0, len)
 }
 
+// 归一化角色：只接受 'user' / 'admin'，非法值一律降级为 ['user']。
+// 调用方（createUser）已通过 requireAdmin 鉴权，故此处允许授予 admin。
+function normalizeRole(input) {
+    let arr = []
+    if (Array.isArray(input)) arr = input
+    else if (typeof input === 'string' && input) arr = [input]
+    const out = arr.filter(r => r === 'user' || r === 'admin')
+    if (!out.length) out.push('user')
+    return Array.from(new Set(out))
+}
+
 // 管理员鉴权：验 token + 查用户表验证 status 与 admin 角色（禁用/降级即时生效）
 async function requireAdmin(db, token, tokenSecret) {
     const payload = checkToken(token, tokenSecret)
@@ -150,25 +161,27 @@ exports.main = async (event) => {
             })
         }
 
-        // 建号（需 admin）
+        // 建号（需 admin）。role 由调用方指定，仅接受 user / admin，缺省 user。
         if (action === 'createUser') {
             const auth = await requireAdmin(db, event.uniIdToken, tokenSecret)
             if (auth.errCode) return fail(auth.errCode, auth.message)
             const username = String(event.username || '').trim()
             const password = String(event.password || '')
             if (!username || !password) return fail(400, '请输入账号和密码')
+            if (!/^\S{2,32}$/.test(username)) return fail(400, '账号须为 2-32 位且不含空格')
             if (password.length < 6) return fail(400, '密码至少 6 位')
+            const role = normalizeRole(event.role)
             const exist = await db.collection(COLL).where({ username }).get()
             if (exist.data && exist.data.length) return fail(409, '账号已存在')
             await db.collection(COLL).add({
                 username,
                 password: await makePassword(password),
                 nickname: event.nickname || username,
-                role: ['user'],
+                role,
                 status: 1,
                 register_date: Date.now()
             })
-            return ok()
+            return ok({ username, role })
         }
 
         // 校验登录状态（吊销：查用户表，返回数据库最新角色）
