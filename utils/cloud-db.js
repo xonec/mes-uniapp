@@ -8,30 +8,13 @@
 // 无独立同步桥：由「连公司 WiFi 的手机」手动从帆软获取后，在 fetchFromFr 里调用
 // upsertBatchBuckets 写入云端；小程序再通过 fetchBatchBucketsFromCloud 读取。
 
-import { getToken } from './auth.js'
+import { callCloud } from './cloud-call.js'
 
 const FN = 'batch-buckets'
 const BUCKET_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
 
-// 统一调用云函数：自动附带 uniIdToken，解析 {code, message, data}，返回 data
-async function callFn(action, payload = {}) {
-    const res = await uniCloud.callFunction({
-        name: FN,
-        data: Object.assign({ action, uniIdToken: getToken() }, payload)
-    })
-    const r = res && res.result
-    if (!r || typeof r.code === 'undefined') {
-        throw new Error('云端返回异常')
-    }
-    if (r.code === 401) {
-        uni.reLaunch({ url: '/pages/login/login' })
-        throw new Error(r.message || '登录失效，请重新登录')
-    }
-    if (r.code !== 0) {
-        throw new Error(r.message || '云端操作失败')
-    }
-    return r.data
-}
+// 本模块的调用入口（统一协议解析与 401 跳登录由 cloud-call 负责）
+const callFn = (action, payload) => callCloud(FN, action, payload)
 
 // 按批号取每桶件数，返回 {A:n, ..., J:n}
 export async function fetchBatchBucketsFromCloud(batchNo) {

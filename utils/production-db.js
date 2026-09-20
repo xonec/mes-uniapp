@@ -5,29 +5,12 @@
 // 历史版本存 production_record_versions（_id = ver:<批号>:<版本号>）。
 // 读与写都走云函数 production-records（schema 客户端权限全 false），避免未登录直读。
 
-import { getToken } from './auth.js'
+import { callCloud } from './cloud-call.js'
 
 const FN = 'production-records'
 
-// 统一调用云函数：自动附带 uniIdToken，解析 {code, message, data}，返回 data
-async function callFn(action, payload = {}) {
-    const res = await uniCloud.callFunction({
-        name: FN,
-        data: Object.assign({ action, uniIdToken: getToken() }, payload)
-    })
-    const r = res && res.result
-    if (!r || typeof r.code === 'undefined') {
-        throw new Error('云端返回异常')
-    }
-    if (r.code === 401) {
-        uni.reLaunch({ url: '/pages/login/login' })
-        throw new Error(r.message || '登录失效，请重新登录')
-    }
-    if (r.code !== 0) {
-        throw new Error(r.message || '云端操作失败')
-    }
-    return r.data
-}
+// 本模块的调用入口（统一协议解析与 401 跳登录由 cloud-call 负责）
+const callFn = (action, payload) => callCloud(FN, action, payload)
 
 // 保存/更新生产记录（幂等：同批号始终写同一 _id）
 export async function saveProductionRecord(record) {
