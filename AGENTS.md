@@ -22,6 +22,9 @@ node --experimental-detect-module tests/calc.test.mjs
 
 # 云函数公共模块单元测试
 node tests/mes-common.test.cjs
+
+# 生产记录云函数单元测试（含内存版 uniCloud mock）
+node tests/production-records.test.cjs
 ```
 
 > 云函数改动后必须在 HBuilderX 中**右键上传部署**才生效；微信小程序上线必须用【**发行**】菜单产物，不能用【运行】产物。
@@ -39,6 +42,8 @@ mes-uniapp/
 │   ├── production-db.js            # 生产记录读写封装（调 production-records 云函数）
 │   ├── cloud-db.js                 # 每桶件数云端读写（调 batch-buckets 云函数）
 │   ├── fr-fetch.js / fr-config.js  # 帆软（内网）抓取，仅 Android 走 plus.webview ★核心
+│   ├── cloud-call.js               # 云函数统一调用（带 token / 解析协议 / 401 跳登录）
+│   ├── app-version.js              # App 端版本检查（小程序/H5 被条件编译剔除）
 │   └── device.js                   # 设备 ID（草稿按「用户 + 设备」隔离）
 ├── libs/xlsx.full.min.js           # 解析帆软导出的表格
 ├── uniCloud-alipay/
@@ -46,8 +51,9 @@ mes-uniapp/
 │   │   ├── uni-auth/               # 登录鉴权、建号、改密/重置、token 签发与校验
 │   │   ├── production-records/     # 生产记录 upsert（乐观锁 + 版本归档）+ 草稿 ★核心
 │   │   ├── batch-buckets/          # 每桶件数（内网 → 云端同步桥）
-│   │   └── common/mes-common/      # 公共模块：token / 鉴权 / 响应封装 ★核心
-│   └── database/                   # 集合 schema：production_records / _versions / _drafts / batch_buckets / uni-id-users
+│   │   ├── app-version/            # App 版本检查（get 公开 / set 管理员）
+│   │   └── common/mes-common/      # 公共模块：token / 鉴权(checkAuth·checkAdmin) / 响应封装 ★核心
+│   └── database/                   # 集合 schema：production_records / _versions / _drafts / batch_buckets / uni-id-users / app_versions
 ├── tests/                          # Node 自建单元测试
 └── uni.scss                        # 全局颜色变量
 ```

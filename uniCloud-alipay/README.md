@@ -4,13 +4,14 @@
 
 ## 目录结构
 
-**集合 Schema（5 个）**
+**集合 Schema（6 个）**
 
 - `database/batch_buckets.schema.json`：桶件数（客户端不可读写，读写走云函数）
 - `database/production_records.schema.json`：生产记录最新版（客户端不可读写，走云函数）
 - `database/production_record_versions.schema.json`：生产记录历史版本（客户端不可读写）
 - `database/production_drafts.schema.json`：草稿表（客户端不可读写，走云函数按「用户 + 设备」隔离）
 - `database/uni-id-users.schema.json`：用户表（客户端不可读写，仅云函数操作）
+- `database/app_versions.schema.json`：App 版本发布信息（单文档 latest；写走云函数、读为公开接口）
 
 **索引（2 个）**
 
@@ -21,11 +22,12 @@
 
 - `cloudfunctions/common/mes-common/`：token 校验 / 鉴权 / 统一响应封装（3 个云函数共享）
 
-**云函数（3 个）**
+**云函数（4 个）**
 
 - `cloudfunctions/batch-buckets/`：桶件数读写（upsert / get）
 - `cloudfunctions/production-records/`：生产记录读写 + 版本 + 回滚 + 草稿（upsert / get / list / listVersions / rollback / saveDraft / getDraft）
 - `cloudfunctions/uni-auth/`：登录鉴权（login / createUser / checkLogin / init / listUsers / deleteUser / setUserStatus / changePassword / resetPassword）
+- `cloudfunctions/app-version/`：App 版本检查（get 公开 / set 管理员）
 
 ## 密钥与环境变量（重要）
 
@@ -43,9 +45,9 @@
 ## 部署步骤（HBuilderX）
 
 1. **配置环境变量**：3 个云函数各配 `MES_TOKEN_SECRET`（同一随机值）；如要兼容老账号，再配 `MES_LEGACY_PASSWORD_SECRET`（值 = 旧 passwordSecret）。
-2. **上传 Schema（建集合）**：右键 5 个 `.schema.json` → 「上传数据集合 Schema」。
+2. **上传 Schema（建集合）**：右键 6 个 `.schema.json` → 「上传数据集合 Schema」。
 3. **初始化索引**：右键 2 个 `.index.json` → 「初始化云数据库索引」。
-4. **上传公共模块 + 云函数**：先右键 `cloudfunctions/common/mes-common` → 「上传公共模块」，再右键 3 个云函数目录 → 「上传部署」→ 「全部文件」（自动带上 mes-common 依赖）。
+4. **上传公共模块 + 云函数**：先右键 `cloudfunctions/common/mes-common` → 「上传公共模块」，再右键 4 个云函数目录 → 「上传部署」→ 「全部文件」（自动带上 mes-common 依赖）。
 5. **初始化 admin 账号**：HBuilderX 云函数测试调 `uni-auth`，参数 `{ "action": "init" }`（仅用户表为空时生效）。不传 password 时会返回随机生成的强密码 `initPassword`，请立即记录并妥善保存。
 
 ## 登录鉴权
@@ -87,8 +89,25 @@
 
 - 支付宝云 `add` **不会自动建表**：集合必须先「上传 Schema」创建。
 - 修改 Schema / 云函数后必须重新上传才生效。
+- **改了公共模块 `mes-common` 后，必须重传所有依赖它的云函数**，否则线上跑的还是旧模块。
 - 轮换 `MES_TOKEN_SECRET` 会导致已下发 token 失效，需重新登录。
 - 微信小程序端连支付宝云，需在小程序后台配置 request 合法域名；App 端无此限制。
 - 云函数返回统一协议 `{ code, message, data }`（code 0 成功，data 放结果）。
+
+## App 版本更新（可选）
+
+- 客户端启动时调 `app-version` 的 `get`，把云端 `versionName` 与 `plus.runtime.version` 比较，有新版则弹窗并可跳转下载地址；失败静默，不影响启动。
+- 发布新版本时用管理员调 `set` 写入（也可直接在 uniCloud 控制台的 `app_versions` 集合里改 `latest` 文档）：
+  ```json
+  { "action": "set", "uniIdToken": "<管理员token>",
+    "versionName": "1.2.0", "versionCode": 120,
+    "url": "https://下载地址/app.apk", "notes": "修复…", "force": false }
+  ```
+- **每次发版记得同步递增 `manifest.json` 的 `versionName` / `versionCode`**，否则客户端认为自己已是最新。
+
+## 帆软报表地址
+
+- `utils/fr-config.js` 的 `base` 只是出厂默认值；运行时可被覆盖（管理员在「用户管理」页设置，写入本地 storage `fr_base_override`），换服务器/IP 无需重新打包。
+- 该地址仅安卓 App 的「从帆软(内网)获取」使用。
 - `uni_modules/` 下的 `uni-id-common` / `uni-config-center` 已删除（云函数依赖 `common/mes-common`，自包含鉴权）。
 - 若公共模块解析失败（个别支付宝云环境），可在 HBuilderX 右键云函数 → 「管理公共模块依赖」重新勾选 `mes-common` 生成正确路径。
