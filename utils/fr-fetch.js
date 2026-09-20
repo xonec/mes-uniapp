@@ -27,9 +27,37 @@ function buildReportUrl(batchNo) {
 // 注入到隐藏 webview 中执行的函数（会被 toString 后注入）
 function webviewFetch() {
     try {
-        var html = document.documentElement.outerHTML
-        var m = html.match(/sessionID["']?\s*[:=]\s*["']?([0-9a-fA-F-]{36})/)
-        if (!m) { plus.storage.setItem('fr_excel_flag', 'ERR:no-session'); return }
+        var href = location.href
+        var html = ''
+        try { html = document.documentElement.outerHTML || '' } catch (e) {}
+        var RE = /sessionID["']?\s*[:=]\s*["']?([0-9a-fA-F-]{36})/
+        var m = html.match(RE)
+        // 顶层文档没有 -> 遍历 iframe（帆软部分版本用 frameset 渲染）
+        if (!m) {
+            var ifr = document.getElementsByTagName('iframe')
+            for (var i = 0; i < ifr.length && !m; i++) {
+                try {
+                    var d = ifr[i].contentDocument
+                    if (d && d.documentElement) m = (d.documentElement.outerHTML || '').match(RE)
+                } catch (e) {}
+            }
+        }
+        // 全局变量（新版帆软常把 sessionID 放在外部 JS，不在 HTML 内联）
+        if (!m) {
+            try { if (window.sessionID && /^[0-9a-fA-F-]{36}$/.test(window.sessionID)) m = ['', window.sessionID] } catch (e) {}
+        }
+        // cookie
+        if (!m) {
+            try { var ck = (document.cookie || '').match(/sessionID=([0-9a-fA-F-]{36})/); if (ck) m = ck } catch (e) {}
+        }
+        if (!m) {
+            var low = (html || '').toLowerCase()
+            var hint = '未取到帆软会话(sessionID)'
+            if (!html || html.length < 200) hint = '帆软页面为空（可能无法访问内网）'
+            else if (low.indexOf('login') >= 0 || low.indexOf('sso') >= 0 || low.indexOf('登录') >= 0) hint = '帆软未登录（SSO 会话缺失）'
+            plus.storage.setItem('fr_excel_flag', 'ERR:' + hint + ' @' + href.slice(0, 140))
+            return
+        }
         var sid = m[1]
         var url = 'REPORTBASE?op=export&sessionID=' + sid + '&format=excel&extype=EXTYPE'
         fetch(url, { credentials: 'include' }).then(function (r) { return r.arrayBuffer() }).then(function (buf) {
@@ -127,6 +155,7 @@ const STORAGE_JSON_FLAG = 'fr_json_flag'
 function webviewFetchJson() {
     try {
         var href = location.href
+        try { plus.storage.setItem('fr_json_url', href.slice(0, 200)) } catch (e) {}
         var url = href.replace(/([?&]op=)[^&]*/, '$1fr_json')
         if (url.indexOf('op=') < 0) url += (url.indexOf('?') < 0 ? '?' : '&') + 'op=fr_json'
         fetch(url, { credentials: 'include' }).then(function (r) { return r.text() }).then(function (t) {
