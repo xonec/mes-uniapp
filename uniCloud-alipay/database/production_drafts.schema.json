@@ -1,6 +1,6 @@
 {
     "bsonType": "object",
-    "description": "生产记录草稿表：按设备隔离，_id = draft:<deviceId>:<批号>，仅本设备可读写（走云函数按 deviceId 过滤），其他设备不可见",
+    "description": "生产记录草稿表：按「用户 + 设备」隔离，_id = draft:<uid>:<deviceId>:<批号>，仅本人本设备可读写（读写均走云函数，uid 由服务端 token 解析，客户端无法伪造）",
     "required": ["deviceId", "batchNo"],
     "permission": {
         "read": false,
@@ -10,7 +10,12 @@
     },
     "properties": {
         "_id": {
-            "description": "draft:<deviceId>:<批号>"
+            "description": "draft:<uid>:<deviceId>:<批号>（uid 由服务端 token 解析，客户端不可指定）"
+        },
+        "uid": {
+            "bsonType": "string",
+            "title": "所属用户",
+            "description": "服务端从 token 解析的用户 ID，用于草稿归属隔离"
         },
         "deviceId": {
             "bsonType": "string",

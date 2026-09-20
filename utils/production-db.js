@@ -56,12 +56,12 @@ export async function rollbackProductionRecord(batchNo, version) {
     return callFn('rollback', { batchNo: String(batchNo), version: Number(version) })
 }
 
-// 保存草稿（按 deviceId 设备隔离，其他设备不可见）
+// 保存草稿（按「用户 + 设备」隔离，非本人本设备不可见）
 export async function saveDraftRecord(deviceId, record) {
     return callFn('saveDraft', { deviceId, record })
 }
 
-// 读本设备草稿，返回草稿 record 或 null
+// 读本人本设备草稿，返回草稿 record 或 null
 export async function getDraftRecord(deviceId, batchNo) {
     try {
         const r = await callFn('getDraft', { deviceId, batchNo: String(batchNo) })

@@ -9,7 +9,7 @@
 - `database/batch_buckets.schema.json`：桶件数（客户端不可读写，读写走云函数）
 - `database/production_records.schema.json`：生产记录最新版（客户端不可读写，走云函数）
 - `database/production_record_versions.schema.json`：生产记录历史版本（客户端不可读写）
-- `database/production_drafts.schema.json`：草稿表（客户端不可读写，走云函数按设备隔离）
+- `database/production_drafts.schema.json`：草稿表（客户端不可读写，走云函数按「用户 + 设备」隔离）
 - `database/uni-id-users.schema.json`：用户表（客户端不可读写，仅云函数操作）
 
 **索引（2 个）**
@@ -55,14 +55,15 @@
 - **登录防爆破**：连续密码错误 5 次锁定 15 分钟（字段 `loginFailCount` / `lockUntil`），登录成功清零。
 - 每次写入记录 `savedBy`（操作人 uid），配合版本历史可追溯「谁改的」。
 - 账号管理：`admin` 登录后进入「用户管理」页（包材页顶部「用户管理」条仅管理员可见）可**新建 / 列表 / 启用禁用 / 删除**账号，全部走 `uni-auth` 的 `createUser` / `listUsers` / `setUserStatus` / `deleteUser` 动作。
+  - 新建时可指定角色（普通用户 / 管理员），服务端仅接受 `user` / `admin`，且仅管理员能授予 `admin`。
   - 删除 / 禁用均不能作用于自己。
   - 非管理员进入「用户管理」页会自动跳回主页。
 
-## 草稿设备隔离
+## 草稿隔离（用户 + 设备）
 
-- 草稿存 `production_drafts`，`_id = draft:<deviceId>:<批号>`，按设备隔离。
-- `deviceId` 是安装时生成的本机 UUID（卸载重装会变）。
-- 点「保存」时：写共享记录 + 写本设备草稿；启动时自动从云端恢复本设备草稿。
+- 草稿存 `production_drafts`，`_id = draft:<uid>:<设备ID>:<批号>`，按「用户 + 设备」双重隔离。
+- `uid` 由服务端从 token 解析（客户端无法伪造）；`设备ID` 是安装时生成的本机标识（卸载重装会变）。
+- 点「保存」时：写共享记录 + 写本人本设备草稿；启动时自动从云端恢复本人本设备草稿。
 
 ## 版本历史
 

@@ -39,7 +39,7 @@ mes-uniapp/
 │   ├── production-db.js            # 生产记录读写封装（调 production-records 云函数）
 │   ├── cloud-db.js                 # 每桶件数云端读写（调 batch-buckets 云函数）
 │   ├── fr-fetch.js / fr-config.js  # 帆软（内网）抓取，仅 Android 走 plus.webview ★核心
-│   └── device.js                   # 设备 ID（草稿按设备隔离）
+│   └── device.js                   # 设备 ID（草稿按「用户 + 设备」隔离）
 ├── libs/xlsx.full.min.js           # 解析帆软导出的表格
 ├── uniCloud-alipay/
 │   ├── cloudfunctions/

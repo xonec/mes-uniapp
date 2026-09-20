@@ -10,6 +10,8 @@
 //   - 每批最多保留 MAX_VERSIONS 个历史版本，超出删最老。
 //   - 保存时「仅内容变化才升版本并归档」：与最新版内容相同（忽略 version/时间戳/账号等元数据）则幂等，
 //     不升版本、不归档，仅刷新 updatedAt/savedBy；返回 unchanged=true。回滚属主动变更，照常升版本。
+//   - 内容比对用「递归按键排序」的稳定序列化，避免云端键序变化导致去重失效。
+//   - 草稿 _id = draft:<uid>:<设备ID>:<批号>，uid 纳入主键以隔离用户，防跨用户读写他人草稿。
 //
 // 依赖公共模块 mes-common（鉴权 / 响应封装）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
@@ -35,6 +37,17 @@ function verId(batchNo, version) {
     return 'ver:' + String(batchNo) + ':' + version
 }
 
+// 草稿主键：draft:<uid>:<设备ID>:<批号>
+// 把 uid 纳入主键，避免任一登录用户凭一个 deviceId 读写他人草稿。
+function normalizeDeviceId(v) {
+    const s = String(v || '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64)
+    if (!s) throw new Error('设备ID非法')
+    return s
+}
+function draftId(uid, deviceId, batchNo) {
+    return 'draft:' + String(uid) + ':' + deviceId + ':' + batchNo
+}
+
 function normalizeBatchNo(v) {
     const s = String(v || '').trim().toUpperCase()
     if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(s)) {
@@ -52,14 +65,22 @@ function updatedCount(r) {
     return 0
 }
 
-// 判断记录「内容」是否变化：忽略版本/时间戳/账号等元数据，仅对比业务字段
+// 判断记录「内容」是否变化：忽略版本/时间戳/账号等元数据，仅对比业务字段。
+// 用「递归按键排序」的稳定序列化，避免云端回读后对象键序变化导致比对失效（去重静默不生效）。
 const META_KEYS = ['_id', 'version', 'updatedAt', 'savedAt', 'savedBy', 'createdAt', 'batchNo']
+function stableKey(v) {
+    if (Array.isArray(v)) return '[' + v.map(stableKey).join(',') + ']'
+    if (v && typeof v === 'object') {
+        return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stableKey(v[k])).join(',') + '}'
+    }
+    return JSON.stringify(v === undefined ? null : v)
+}
 function contentKey(rec) {
     const o = {}
     Object.keys(rec || {}).forEach(k => {
         if (META_KEYS.indexOf(k) < 0) o[k] = rec[k]
     })
-    return JSON.stringify(o)
+    return stableKey(o)
 }
 function contentEqual(a, b) {
     return contentKey(a) === contentKey(b)
@@ -221,11 +242,11 @@ exports.main = async (event) => {
         if (action === 'saveDraft') {
             const auth = await checkAuth(db, event.uniIdToken)
             if (auth.errCode) return fail(auth.errCode, auth.message)
-            const deviceId = String(event.deviceId || '').trim()
-            if (!deviceId) return fail(400, '缺少 deviceId')
+            const deviceId = normalizeDeviceId(event.deviceId)
             const record = (event.record && typeof event.record === 'object') ? event.record : {}
             const batchNo = normalizeBatchNo(record.batchNo)
-            await db.collection(DRAFT_COLL).doc('draft:' + deviceId + ':' + batchNo).set({
+            await db.collection(DRAFT_COLL).doc(draftId(auth.uid, deviceId, batchNo)).set({
+                uid: auth.uid,
                 deviceId,
                 batchNo,
                 record,
@@ -237,10 +258,9 @@ exports.main = async (event) => {
         if (action === 'getDraft') {
             const auth = await checkAuth(db, event.uniIdToken)
             if (auth.errCode) return fail(auth.errCode, auth.message)
-            const deviceId = String(event.deviceId || '').trim()
-            if (!deviceId) return fail(400, '缺少 deviceId')
+            const deviceId = normalizeDeviceId(event.deviceId)
             const batchNo = normalizeBatchNo(event.batchNo)
-            const res = await db.collection(DRAFT_COLL).doc('draft:' + deviceId + ':' + batchNo).get()
+            const res = await db.collection(DRAFT_COLL).doc(draftId(auth.uid, deviceId, batchNo)).get()
             const rows = (res && res.data) || []
             return ok(rows.length ? rows[0] : null)
         }
