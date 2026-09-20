@@ -8,6 +8,8 @@
 //   - 每次保存/回滚前，把旧版本快照归档到 production_record_versions（_id = ver:<批号>:<版本号>，追加不覆盖）。
 //   - 写入用乐观锁（按 version 条件更新）防并发丢版本，冲突自动重试。
 //   - 每批最多保留 MAX_VERSIONS 个历史版本，超出删最老。
+//   - 保存时「仅内容变化才升版本并归档」：与最新版内容相同（忽略 version/时间戳/账号等元数据）则幂等，
+//     不升版本、不归档，仅刷新 updatedAt/savedBy；返回 unchanged=true。回滚属主动变更，照常升版本。
 //
 // 依赖公共模块 mes-common（鉴权 / 响应封装）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
@@ -50,6 +52,19 @@ function updatedCount(r) {
     return 0
 }
 
+// 判断记录「内容」是否变化：忽略版本/时间戳/账号等元数据，仅对比业务字段
+const META_KEYS = ['_id', 'version', 'updatedAt', 'savedAt', 'savedBy', 'createdAt', 'batchNo']
+function contentKey(rec) {
+    const o = {}
+    Object.keys(rec || {}).forEach(k => {
+        if (META_KEYS.indexOf(k) < 0) o[k] = rec[k]
+    })
+    return JSON.stringify(o)
+}
+function contentEqual(a, b) {
+    return contentKey(a) === contentKey(b)
+}
+
 // 归档旧版本到历史表（幂等）+ 保留策略（超出 MAX_VERSIONS 删最老）
 async function archiveVersion(batchNo, doc) {
     const version = doc.version || 1
@@ -68,32 +83,44 @@ async function archiveVersion(batchNo, doc) {
     }
 }
 
-// 乐观锁写入：读旧 → 归档 → 条件覆盖（version 未变才成功），并发冲突自动重试
+// 乐观锁写入：读旧 → 内容未变则幂等（不归档/不升版本）→ 有变则归档旧版并以 +1 版本覆盖
 async function upsertLocked(batchNo, cleanRecord, authUid) {
     const id = docId(batchNo)
     for (let attempt = 0; attempt < 5; attempt++) {
         const oldRes = await db.collection(COLL).doc(id).get()
         const old = (oldRes && oldRes.data && oldRes.data[0]) || null
-        const newVersion = old ? (old.version || 0) + 1 : 1
-        if (old) await archiveVersion(batchNo, old)
 
+        // 首次保存：无旧记录，建 v1
+        if (!old) {
+            const data = Object.assign({}, cleanRecord, {
+                batchNo, version: 1, updatedAt: Date.now(), savedBy: authUid
+            })
+            try {
+                await db.collection(COLL).add(Object.assign({}, data, { _id: id }))
+                return { _id: id, batchNo, version: 1, unchanged: false }
+            } catch (e) {
+                continue
+            }
+        }
+
+        // 内容无变化：不归档、不升版本（避免历史出现重复版本），仅刷新 updatedAt/savedBy 后返回
+        if (contentEqual(old, cleanRecord)) {
+            try {
+                await db.collection(COLL).where({ _id: id, version: old.version })
+                    .update({ updatedAt: Date.now(), savedBy: authUid })
+            } catch (e) { /* 幂等刷新失败不影响结果 */ }
+            return { _id: id, batchNo, version: old.version, unchanged: true }
+        }
+
+        // 内容有变化：先归档当前最新版（按现 version），再乐观锁覆盖为 +1 版本
+        const newVersion = (old.version || 0) + 1
+        await archiveVersion(batchNo, old)
         const data = Object.assign({}, cleanRecord, {
             batchNo, version: newVersion, updatedAt: Date.now(), savedBy: authUid
         })
-
-        if (old) {
-            // 乐观锁：仅当 version 未变时覆盖，防止并发丢版本
-            const r = await db.collection(COLL).where({ _id: id, version: old.version }).update(data)
-            if (updatedCount(r)) return { _id: id, batchNo, version: newVersion }
-            continue
-        }
-        // 无旧记录：add（撞唯一键说明并发创建，重试）
-        try {
-            await db.collection(COLL).add(Object.assign({}, data, { _id: id }))
-            return { _id: id, batchNo, version: newVersion }
-        } catch (e) {
-            continue
-        }
+        const r = await db.collection(COLL).where({ _id: id, version: old.version }).update(data)
+        if (updatedCount(r)) return { _id: id, batchNo, version: newVersion, unchanged: false }
+        // 乐观锁冲突：重试
     }
     throw new Error('并发保存冲突，请重试')
 }
