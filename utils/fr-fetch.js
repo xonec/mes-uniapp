@@ -2,16 +2,22 @@
 // 原理（来自对 HAR 的解析）：
 //   1. 隐藏 webview 打开报表页（带批号参数，自动走企业 SSO）
 //   2. SSO 多重重定向稳定后（URL 3 秒不变）注入 JS
-//   3. 注入 JS 从报表页 HTML 提取 sessionID，fetch 导出接口(extype=simple) 拿到 xlsx
-//   4. xlsx 转 base64 写入 plus.storage，主线程轮询取出
-//   5. SheetJS 解析，按桶号 A-J 分组汇总每桶件数
+//   3. 注入 JS 从报表页取会话，fetch 导出/JSON 接口拿到数据
+//   4. 数据写入 plus.storage，主线程轮询取出
+//   5. 解析并按桶号 A-J 分组汇总每桶件数
+//
+// 两条取数通道共用同一套「webview → 注入 → 轮询 → 解析」脚手架（runWebviewFetch）：
+//   - JSON 模式（首选）：op=fr_json 直接拿行对象 JSON，不加载 SheetJS
+//   - xlsx 模式（回退）：op=export 导出表格，用 SheetJS 解析
 //
 // 仅 APP-PLUS (安卓) 可用；微信小程序端走不到 webview，调用会 reject。
 
-import config from './fr-config.js'
+import config, { getReportBase } from './fr-config.js'
 
 const STORAGE_B64 = 'fr_excel_b64'
 const STORAGE_FLAG = 'fr_excel_flag'
+const STORAGE_JSON = 'fr_json_text'
+const STORAGE_JSON_FLAG = 'fr_json_flag'
 
 export function isAppAndroid() {
     // #ifdef APP-PLUS
@@ -21,11 +27,13 @@ export function isAppAndroid() {
 }
 
 function buildReportUrl(batchNo) {
-    return `${config.base}?viewlet=${encodeURIComponent(config.viewlet)}&op=${config.op}&${encodeURIComponent(config.batchParam)}=${encodeURIComponent(batchNo)}`
+    return `${getReportBase()}?viewlet=${encodeURIComponent(config.viewlet)}&op=${config.op}&${encodeURIComponent(config.batchParam)}=${encodeURIComponent(batchNo)}`
 }
 
-// 注入到隐藏 webview 中执行的函数（会被 toString 后注入）
-function webviewFetch() {
+// ============ 注入到隐藏 webview 中执行的函数（会被 toString 后注入） ============
+// 其中 __BASE__ / __EXTYPE__ / __JSONOP__ 为占位符，注入前由配置替换。
+
+function webviewFetchXlsx() {
     try {
         var href = location.href
         var html = ''
@@ -59,7 +67,7 @@ function webviewFetch() {
             return
         }
         var sid = m[1]
-        var url = 'REPORTBASE?op=export&sessionID=' + sid + '&format=excel&extype=EXTYPE'
+        var url = '__BASE__?op=export&sessionID=' + sid + '&format=excel&extype=__EXTYPE__'
         fetch(url, { credentials: 'include' }).then(function (r) { return r.arrayBuffer() }).then(function (buf) {
             var bytes = new Uint8Array(buf)
             var bin = '', chunk = 0x8000
@@ -72,11 +80,48 @@ function webviewFetch() {
     } catch (e) { plus.storage.setItem('fr_excel_flag', 'ERR:' + (e && e.message || e)) }
 }
 
-function wrapInject() {
-    let src = '(' + webviewFetch.toString() + ')();'
-    src = src.replace('REPORTBASE', config.base).replace('EXTYPE', config.extype)
+// JSON 通道：复用当前报表页 URL，把 op 改成 fr_json 再 fetch
+function webviewFetchJson() {
+    try {
+        var href = location.href
+        try { plus.storage.setItem('fr_json_url', href.slice(0, 200)) } catch (e) {}
+        var url = href.replace(/([?&]op=)[^&]*/, '$1__JSONOP__')
+        if (url.indexOf('op=') < 0) url += (url.indexOf('?') < 0 ? '?' : '&') + 'op=__JSONOP__'
+        fetch(url, { credentials: 'include' }).then(function (r) { return r.text() }).then(function (t) {
+            plus.storage.setItem('fr_json_text', t)
+            plus.storage.setItem('fr_json_flag', 'DONE')
+        }).catch(function (e) { plus.storage.setItem('fr_json_flag', 'ERR:' + (e && e.message || e)) })
+    } catch (e) { plus.storage.setItem('fr_json_flag', 'ERR:' + (e && e.message || e)) }
+}
+
+// 只允许安全字符，避免注入到被求值的 JS 串里破坏语法
+function safeToken(v, fallback) {
+    const s = String(v == null ? '' : v).replace(/[^A-Za-z0-9_\-.:/]/g, '')
+    return s || fallback
+}
+
+function buildInject(injectFn, tokens) {
+    let src = '(' + injectFn.toString() + ')();'
+    Object.keys(tokens).forEach(k => {
+        src = src.split(k).join(tokens[k])
+    })
     return src
 }
+
+function buildXlsxInject() {
+    return buildInject(webviewFetchXlsx, {
+        __BASE__: safeToken(getReportBase(), ''),
+        __EXTYPE__: safeToken(config.extype, 'simple')
+    })
+}
+
+function buildJsonInject() {
+    return buildInject(webviewFetchJson, {
+        __JSONOP__: safeToken(config.jsonOp, 'fr_json')
+    })
+}
+
+// ============ 解析：xlsx / JSON 两条通道共用「列识别 + 按桶汇总」 ============
 
 function pickCol(cols, hints) {
     for (const h of hints) {
@@ -120,16 +165,9 @@ function findNumCol(rows, exclude) {
     return null
 }
 
-async function parseBuckets(b64) {
-    // 按需加载 xlsx，避免在微信 / H5 等非安卓环境执行而触发告警
-    const mod = await import('../libs/xlsx.full.min.js')
-    const XLSX = (mod && mod.default) ? mod.default : mod
-    const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
-    const wb = XLSX.read(buf, { type: 'array' })
-    const ws = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false })
+// 行对象数组 → {A:n, B:n, ..., J:n}
+function aggregateByBucket(rows) {
     if (!rows.length) throw new Error('报表无数据行')
-
     const cols = Object.keys(rows[0])
     const bucketCol = pickCol(cols, config.bucketColHint) || findBucketCol(rows)
     const qtyCol = pickCol(cols, config.qtyColHint) || findNumCol(rows, bucketCol)
@@ -139,7 +177,7 @@ async function parseBuckets(b64) {
     const result = {}
     for (let i = 0; i < 10; i++) result[String.fromCharCode(65 + i)] = 0
     rows.forEach(r => {
-        let b = String(r[bucketCol] || '').trim().toUpperCase()
+        const b = String(r[bucketCol] || '').trim().toUpperCase()
         if (!/^[A-J]$/.test(b)) return
         const q = Number(String(r[qtyCol]).replace(/[^\d.]/g, '')) || 0
         result[b] = (result[b] || 0) + q
@@ -147,26 +185,15 @@ async function parseBuckets(b64) {
     return result
 }
 
-// ---- JSON 模式：复用 SSO webview，但改为请求帆软 JSON 输出，去掉 xlsx / SheetJS ----
-const STORAGE_JSON = 'fr_json_text'
-const STORAGE_JSON_FLAG = 'fr_json_flag'
-
-// 注入隐藏 webview 执行：把当前报表页 URL 的 op 改成 JSON 输出并 fetch
-function webviewFetchJson() {
-    try {
-        var href = location.href
-        try { plus.storage.setItem('fr_json_url', href.slice(0, 200)) } catch (e) {}
-        var url = href.replace(/([?&]op=)[^&]*/, '$1fr_json')
-        if (url.indexOf('op=') < 0) url += (url.indexOf('?') < 0 ? '?' : '&') + 'op=fr_json'
-        fetch(url, { credentials: 'include' }).then(function (r) { return r.text() }).then(function (t) {
-            plus.storage.setItem('fr_json_text', t)
-            plus.storage.setItem('fr_json_flag', 'DONE')
-        }).catch(function (e) { plus.storage.setItem('fr_json_flag', 'ERR:' + (e && e.message || e)) })
-    } catch (e) { plus.storage.setItem('fr_json_flag', 'ERR:' + (e && e.message || e)) }
-}
-
-function wrapInjectJson() {
-    return '(' + webviewFetchJson.toString() + ')();'
+async function parseBuckets(b64) {
+    // 按需加载 xlsx，避免在微信 / H5 等非安卓环境执行而触发告警
+    const mod = await import('../libs/xlsx.full.min.js')
+    const XLSX = (mod && mod.default) ? mod.default : mod
+    const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+    const wb = XLSX.read(buf, { type: 'array' })
+    const ws = wb.Sheets[wb.SheetNames[0]]
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false })
+    return aggregateByBucket(rows)
 }
 
 function parseBucketsJson(text) {
@@ -178,123 +205,59 @@ function parseBucketsJson(text) {
     else if (data && Array.isArray(data.data)) rows = data.data
     else if (data && data.Result && Array.isArray(data.Result)) rows = data.Result
     else throw new Error('JSON 结构无法识别（需为行对象数组）')
-    if (!rows.length) throw new Error('报表无数据行')
-
-    const cols = Object.keys(rows[0])
-    const bucketCol = pickCol(cols, config.bucketColHint) || findBucketCol(rows)
-    const qtyCol = pickCol(cols, config.qtyColHint) || findNumCol(rows, bucketCol)
-    if (!bucketCol) throw new Error('未找到桶号列（请检查 fr-config 的 bucketColHint）')
-    if (!qtyCol) throw new Error('未找到件数列（请检查 fr-config 的 qtyColHint）')
-
-    const result = {}
-    for (let i = 0; i < 10; i++) result[String.fromCharCode(65 + i)] = 0
-    rows.forEach(r => {
-        let b = String(r[bucketCol] || '').trim().toUpperCase()
-        if (!/^[A-J]$/.test(b)) return
-        const q = Number(String(r[qtyCol]).replace(/[^\d.]/g, '')) || 0
-        result[b] = (result[b] || 0) + q
-    })
-    return result
+    return aggregateByBucket(rows)
 }
 
-function fetchBatchBucketQtysJson(batchNo) {
+// ============ 通用脚手架：隐藏 webview → 注入 → 轮询 → 解析 ============
+
+function runWebviewFetch(opts) {
+    const { url, wvid, injectSrc, storageKey, storageFlag, emptyMsg, onDone } = opts
     return new Promise((resolve, reject) => {
-        let wv, pollTimer, watchTimer, lastChange = Date.now(), injected = false, settled = false
+        let wv, pollTimer, watchTimer
+        let lastChange = Date.now(), injected = false, settled = false
+
         const cleanup = () => {
             try { wv && wv.close() } catch (e) {}
             clearInterval(pollTimer); clearInterval(watchTimer)
-            try { plus.storage.removeItem(STORAGE_JSON); plus.storage.removeItem(STORAGE_JSON_FLAG) } catch (e) {}
+            try { plus.storage.removeItem(storageKey); plus.storage.removeItem(storageFlag) } catch (e) {}
         }
         const done = (v) => { if (settled) return; settled = true; cleanup(); resolve(v) }
         const fail = (m) => { if (settled) return; settled = true; cleanup(); reject(new Error(m)) }
 
-        try { plus.storage.removeItem(STORAGE_JSON); plus.storage.removeItem(STORAGE_JSON_FLAG) } catch (e) {}
-        const url = buildReportUrl(batchNo)
-        wv = plus.webview.create(url, 'fr_json_' + Date.now(), {
+        try { plus.storage.removeItem(storageKey); plus.storage.removeItem(storageFlag) } catch (e) {}
+
+        wv = plus.webview.create(url, wvid, {
             top: '100%', left: '0px', width: '100%', height: '100%',
             popGesture: 'none', bounce: 'none', audio: 'none'
         })
         wv.addEventListener('loaded', () => { lastChange = Date.now() })
         wv.show()
 
+        // 等 SSO 重定向稳定后再注入（URL 3 秒不变）
         watchTimer = setInterval(() => {
             if (injected) return
             const u = wv.getURL ? wv.getURL() : ''
             const onReport = /view\/report/.test(u) && !/login|sso|cas|auth|oauth/i.test(u)
             if (onReport && Date.now() - lastChange > 3000) {
                 injected = true
-                try { wv.evalJS(wrapInjectJson()) } catch (e) { fail('注入脚本失败: ' + e.message) }
+                try { wv.evalJS(injectSrc) } catch (e) { fail('注入脚本失败: ' + e.message) }
             }
             if (Date.now() - lastChange > 30000) fail('报表加载超时（可能未登录 SSO，请先在系统浏览器登录）')
         }, 500)
 
+        // 轮询注入脚本写入 plus.storage 的结果
         pollTimer = setInterval(() => {
             let f
-            try { f = plus.storage.getItem(STORAGE_JSON_FLAG) } catch (e) { return }
+            try { f = plus.storage.getItem(storageFlag) } catch (e) { return }
             if (!f) return
             if (f === 'DONE') {
-                let t
-                try { t = plus.storage.getItem(STORAGE_JSON) } catch (e) {}
-                if (!t) { fail('JSON 数据为空'); return }
-                try {
-                    parseBucketsJson(t).then(done).catch(e => fail('解析失败: ' + e.message))
-                } catch (e) { fail('解析失败: ' + e.message) }
-            } else if (f.indexOf('ERR:') === 0) { fail(f.slice(4)) }
-        }, 500)
-    })
-}
-
-// 原 xlsx 方案（webview 导出 + SheetJS 解析），作为 JSON 失败时的回退
-function fetchBatchBucketQtysXlsx(batchNo) {
-    return new Promise((resolve, reject) => {
-        if (!isAppAndroid()) {
-            reject(new Error('当前环境不支持（仅安卓 App 可从帆软获取）'))
-            return
-        }
-        let wv, pollTimer, watchTimer, lastChange = Date.now(), injected = false, settled = false
-
-        const cleanup = () => {
-            try { wv && wv.close() } catch (e) {}
-            clearInterval(pollTimer); clearInterval(watchTimer)
-            try { plus.storage.removeItem(STORAGE_B64); plus.storage.removeItem(STORAGE_FLAG) } catch (e) {}
-        }
-        const done = (val) => { if (settled) return; settled = true; cleanup(); resolve(val) }
-        const fail = (msg) => { if (settled) return; settled = true; cleanup(); reject(new Error(msg)) }
-
-        try { plus.storage.removeItem(STORAGE_B64); plus.storage.removeItem(STORAGE_FLAG) } catch (e) {}
-
-        const url = buildReportUrl(batchNo)
-        wv = plus.webview.create(url, 'fr_fetch_' + Date.now(), {
-            top: '100%', left: '0px', width: '100%', height: '100%',
-            popGesture: 'none', bounce: 'none', audio: 'none'
-        })
-        wv.addEventListener('loaded', () => { lastChange = Date.now() })
-        wv.show()
-
-        // 监听 SSO 重定向稳定
-        watchTimer = setInterval(() => {
-            if (injected) return
-            const u = wv.getURL ? wv.getURL() : ''
-            const onReport = /view\/report/.test(u) && !/login|sso|cas|auth|oauth/i.test(u)
-            if (onReport && Date.now() - lastChange > 3000) {
-                injected = true
-                try { wv.evalJS(wrapInject()) } catch (e) { fail('注入脚本失败: ' + e.message) }
-            }
-            if (Date.now() - lastChange > 30000) fail('报表加载超时（可能未登录 SSO，请先在系统浏览器登录）')
-        }, 500)
-
-        // 轮询导出结果
-        pollTimer = setInterval(() => {
-            let f
-            try { f = plus.storage.getItem(STORAGE_FLAG) } catch (e) { return }
-            if (!f) return
-            if (f === 'DONE') {
-                let b64
-                try { b64 = plus.storage.getItem(STORAGE_B64) } catch (e) {}
-                if (!b64) { fail('导出数据为空'); return }
-                try {
-                    parseBuckets(b64).then(done).catch(e => fail('解析失败: ' + e.message))
-                } catch (e) { fail('解析失败: ' + e.message) }
+                let raw
+                try { raw = plus.storage.getItem(storageKey) } catch (e) {}
+                if (!raw) { fail(emptyMsg || '数据为空'); return }
+                Promise.resolve()
+                    .then(() => onDone(raw))
+                    .then(done)
+                    .catch(e => fail('解析失败: ' + (e && e.message || e)))
             } else if (f.indexOf('ERR:') === 0) {
                 fail(f.slice(4))
             }
@@ -302,8 +265,38 @@ function fetchBatchBucketQtysXlsx(batchNo) {
     })
 }
 
+function fetchBatchBucketQtysXlsx(batchNo) {
+    if (!isAppAndroid()) {
+        return Promise.reject(new Error('当前环境不支持（仅安卓 App 可从帆软获取）'))
+    }
+    return runWebviewFetch({
+        url: buildReportUrl(batchNo),
+        wvid: 'fr_xlsx_' + Date.now(),
+        injectSrc: buildXlsxInject(),
+        storageKey: STORAGE_B64,
+        storageFlag: STORAGE_FLAG,
+        emptyMsg: '导出数据为空',
+        onDone: parseBuckets
+    })
+}
+
+function fetchBatchBucketQtysJson(batchNo) {
+    if (!isAppAndroid()) {
+        return Promise.reject(new Error('当前环境不支持（仅安卓 App 可从帆软获取）'))
+    }
+    return runWebviewFetch({
+        url: buildReportUrl(batchNo),
+        wvid: 'fr_json_' + Date.now(),
+        injectSrc: buildJsonInject(),
+        storageKey: STORAGE_JSON,
+        storageFlag: STORAGE_JSON_FLAG,
+        emptyMsg: 'JSON 数据为空',
+        onDone: parseBucketsJson
+    })
+}
+
 // 主入口：返回 {A:n, B:n, ...} 每桶件数
-// jsonMode 开启时优先走 JSON（去掉 SheetJS / xlsx），失败自动回退 xlsx
+// jsonMode 开启时优先走 JSON（不加载 SheetJS），失败自动回退 xlsx
 export function fetchBatchBucketQtys(batchNo) {
     if (!isAppAndroid()) {
         return Promise.reject(new Error('当前环境不支持（仅安卓 App 可从帆软获取）'))

@@ -36,6 +36,21 @@
             <text class="err" v-if="formMsg">{{ formMsg }}</text>
         </view>
 
+        <!-- 帆软报表地址（仅安卓 App 的「从帆软(内网)获取」使用） -->
+        <view class="card">
+            <view class="card-title">帆软报表地址</view>
+            <view class="field">
+                <text class="lbl">地址</text>
+                <input class="inp" v-model="frBase" type="text" placeholder="http://内网IP:端口/webroot/decision/view/report" />
+            </view>
+            <view class="fr-actions">
+                <button class="btn" @tap="saveFrBase">保存</button>
+                <button class="btn" @tap="resetFrBase">恢复默认</button>
+            </view>
+            <text class="err" v-if="frMsg">{{ frMsg }}</text>
+            <view class="tip">仅安卓 App 的「从帆软获取」使用；改服务器/IP 时在此设置，无需重新打包。</view>
+        </view>
+
         <!-- 用户列表 -->
         <view class="card">
             <view class="card-title">账号列表<text class="count">{{ users.length }}</text></view>
@@ -61,7 +76,9 @@
 </template>
 
 <script>
-import { getToken, getUser, logout, checkLogin, resetPassword } from '@/utils/auth.js'
+import { getUser, logout, checkLogin, resetPassword } from '@/utils/auth.js'
+import { callCloud } from '@/utils/cloud-call.js'
+import { getReportBase, setReportBase } from '@/utils/fr-config.js'
 
 export default {
     data() {
@@ -71,7 +88,9 @@ export default {
             creating: false,
             formMsg: '',
             users: [],
-            loading: false
+            loading: false,
+            frBase: '',
+            frMsg: ''
         }
     },
     async onShow() {
@@ -86,6 +105,7 @@ export default {
         u.role = info.role || []
         uni.setStorageSync('mes_user', u)
         this.me = u
+        this.frBase = getReportBase()
         this.loadUsers()
     },
     methods: {
@@ -95,20 +115,9 @@ export default {
         roleClass(role) {
             return (role || []).indexOf('admin') >= 0 ? 'admin' : 'user'
         },
-        async callAuth(action, data) {
-            const res = await uniCloud.callFunction({
-                name: 'uni-auth',
-                data: Object.assign({ action, uniIdToken: getToken() }, data)
-            })
-            const r = res && res.result
-            if (!r || typeof r.code === 'undefined') throw new Error('云函数无返回')
-            if (r.code === 401) {
-                logout()
-                uni.reLaunch({ url: '/pages/login/login' })
-                throw new Error('登录失效，请重新登录')
-            }
-            if (r.code !== 0) throw new Error(r.message || '操作失败')
-            return r.data
+        // 统一走 cloud-call：自动带 token、解析协议、401 跳登录
+        callAuth(action, data) {
+            return callCloud('uni-auth', action, data)
         },
         async loadUsers() {
             this.loading = true
@@ -202,6 +211,20 @@ export default {
         goChangePassword() {
             uni.navigateTo({ url: '/pages/change-password/change-password' })
         },
+        saveFrBase() {
+            try {
+                this.frBase = setReportBase(this.frBase)
+                this.frMsg = '已保存'
+                uni.showToast({ title: '已保存', icon: 'success' })
+            } catch (e) {
+                this.frMsg = e.message || '保存失败'
+            }
+        },
+        resetFrBase() {
+            this.frBase = setReportBase('')
+            this.frMsg = '已恢复默认'
+            uni.showToast({ title: '已恢复默认', icon: 'none' })
+        },
         doLogout() {
             logout()
             uni.reLaunch({ url: '/pages/login/login' })
@@ -234,6 +257,9 @@ export default {
 .btn.primary { background: #008577; color: #fff; font-weight: 700; }
 .btn[disabled] { opacity: 0.5; }
 .err { display: block; margin-top: 12rpx; font-size: 24rpx; color: #D9534F; }
+.fr-actions { display: flex; gap: 12rpx; }
+.fr-actions .btn { flex: 1; }
+.tip { margin-top: 12rpx; font-size: 22rpx; color: #77827D; line-height: 1.5; }
 
 .empty { text-align: center; color: #bbb; padding: 40rpx; font-size: 26rpx; }
 
