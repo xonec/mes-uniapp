@@ -5,6 +5,30 @@ export default {
         // #ifdef APP-PLUS
         plus.screen.lockOrientation('portrait-primary')
         // #endif
+
+        // #ifdef MP-WEIXIN
+        this.checkUpdate()
+        // #endif
+    },
+    methods: {
+        checkUpdate() {
+            const um = uni.getUpdateManager()
+            um.onCheckForUpdate((res) => {
+                // res.hasUpdate 仅表示后台发现新版本，不触发下载提示
+                console.log('[update] hasUpdate =', res.hasUpdate)
+            })
+            um.onUpdateReady(() => {
+                uni.showModal({
+                    title: '发现新版本',
+                    content: '已为您下载好新版本，重启后生效',
+                    confirmText: '立即重启',
+                    success: (r) => { if (r.confirm) um.applyUpdate() }
+                })
+            })
+            um.onUpdateFailed(() => {
+                uni.showToast({ title: '新版本下载失败，请检查网络', icon: 'none' })
+            })
+        }
     },
     globalData: {}
 }
