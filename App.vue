@@ -1,9 +1,12 @@
 <script>
+import { checkAppUpdate } from '@/utils/app-version.js'
+
 export default {
     onLaunch() {
         // 锁定竖屏
         // #ifdef APP-PLUS
         plus.screen.lockOrientation('portrait-primary')
+        checkAppUpdate() // App 端版本检查（失败静默，不影响启动）
         // #endif
 
         // #ifdef MP-WEIXIN

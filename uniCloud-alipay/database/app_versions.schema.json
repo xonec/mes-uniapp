@@ -1,0 +1,51 @@
+{
+    "bsonType": "object",
+    "description": "App 版本发布信息：单文档，_id 固定为 latest。写走云函数 app-version（仅管理员），客户端不可直连。",
+    "required": ["versionName", "url"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "固定为 latest"
+        },
+        "versionName": {
+            "bsonType": "string",
+            "title": "版本名",
+            "description": "形如 1.1.0，客户端用它与自己版本比较"
+        },
+        "versionCode": {
+            "bsonType": "number",
+            "title": "版本号",
+            "description": "内部递增版本号（与 manifest 的 versionCode 对应）"
+        },
+        "url": {
+            "bsonType": "string",
+            "title": "下载地址",
+            "description": "apk 下载页或直链，http(s)"
+        },
+        "notes": {
+            "bsonType": "string",
+            "title": "更新说明",
+            "description": "展示给用户的更新内容（建议短）"
+        },
+        "force": {
+            "bsonType": "bool",
+            "title": "是否强制更新",
+            "description": "true 时提示文案改为强制更新"
+        },
+        "publishedAt": {
+            "bsonType": "number",
+            "title": "发布时间",
+            "description": "毫秒时间戳"
+        },
+        "publishedBy": {
+            "bsonType": "string",
+            "title": "发布人",
+            "description": "写入的管理员 uid"
+        }
+    }
+}

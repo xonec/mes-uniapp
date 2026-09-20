@@ -79,6 +79,23 @@ async function checkAuth(db, token) {
     return { errCode: 0, uid: payload.uid }
 }
 
+// ---------- 管理员鉴权：验 token + 查用户表校验 status / pwdVersion / admin 角色 ----------
+// 与 checkAuth 的区别：这里查库失败按「拒绝」处理（fail-closed），因为管理类操作不能因抖动放开。
+async function checkAdmin(db, token) {
+    const auth = await checkAuth(db, token)
+    if (auth.errCode) return auth
+    try {
+        const res = await db.collection(USER_COLL).doc(auth.uid).get()
+        const u = (res && res.data && res.data[0]) || null
+        if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
+        if ((u.role || []).indexOf('admin') < 0) return { errCode: 403, message: '无权限' }
+    } catch (e) {
+        console.warn('[checkAdmin] 校验权限失败：', e && e.message)
+        return { errCode: 500, message: '校验权限失败，请重试' }
+    }
+    return { errCode: 0, uid: auth.uid }
+}
+
 // ---------- 统一响应封装：{ code, message, data } ----------
 function ok(data) {
     return { code: 0, message: 'ok', data }
@@ -88,6 +105,6 @@ function fail(code, message) {
 }
 
 module.exports = {
-    getTokenSecret, createToken, checkToken, checkAuth, ok, fail,
+    getTokenSecret, createToken, checkToken, checkAuth, checkAdmin, ok, fail,
     b64urlEncode, b64urlDecode, TOKEN_TTL_MS, USER_COLL
 }

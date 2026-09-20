@@ -18,7 +18,7 @@ const crypto = require('crypto')
 const { promisify } = require('util')
 const scrypt = promisify(crypto.scrypt)
 
-const { createToken, checkToken, getTokenSecret, ok, fail } = require('mes-common')
+const { createToken, checkToken, checkAdmin, getTokenSecret, ok, fail } = require('mes-common')
 
 const COLL = 'uni-id-users'
 const LOGIN_FAIL_LIMIT = 5                 // 连续失败次数阈值
@@ -81,17 +81,9 @@ function normalizeRole(input) {
     return Array.from(new Set(out))
 }
 
-// 管理员鉴权：验 token + 查用户表验证 status 与 admin 角色（禁用/降级即时生效）
-async function requireAdmin(db, token, tokenSecret) {
-    const payload = checkToken(token, tokenSecret)
-    if (payload.errCode) return { errCode: 401, message: '未登录或登录失效' }
-    if (!payload.uid) return { errCode: 401, message: 'token 缺少 uid' }
-    const res = await db.collection(COLL).doc(payload.uid).get()
-    const u = (res && res.data && res.data[0]) || null
-    if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
-    if (!pwdVersionOk(u, payload)) return { errCode: 401, message: '密码已变更，请重新登录' }
-    if ((u.role || []).indexOf('admin') < 0) return { errCode: 403, message: '无权限' }
-    return { errCode: 0, uid: u._id }
+// 管理员鉴权：统一委托 mes-common.checkAdmin（token + status + pwdVersion + admin 角色，fail-closed）
+async function requireAdmin(db, token) {
+    return checkAdmin(db, token)
 }
 
 exports.main = async (event) => {
