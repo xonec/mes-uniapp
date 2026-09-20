@@ -43,7 +43,7 @@ mes-uniapp/
 ├── libs/xlsx.full.min.js           # 解析帆软导出的表格
 ├── uniCloud-alipay/
 │   ├── cloudfunctions/
-│   │   ├── uni-auth/               # 登录鉴权、建号、token 签发与校验
+│   │   ├── uni-auth/               # 登录鉴权、建号、改密/重置、token 签发与校验
 │   │   ├── production-records/     # 生产记录 upsert（乐观锁 + 版本归档）+ 草稿 ★核心
 │   │   ├── batch-buckets/          # 每桶件数（内网 → 云端同步桥）
 │   │   └── common/mes-common/      # 公共模块：token / 鉴权 / 响应封装 ★核心

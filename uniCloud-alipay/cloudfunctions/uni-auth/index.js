@@ -11,6 +11,8 @@
 //
 // 调用：uniCloud.callFunction({ name: 'uni-auth', data: { action, ... } })
 //   action = 'init' / 'login' / 'createUser' / 'checkLogin' / 'listUsers' / 'deleteUser' / 'setUserStatus'
+//          / 'changePassword'(本人改密) / 'resetPassword'(管理员重置他人)
+//   token 载荷含 pv(pwdVersion)；改密/重置后 pwdVersion+1，旧 token 立即失效（需重新登录）。
 
 const crypto = require('crypto')
 const { promisify } = require('util')
@@ -21,6 +23,11 @@ const { createToken, checkToken, getTokenSecret, ok, fail } = require('mes-commo
 const COLL = 'uni-id-users'
 const LOGIN_FAIL_LIMIT = 5                 // 连续失败次数阈值
 const LOGIN_LOCK_MS = 15 * 60 * 1000       // 达到阈值后锁定 15 分钟
+
+// token 中的密码版本是否与用户当前一致（改密后旧 token 立即失效）
+function pwdVersionOk(user, payload) {
+    return Number(user && user.pwdVersion || 1) === Number(payload && payload.pv || 1)
+}
 
 // 延迟初始化数据库：避免在模块顶层调用 uniCloud.database() 导致支付宝云在模块加载阶段直接崩溃
 let _db = null
@@ -82,6 +89,7 @@ async function requireAdmin(db, token, tokenSecret) {
     const res = await db.collection(COLL).doc(payload.uid).get()
     const u = (res && res.data && res.data[0]) || null
     if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
+    if (!pwdVersionOk(u, payload)) return { errCode: 401, message: '密码已变更，请重新登录' }
     if ((u.role || []).indexOf('admin') < 0) return { errCode: 403, message: '无权限' }
     return { errCode: 0, uid: u._id }
 }
@@ -110,6 +118,7 @@ exports.main = async (event) => {
                 nickname: event.nickname || '管理员',
                 role: ['admin'],
                 status: 1,
+                pwdVersion: 1,
                 register_date: Date.now()
             })
             return ok(generated ? { username, initPassword: password } : { username })
@@ -151,7 +160,7 @@ exports.main = async (event) => {
             }
             try { await db.collection(COLL).doc(user._id).update(resetUpd) } catch (e) {}
 
-            const t = createToken({ uid: user._id, role: user.role }, tokenSecret)
+            const t = createToken({ uid: user._id, role: user.role, pv: Number(user.pwdVersion || 1) }, tokenSecret)
             return ok({
                 token: t.token,
                 tokenExpired: t.tokenExpired,
@@ -179,9 +188,67 @@ exports.main = async (event) => {
                 nickname: event.nickname || username,
                 role,
                 status: 1,
+                pwdVersion: 1,
                 register_date: Date.now()
             })
             return ok({ username, role })
+        }
+
+        // 本人修改密码（需登录 + 校验原密码）；成功后返回新 token，其它设备旧 token 失效。
+        if (action === 'changePassword') {
+            const payload = checkToken(event.uniIdToken, tokenSecret)
+            if (payload.errCode) return fail(401, '未登录或登录失效')
+            if (!payload.uid) return fail(401, 'token 缺少 uid')
+            const oldPassword = String(event.oldPassword || '')
+            const newPassword = String(event.newPassword || '')
+            if (!oldPassword || !newPassword) return fail(400, '请输入原密码与新密码')
+            if (newPassword.length < 6) return fail(400, '新密码至少 6 位')
+            if (newPassword === oldPassword) return fail(400, '新密码不能与原密码相同')
+
+            const res = await db.collection(COLL).doc(payload.uid).get()
+            const u = (res && res.data && res.data[0]) || null
+            if (!u || u.status !== 1) return fail(401, '账号已失效，请重新登录')
+            if (!pwdVersionOk(u, payload)) return fail(401, '密码已变更，请重新登录')
+
+            const v = await verifyPassword(oldPassword, u.password, legacyPasswordSecret)
+            if (!v.ok) return fail(401, '原密码错误')
+
+            const pwdVersion = Number(u.pwdVersion || 1) + 1
+            await db.collection(COLL).doc(u._id).update({
+                password: await makePassword(newPassword),
+                pwdVersion,
+                loginFailCount: 0,
+                lockUntil: 0
+            })
+            const t = createToken({ uid: u._id, role: u.role || [], pv: pwdVersion }, tokenSecret)
+            return ok({
+                token: t.token,
+                tokenExpired: t.tokenExpired,
+                uid: u._id,
+                nickname: u.nickname || u.username,
+                role: u.role || []
+            })
+        }
+
+        // 管理员重置他人密码（需 admin；自己请用 changePassword）
+        if (action === 'resetPassword') {
+            const auth = await requireAdmin(db, event.uniIdToken, tokenSecret)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
+            const username = String(event.username || '').trim()
+            const newPassword = String(event.newPassword || '')
+            if (!username || !newPassword) return fail(400, '缺少账号或新密码')
+            if (newPassword.length < 6) return fail(400, '新密码至少 6 位')
+            const exist = await db.collection(COLL).where({ username }).get()
+            const u = exist.data && exist.data[0]
+            if (!u) return fail(404, '账号不存在')
+            if (u._id === auth.uid) return fail(400, '请用「修改我的密码」修改自己的密码')
+            await db.collection(COLL).doc(u._id).update({
+                password: await makePassword(newPassword),
+                pwdVersion: Number(u.pwdVersion || 1) + 1,
+                loginFailCount: 0,
+                lockUntil: 0
+            })
+            return ok({ username })
         }
 
         // 校验登录状态（吊销：查用户表，返回数据库最新角色）
@@ -192,6 +259,7 @@ exports.main = async (event) => {
             const res = await db.collection(COLL).doc(payload.uid).get()
             const u = (res && res.data && res.data[0]) || null
             if (!u || u.status !== 1) return fail(401, '账号已失效，请重新登录')
+            if (!pwdVersionOk(u, payload)) return fail(401, '密码已变更，请重新登录')
             return ok({ uid: u._id, role: u.role || [] })
         }
 

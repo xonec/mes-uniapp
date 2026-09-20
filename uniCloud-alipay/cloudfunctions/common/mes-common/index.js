@@ -68,6 +68,10 @@ async function checkAuth(db, token) {
         const res = await db.collection(USER_COLL).doc(payload.uid).get()
         const u = (res && res.data && res.data[0]) || null
         if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
+        // 改密后，签发时间早于改密的旧 token 立即失效（pwdVersion 不匹配）
+        if (Number(u.pwdVersion || 1) !== Number(payload.pv || 1)) {
+            return { errCode: 401, message: '密码已变更，请重新登录' }
+        }
     } catch (e) {
         // 查用户状态失败（瞬时故障）暂按放行，避免用户表抖动导致全站写失败
         console.warn('[checkAuth] 查用户状态失败：', e && e.message)

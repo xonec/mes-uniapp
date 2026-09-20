@@ -69,3 +69,33 @@ export async function checkLogin() {
         return null
     }
 }
+
+// 修改本人密码。成功后云端 pwdVersion+1（其它设备旧 token 失效），本机用返回的新 token 续期。
+export async function changePassword(oldPassword, newPassword) {
+    if (typeof uniCloud === 'undefined' || !uniCloud.callFunction) {
+        throw new Error('uniCloud 未初始化')
+    }
+    const res = await uniCloud.callFunction({
+        name: 'uni-auth',
+        data: { action: 'changePassword', uniIdToken: getToken(), oldPassword, newPassword }
+    })
+    const r = res && res.result
+    if (!r || r.code !== 0) throw new Error((r && r.message) || '修改密码失败')
+    const d = r.data || {}
+    if (d.token) setToken(d.token)
+    return d
+}
+
+// 管理员重置他人密码。成功后目标账号旧 token 失效，需用新密码重新登录。
+export async function resetPassword(username, newPassword) {
+    if (typeof uniCloud === 'undefined' || !uniCloud.callFunction) {
+        throw new Error('uniCloud 未初始化')
+    }
+    const res = await uniCloud.callFunction({
+        name: 'uni-auth',
+        data: { action: 'resetPassword', uniIdToken: getToken(), username, newPassword }
+    })
+    const r = res && res.result
+    if (!r || r.code !== 0) throw new Error((r && r.message) || '重置密码失败')
+    return r.data
+}

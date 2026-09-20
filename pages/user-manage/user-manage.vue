@@ -5,6 +5,7 @@
             <text class="tb-title">用户管理</text>
             <view class="tb-right">
                 <text class="tb-me">{{ me.nickname || me.username }}</text>
+                <text class="tb-pwd" @tap="goChangePassword">改密码</text>
                 <text class="tb-logout" @tap="doLogout">退出</text>
             </view>
         </view>
@@ -51,6 +52,7 @@
                 </view>
                 <view class="u-actions">
                     <text class="act" @tap="toggleStatus(u)">{{ u.status === 1 ? '禁用' : '启用' }}</text>
+                    <text class="act" @tap="resetPwd(u)">重置密码</text>
                     <text class="act danger" @tap="removeUser(u)">删除</text>
                 </view>
             </view>
@@ -59,7 +61,7 @@
 </template>
 
 <script>
-import { getToken, getUser, logout, checkLogin } from '@/utils/auth.js'
+import { getToken, getUser, logout, checkLogin, resetPassword } from '@/utils/auth.js'
 
 export default {
     data() {
@@ -175,6 +177,31 @@ export default {
                 }
             })
         },
+        resetPwd(u) {
+            uni.showModal({
+                title: '重置密码',
+                content: `为 @${u.username} 设置新密码（至少 6 位）`,
+                editable: true,
+                placeholderText: '请输入新密码',
+                success: async (res) => {
+                    if (!res.confirm) return
+                    const pwd = String(res.content || '').trim()
+                    if (pwd.length < 6) {
+                        uni.showToast({ title: '新密码至少 6 位', icon: 'none' })
+                        return
+                    }
+                    try {
+                        await resetPassword(u.username, pwd)
+                        uni.showToast({ title: '已重置，请告知其用新密码登录', icon: 'none' })
+                    } catch (e) {
+                        uni.showToast({ title: e.message || '重置失败', icon: 'none' })
+                    }
+                }
+            })
+        },
+        goChangePassword() {
+            uni.navigateTo({ url: '/pages/change-password/change-password' })
+        },
         doLogout() {
             logout()
             uni.reLaunch({ url: '/pages/login/login' })
@@ -189,6 +216,7 @@ export default {
 .tb-title { font-size: 34rpx; font-weight: 700; color: #1f2622; }
 .tb-right { display: flex; align-items: center; gap: 16rpx; }
 .tb-me { font-size: 24rpx; color: #77827D; }
+.tb-pwd { font-size: 24rpx; color: #008577; padding: 6rpx 16rpx; background: #E6F4F1; border-radius: 999rpx; }
 .tb-logout { font-size: 24rpx; color: #D9534F; padding: 6rpx 16rpx; background: #FBEAE9; border-radius: 999rpx; }
 
 .card { background: #fff; border-radius: 16rpx; padding: 22rpx; margin-bottom: 16rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }

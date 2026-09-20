@@ -19,6 +19,12 @@
             "style": {
                 "navigationBarTitleText": "用户管理"
             }
+        },
+        {
+            "path": "pages/change-password/change-password",
+            "style": {
+                "navigationBarTitleText": "修改密码"
+            }
         }
     ],
     "globalStyle": {

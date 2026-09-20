@@ -57,6 +57,10 @@
             </view>
         </view>
 
+        <view class="pwd-entry" @tap="goChangePassword">
+            <text>修改密码</text>
+        </view>
+
         <view style="height: 40rpx"></view>
 
         <!-- 历史弹层 -->
@@ -773,6 +777,9 @@ export default {
         },
         goUserManage() {
             uni.navigateTo({ url: '/pages/user-manage/user-manage' })
+        },
+        goChangePassword() {
+            uni.navigateTo({ url: '/pages/change-password/change-password' })
         }
     }
 }
@@ -796,6 +803,7 @@ export default {
 .card-body { padding: 18rpx; }
 .card.dragging { box-shadow: 0 10rpx 30rpx rgba(0,133,119,0.28); opacity: 0.92; transform: scale(1.01); }
 .drag-overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 200; }
+.pwd-entry { margin-top: 18rpx; text-align: center; font-size: 24rpx; color: #008577; padding: 16rpx 0; }
 
 .btn { font-size: 24rpx; border-radius: 12rpx; padding: 0 18rpx; height: 64rpx; line-height: 64rpx; background: #EEF3F1; color: #1f2622; }
 

@@ -25,7 +25,7 @@
 
 - `cloudfunctions/batch-buckets/`：桶件数读写（upsert / get）
 - `cloudfunctions/production-records/`：生产记录读写 + 版本 + 回滚 + 草稿（upsert / get / list / listVersions / rollback / saveDraft / getDraft）
-- `cloudfunctions/uni-auth/`：登录鉴权（login / createUser / checkLogin / init / listUsers / deleteUser / setUserStatus）
+- `cloudfunctions/uni-auth/`：登录鉴权（login / createUser / checkLogin / init / listUsers / deleteUser / setUserStatus / changePassword / resetPassword）
 
 ## 密钥与环境变量（重要）
 
@@ -58,6 +58,13 @@
   - 新建时可指定角色（普通用户 / 管理员），服务端仅接受 `user` / `admin`，且仅管理员能授予 `admin`。
   - 删除 / 禁用均不能作用于自己。
   - 非管理员进入「用户管理」页会自动跳回主页。
+
+## 密码修改与失效
+
+- **本人改密**：主页底部「修改密码」入口 → `changePassword`（校验原密码，至少 6 位）。
+- **管理员重置**：用户管理页每行「重置密码」→ `resetPassword`（不能重置自己）。
+- 用户表有 `pwdVersion`（初始 1），token 载荷含 `pv`；改密/重置时 `pwdVersion+1`，**旧 token 立即失效**（其它设备/被重置者需重新登录）。本人改密后本机自动续期新 token。
+- 兼容性：本次改动前签发的旧 token 无 `pv`，按 `pv=1` 处理，与 `pwdVersion` 缺省值一致，故不会立刻掉线。
 
 ## 草稿隔离（用户 + 设备）
 

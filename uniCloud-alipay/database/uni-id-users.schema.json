@@ -46,6 +46,12 @@
             "title": "锁定截止时间",
             "description": "毫秒时间戳，0 表示未锁定"
         },
+        "pwdVersion": {
+            "bsonType": "int",
+            "title": "密码版本",
+            "description": "每次改密/重置 +1；token 载荷含 pv，与之一致才有效，用于让旧 token 立即失效",
+            "defaultValue": 1
+        },
         "register_date": {
             "bsonType": "number",
             "title": "注册时间",
