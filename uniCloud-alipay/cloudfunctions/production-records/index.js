@@ -56,12 +56,19 @@ function normalizeBatchNo(v) {
     return s
 }
 
-// 归一化 update() 返回的实际更新条数（不同 SDK 版本字段名不同）
+// 归一化 update() 返回的实际更新条数（不同云厂商 / SDK 版本字段名不同，逐个兼容）
 function updatedCount(r) {
     if (!r) return 0
-    if (typeof r.updated === 'number') return r.updated
-    if (r.result && typeof r.result.updated === 'number') return r.result.updated
-    if (r.result && typeof r.result.affectedDocs === 'number') return r.result.affectedDocs
+    const cands = [
+        r.updated, r.affectedDocs,
+        r.result && r.result.updated, r.result && r.result.affectedDocs,
+        r.res && r.res.updated, r.res && r.res.affectedDocs,
+        r.stats && r.stats.updated,
+        r.data && r.data.updated, r.data && r.data.affectedDocs
+    ]
+    for (const v of cands) {
+        if (typeof v === 'number' && v > 0) return v
+    }
     return 0
 }
 
@@ -84,6 +91,22 @@ function contentKey(rec) {
 }
 function contentEqual(a, b) {
     return contentKey(a) === contentKey(b)
+}
+
+// 条件更新是否真的写入成功？
+// 先用 SDK 计数（updatedCount）；若返回形状无法识别，则回读主表复核：
+//   版本号等于本次要写的版本 且 内容与本次提交一致 → 视为成功。
+// 这样既不会把「成功」误报为「并发冲突」，也不会把「被并发覆盖」误判为成功。
+async function updateApplied(id, newVersion, expectedRecord, r) {
+    if (updatedCount(r)) return true
+    try {
+        const res = await db.collection(COLL).doc(id).get()
+        const cur = (res && res.data && res.data[0]) || null
+        if (!cur) return false
+        return Number(cur.version) === Number(newVersion) && contentEqual(cur, expectedRecord)
+    } catch (e) {
+        return false
+    }
 }
 
 // 归档旧版本到历史表（幂等）+ 保留策略（超出 MAX_VERSIONS 删最老）
@@ -140,7 +163,9 @@ async function upsertLocked(batchNo, cleanRecord, authUid) {
             batchNo, version: newVersion, updatedAt: Date.now(), savedBy: authUid
         })
         const r = await db.collection(COLL).where({ _id: id, version: old.version }).update(data)
-        if (updatedCount(r)) return { _id: id, batchNo, version: newVersion, unchanged: false }
+        if (await updateApplied(id, newVersion, cleanRecord, r)) {
+            return { _id: id, batchNo, version: newVersion, unchanged: false }
+        }
         // 乐观锁冲突：重试
     }
     throw new Error('并发保存冲突，请重试')
@@ -226,7 +251,9 @@ exports.main = async (event) => {
 
                 if (cur) {
                     const r = await db.collection(COLL).where({ _id: id, version: cur.version }).update(data)
-                    if (updatedCount(r)) return ok({ _id: id, batchNo, version: newVersion })
+                    if (await updateApplied(id, newVersion, snapshot, r)) {
+                        return ok({ _id: id, batchNo, version: newVersion })
+                    }
                     continue
                 }
                 try {

@@ -40,6 +40,22 @@ function normalizeBuckets(v) {
     return out
 }
 
+// 归一化 update() 返回的实际更新条数（不同云厂商 / SDK 版本字段名不同，逐个兼容）
+function updatedCount(r) {
+    if (!r) return 0
+    const cands = [
+        r.updated, r.affectedDocs,
+        r.result && r.result.updated, r.result && r.result.affectedDocs,
+        r.res && r.res.updated, r.res && r.res.affectedDocs,
+        r.stats && r.stats.updated,
+        r.data && r.data.updated, r.data && r.data.affectedDocs
+    ]
+    for (const v of cands) {
+        if (typeof v === 'number' && v > 0) return v
+    }
+    return 0
+}
+
 async function upsertDoc(id, data) {
     const coll = db.collection(COLL)
     // 首选 set：upsert 覆盖写，天然幂等
@@ -51,8 +67,7 @@ async function upsertDoc(id, data) {
     // 回退一：update，命中则完成
     let updated = 0
     try {
-        const r = await coll.doc(id).update(data)
-        updated = (r && (r.updated || (r.result && (r.result.updated || r.result.affectedDocs)))) || 0
+        updated = updatedCount(await coll.doc(id).update(data))
     } catch (e) { updated = 0 }
     if (updated) return
 
