@@ -40,6 +40,7 @@
             "minified" : true
         },
         "usingComponents" : true,
+        "lazyCodeLoading" : "requiredComponents",
         "permission" : {}
     },
     "h5" : {

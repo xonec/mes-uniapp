@@ -8,23 +8,23 @@ MES 生产助手（`mes-uniapp`）——面向生产线现场的**包材计算�
 - **微信小程序**（`MP-WEIXIN`）：扫码即用，支持分享
 - **H5**：备用
 
-技术栈：**uni-app（Vue）** 前端 + **uniCloud（支付宝云）** 云函数与云数据库。工程由 HBuilderX 直接编译发行，**没有 npm 依赖层**。
+技术栈：**uni-app（Vue）** 前端 + **uniCloud（支付宝云）** 云函数与云数据库。工程由 HBuilderX 直接编译发行，**不依赖任何 npm 包**（根目录 `package.json` 仅提供 `npm test` 脚本，无需 install）。
 
 核心业务：录入批号 → 计算每桶件数 / 包材用量 / 托数 → 保存生产记录并多端共享，带版本历史与乐观锁。
 
 ## 常用命令
 
-本工程没有 `package.json`，运行 / 发行 / 上传云函数全部通过 HBuilderX 图形界面，无 CLI 命令。仅单元测试可用 Node 直接运行：
+运行 / 发行 / 上传云函数全部通过 HBuilderX 图形界面，无 CLI 命令。单元测试统一用 `npm test`（根目录 `package.json` 只提供脚本，**不依赖任何 npm 包**，无需 install）：
 
 ```bash
-# 包材计算引擎单元测试
-node --experimental-detect-module tests/calc.test.mjs
-
-# 云函数公共模块单元测试
-node tests/mes-common.test.cjs
-
-# 生产记录云函数单元测试（含内存版 uniCloud mock）
-node tests/production-records.test.cjs
+npm test              # 全部：calc + mixins + bom + mes-common + product-bom + production-records
+npm run test:calc     # 只跑包材计算引擎
+npm run test:mixins   # 只跑 mixins（card-layout / history）
+npm run test:bom      # 只跑 BOM 计算（.mjs）
+npm run test:bomdb    # 只跑产品 BOM 云函数（.cjs）
+npm run test:pmat     # 只跑产品物料清单档案云函数（.cjs）
+npm run test:common   # 只跑云函数公共模块
+npm run test:records  # 只跑生产记录云函数（含内存版 uniCloud mock）
 ```
 
 > 云函数改动后必须在 HBuilderX 中**右键上传部署**才生效；微信小程序上线必须用【**发行**】菜单产物，不能用【运行】产物。

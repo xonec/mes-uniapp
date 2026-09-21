@@ -1,0 +1,19 @@
+{
+    "name": "mes-uniapp",
+    "version": "1.1.0",
+    "private": true,
+    "description": "MES 生产助手（uni-app + uniCloud 支付宝云）：包材计算、生产记录、版本追溯",
+    "scripts": {
+        "test": "node --experimental-detect-module tests/calc.test.mjs && node --experimental-detect-module tests/mixins.test.mjs && node --experimental-detect-module tests/bom.test.mjs && node tests/mes-common.test.cjs && node tests/product-bom.test.cjs && node tests/product-materials.test.cjs && node tests/production-records.test.cjs",
+        "test:calc": "node --experimental-detect-module tests/calc.test.mjs",
+        "test:mixins": "node --experimental-detect-module tests/mixins.test.mjs",
+        "test:bom": "node --experimental-detect-module tests/bom.test.mjs",
+        "test:bomdb": "node tests/product-bom.test.cjs",
+        "test:pmat": "node tests/product-materials.test.cjs",
+        "test:common": "node tests/mes-common.test.cjs",
+        "test:records": "node tests/production-records.test.cjs"
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}
