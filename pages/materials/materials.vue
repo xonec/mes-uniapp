@@ -115,9 +115,12 @@ import { productCatalog, exactBatch, batchIsValid, resolveProduct, productMatche
 import { isAppAndroid, fetchBatchBucketQtys } from '@/utils/fr-fetch.js'
 import { fetchBatchBucketsFromCloud, upsertBatchBuckets } from '@/utils/cloud-db.js'
 import { getDeviceId } from '@/utils/device.js'
-import { saveProductionRecord, fetchProductionRecord, listProductionRecords, listRecordVersions, rollbackProductionRecord, saveDraftRecord, getDraftRecord } from '@/utils/production-db.js'
+import { saveProductionRecord, fetchProductionRecord, saveDraftRecord, getDraftRecord } from '@/utils/production-db.js'
 import { getUser, checkLogin } from '@/utils/auth.js'
 import { computeMaterial, computeWeightRange } from '@/utils/calc.js'
+import { STORE_RESULTS, STORE_HISTORY, STORE_DRAFT, STORE_SHARE_BATCH } from '@/utils/storage-keys.js'
+import CardLayoutMixin from '@/mixins/card-layout.js'
+import HistoryMixin from '@/mixins/history.js'
 import BatchCard from '@/components/batch-card/batch-card.vue'
 import BucketsCard from '@/components/buckets-card/buckets-card.vue'
 import ProdCard from '@/components/prod-card/prod-card.vue'
@@ -126,24 +129,10 @@ import WeightCard from '@/components/weight-card/weight-card.vue'
 import PalletCard from '@/components/pallet-card/pallet-card.vue'
 
 const bucketKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
-const STORE_RESULTS = 'mes-material-results'
-const STORE_HISTORY = 'mes-production-history'
-const STORE_DRAFT = 'mes-production-draft'
-const STORE_LAYOUT = 'mes-card-layout'
-const STORE_SHARE_BATCH = 'mes-share-batch'
-// 卡片定义（默认顺序与标题）
-const CARD_DEFS = [
-    { key: 'batch', title: '批号 / 产品' },
-    { key: 'buckets', title: '分桶件数' },
-    { key: 'prod', title: '生产数据' },
-    { key: 'material', title: '包材卡片' },
-    { key: 'weight', title: '重量参数' },
-    { key: 'pallet', title: '托分页' }
-]
-const CARD_KEYS = CARD_DEFS.map(c => c.key)
 
 export default {
     components: { BatchCard, BucketsCard, ProdCard, MaterialCard, WeightCard, PalletCard },
+    mixins: [CardLayoutMixin, HistoryMixin],
     data() {
         const buckets = {}
         bucketKeys.forEach(k => { buckets[k] = '' })
@@ -187,28 +176,8 @@ export default {
             cloudFetching: false,
             cloudMsg: '',
             // 本批状态：incomplete | complete
-            batchStatus: 'incomplete',
-            // 历史
-            historyShow: false,
-            historyList: [],
-            historyKeyword: '',
-            historyLoaded: 0,
-            historyDone: false,
-            historyLoading: false,
-            // 历史版本
-            versionShow: false,
-            versionList: [],
-            versionBatch: '',
-            versionLoading: false,
-            // 卡片折叠与排序（顺序由 cardList 数组决定）
-            cardList: CARD_DEFS.map(c => ({ key: c.key, title: c.title, collapsed: false })),
-            // 拖拽排序状态
-            dragMode: false,
-            dragKey: '',
-            dragIndex: -1,
-            dragY: 0,
-            cardTops: [],
-            cardH: 0
+            batchStatus: 'incomplete'
+            // 历史 / 版本 与 卡片布局 / 拖拽 状态由 mixins 提供
         }
     },
     computed: {
@@ -220,12 +189,6 @@ export default {
             if (this.adminChecked) return this.isAdminVerified
             const u = getUser()
             return !!(u && u.role && u.role.indexOf('admin') >= 0)
-        },
-        filteredHistory() {
-            const kw = (this.historyKeyword || '').trim().toUpperCase()
-            const src = this.historyList || []
-            if (!kw) return src
-            return src.filter(b => String(b).toUpperCase().indexOf(kw) >= 0)
         }
     },
     onLoad(options) {
@@ -519,104 +482,7 @@ export default {
                 uni.showToast({ title: '已保存（云端同步失败）', icon: 'none' })
             }
         },
-        async openHistory() {
-            this.historyShow = true
-            // 30 秒内有缓存直接用，避免反复开关重复请求
-            if (this._historyCacheAt && Date.now() - this._historyCacheAt < 30000) {
-                return
-            }
-            this.historyKeyword = ''
-            this.historyLoaded = 0
-            this.historyDone = false
-            // 先用本地历史即时显示，再合并云端；本地独有的也保留，避免「云端非空时丢本地」
-            this.historyList = uni.getStorageSync(STORE_HISTORY) || []
-            await this.loadMoreHistory()
-            this._historyCacheAt = Date.now()
-        },
-        async loadMoreHistory() {
-            if (this.historyLoading || this.historyDone) return
-            this.historyLoading = true
-            try {
-                const page = await listProductionRecords(50, this.historyLoaded)
-                const remote = (page || []).map(r => r.batchNo).filter(Boolean)
-                const merged = [...this.historyList, ...remote.filter(x => this.historyList.indexOf(x) < 0)]
-                this.historyList = merged
-                this.historyLoaded += (page || []).length
-                if ((page || []).length < 50) this.historyDone = true
-            } catch (e) {
-                console.warn('[cloud] 读取云端历史失败：', e && e.message)
-                this.historyDone = true
-            } finally {
-                this.historyLoading = false
-            }
-        },
-        async openVersions(b) {
-            this.versionBatch = b
-            this.versionShow = true
-            this.versionList = []
-            this.versionLoading = true
-            try {
-                // 并行请求：最新版（主表）+ 历史版本（历史表），省一半往返
-                const [latest, vers] = await Promise.all([
-                    fetchProductionRecord(b),
-                    listRecordVersions(b)
-                ])
-                const list = []
-                if (latest) {
-                    list.push({ version: latest.version || 1, isLatest: true, savedAt: latest.savedAt, record: latest })
-                }
-                vers.forEach(v => {
-                    list.push({ version: v.version, isLatest: false, savedAt: v.savedAt, record: v.snapshot })
-                })
-                list.sort((x, y) => (y.version || 0) - (x.version || 0))
-                this.versionList = list.map(v => {
-                    const r = v.record || {}
-                    return {
-                        version: v.version,
-                        isLatest: v.isLatest,
-                        record: r,
-                        time: this.fmtTime(v.savedAt),
-                        desc: `${r.caseCount || 0} 件 · ${r.bucketCount || 0} 桶`
-                    }
-                })
-            } catch (e) {
-                console.warn('[cloud] 读取版本列表失败：', e && e.message)
-            } finally {
-                this.versionLoading = false
-            }
-        },
-        fmtTime(iso) {
-            if (!iso) return ''
-            const d = new Date(iso)
-            if (isNaN(d.getTime())) return String(iso)
-            const p = n => String(n).padStart(2, '0')
-            return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-        },
-        loadVersion(v) {
-            const rec = v.record
-            this.closeHistory()
-            if (rec) this.loadRecord(rec)
-        },
-        rollbackVersion(v) {
-            uni.showModal({
-                title: '回滚确认',
-                content: `确定把该批号回滚到 v${v.version} 吗？回滚后会成为最新版本。`,
-                success: async (res) => {
-                    if (!res.confirm) return
-                    try {
-                        await rollbackProductionRecord(this.versionBatch, v.version)
-                        uni.showToast({ title: '已回滚', icon: 'success' })
-                        await this.openVersions(this.versionBatch)
-                    } catch (e) {
-                        uni.showToast({ title: '回滚失败：' + (e.message || e), icon: 'none' })
-                    }
-                }
-            })
-        },
-        closeHistory() {
-            this.historyShow = false
-            this.versionShow = false
-        },
+        // ===== 历史记录 / 版本回滚 ===== 由 mixins/history.js 提供
         // 分享进入：按批号从云端拉取该批数据并载入
         loadSharedBatch(batchNo) {
             fetchProductionRecord(batchNo).then(rec => {
@@ -672,109 +538,7 @@ export default {
             this.calculateMaterial()
             uni.showToast({ title: '已清空', icon: 'none' })
         },
-        // ===== 卡片折叠与排序 =====
-        toggleCard(key) {
-            if (this._noTap) return
-            const c = this.cardList.find(x => x.key === key)
-            if (c) { c.collapsed = !c.collapsed; this.saveCardLayout() }
-        },
-        moveCard(idx, dir) {
-            const j = idx + dir
-            if (j < 0 || j >= this.cardList.length) return
-            const arr = this.cardList
-            const t = arr[idx]
-            arr.splice(idx, 1)
-            arr.splice(j, 0, t)
-            this.saveCardLayout()
-        },
-        saveCardLayout() {
-            const order = this.cardList.map(c => c.key)
-            const collapsed = {}
-            this.cardList.forEach(c => { collapsed[c.key] = c.collapsed })
-            uni.setStorageSync(STORE_LAYOUT, { order, collapsed })
-        },
-        loadCardLayout() {
-            const saved = uni.getStorageSync(STORE_LAYOUT)
-            if (!saved || !Array.isArray(saved.order) || !saved.order.length) return
-            const ord = saved.order.filter(k => CARD_KEYS.includes(k))
-            CARD_KEYS.forEach(k => { if (!ord.includes(k)) ord.push(k) })
-            const map = {}
-            ord.forEach((k, i) => { map[k] = i })
-            this.cardList = CARD_DEFS.map(c => ({
-                key: c.key, title: c.title, collapsed: !!(saved.collapsed && saved.collapsed[c.key])
-            }))
-            // 重新排列 cardList 顺序
-            this.cardList.sort((a, b) => (map[a.key] - map[b.key]))
-        },
-        // ===== 长按拖拽排序 =====
-        measureTops() {
-            uni.createSelectorQuery().in(this).selectAll('.card').boundingClientRect().exec(res => {
-                const rects = (res && res[0]) || []
-                this.cardTops = rects.map(r => r.top)
-                if (rects[0]) this.cardH = rects[0].height
-            })
-        },
-        startDrag(key, idx, e) {
-            this.dragKey = key
-            this.dragIndex = idx
-            this.dragMode = true
-            this.lockPageScroll()
-            this.$nextTick(() => {
-                this.measureTops()
-                // 记录起始手指 Y（优先用事件触点）
-                const t = e && e.touches && e.touches[0]
-                if (t && typeof t.clientY === 'number') this.dragY = t.clientY
-            })
-        },
-        // 锁定页面滚动（App/H5：非被动 touchmove + preventDefault；微信端由 page-meta 处理）
-        lockPageScroll() {
-            // #ifdef APP-PLUS || H5
-            if (typeof document === 'undefined') return
-            if (!this._preventScroll) {
-                this._preventScroll = (ev) => { ev.preventDefault() }
-                document.addEventListener('touchmove', this._preventScroll, { passive: false })
-            }
-            // #endif
-        },
-        unlockPageScroll() {
-            // #ifdef APP-PLUS || H5
-            if (typeof document === 'undefined') return
-            if (this._preventScroll) {
-                document.removeEventListener('touchmove', this._preventScroll)
-                this._preventScroll = null
-            }
-            // #endif
-        },
-        onDragMove(e) {
-            if (!this.dragMode) return
-            if (e && e.preventDefault) e.preventDefault()
-            const t = e.touches[0]
-            if (!t) return
-            this.dragY = t.clientY
-            if (!this.cardTops.length) return
-            let target = this.cardTops.findIndex(top => this.dragY < top + this.cardH / 2)
-            if (target < 0) target = this.cardTops.length - 1
-            if (target !== this.dragIndex && target >= 0) {
-                const arr = this.cardList
-                const item = arr[this.dragIndex]
-                arr.splice(this.dragIndex, 1)
-                arr.splice(target, 0, item)
-                this.dragIndex = target
-                this.$nextTick(() => this.measureTops())
-            }
-        },
-        endDrag() {
-            if (!this.dragMode) return
-            this.dragMode = false
-            this.dragKey = ''
-            this.dragIndex = -1
-            this.cardTops = []
-            this.unlockPageScroll()
-            this.saveCardLayout()
-            // 松手后短暂屏蔽点击，避免长按松手误触折叠
-            this._noTap = true
-            setTimeout(() => { this._noTap = false }, 350)
-        },
+        // ===== 卡片折叠 / 排序 / 拖拽 ===== 由 mixins/card-layout.js 提供
         goUserManage() {
             uni.navigateTo({ url: '/pages/user-manage/user-manage' })
         },
