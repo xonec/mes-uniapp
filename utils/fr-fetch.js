@@ -186,7 +186,9 @@ function aggregateByBucket(rows) {
 }
 
 async function parseBuckets(b64) {
-    // 按需加载 xlsx，避免在微信 / H5 等非安卓环境执行而触发告警
+    // 按需加载 xlsx；条件编译把动态 import 限定在 App 端，
+    // 否则 Vue2 编译器会把 930K 的 SheetJS 打进微信小程序主包（主包 2MB 上限）
+    // #ifdef APP-PLUS
     const mod = await import('../libs/xlsx.full.min.js')
     const XLSX = (mod && mod.default) ? mod.default : mod
     const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
@@ -194,6 +196,10 @@ async function parseBuckets(b64) {
     const ws = wb.Sheets[wb.SheetNames[0]]
     const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false })
     return aggregateByBucket(rows)
+    // #endif
+    // #ifndef APP-PLUS
+    throw new Error('xlsx 解析仅安卓 App 支持')
+    // #endif
 }
 
 function parseBucketsJson(text) {
