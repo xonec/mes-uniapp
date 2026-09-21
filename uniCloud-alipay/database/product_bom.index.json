@@ -1,0 +1,30 @@
+[
+    {
+        "IndexName": "productCode_uniq",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "productCode", "Direction": "1", "Type": "string" }
+            ],
+            "MgoIsUnique": true
+        }
+    },
+    {
+        "IndexName": "batchPrefix_enabled_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "batchPrefix", "Direction": "1", "Type": "string" },
+                { "Name": "enabled", "Direction": "1", "Type": "bool" }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "updatedAt_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "updatedAt", "Direction": "-1", "Type": "long" }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

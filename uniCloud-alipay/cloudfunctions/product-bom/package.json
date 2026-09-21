@@ -1,0 +1,9 @@
+{
+    "name": "product-bom",
+    "version": "1.0.0",
+    "description": "product_bom 集合受控读写云函数（产品包装 BOM／包装材料清单，登录鉴权）",
+    "main": "index.js",
+    "dependencies": {
+        "mes-common": "file:../common/mes-common"
+    }
+}

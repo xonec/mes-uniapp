@@ -1,0 +1,225 @@
+{
+    "bsonType": "object",
+    "description": "产品包装 BOM（标准物料清单）：单产品单文档，_id 固定为 bom:<产品编码>。数据形如「包装指令单」底部的『包装材料清单』。计划量不落库，由 materials[].basis + qtyPerBasis + wasteRate 依批量现算（算法见 utils/bom.js）。客户端权限全 false，读写走云函数。⚠ 数据来源声明：本集合的**字段结构**是设计模型；下面 description 里提到的**具体损耗率/系数数值尚未用真实单据证实**（当前模型不能读图，早前所谓『照片转录』无效），录入时务必以人工核对后的真值为准。",
+    "required": ["productCode", "materials"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "固定为 bom:<产品编码>，主键唯一，保证一个产品只有一份 BOM（不产生重复文档）"
+        },
+        "productCode": {
+            "bsonType": "string",
+            "title": "产品编码",
+            "description": "指令单『产品编码』列，如 1306003790。BOM 按产品去重：同一产品不同批号的包装材料清单相同"
+        },
+        "productName": {
+            "bsonType": "string",
+            "title": "产品名称",
+            "description": "指令单『产品名称』列，如 肌酸粉、FoYes分离乳清蛋白粉（锡兰红茶味）"
+        },
+        "packSpec": {
+            "bsonType": "string",
+            "title": "包装规格（件）",
+            "description": "原样保留，如 OP7F-200g/瓶*36瓶/箱*64箱/托、APAN-东方甄选-10g/条*30条/盒*20盒/箱。innerUnit / innerWeightKg / packLevels 均由 utils/bom.js 的 parsePackSpec() 解析填入"
+        },
+        "formType": {
+            "bsonType": "string",
+            "title": "指令单模板",
+            "description": "bottle 瓶装(PDRE16004) | inner_outer 内/外包(PDRE16105)。两模板表头不同，但底部包装材料清单结构一致"
+        },
+        "batchPrefix": {
+            "bsonType": "string",
+            "title": "批号前缀",
+            "description": "批号前 4 位，如 OP7F、APDD、APAN。用于按批号自动匹配 BOM（替代硬编码的 product-data.js exactBatch）"
+        },
+        "innerUnit": {
+            "bsonType": "string",
+            "title": "最小内包单位",
+            "description": "瓶 | 条 | 袋 | 罐。计划批量以该单位计；BOM 行的 basis=inner 即按此单位"
+        },
+        "innerWeightKg": {
+            "bsonType": "number",
+            "title": "内包单位净重(kg)",
+            "description": "由包装规格解析，如 200g/瓶 → 0.2、10g/条 → 0.01。应等于粉料行『每单位用量』（不一致说明数据有误）"
+        },
+        "bottleWeightKg": {
+            "bsonType": "number",
+            "title": "内包单位净重(kg)（历史别名）",
+            "description": "与 innerWeightKg 同义，保留以兼容早期文档"
+        },
+        "packLevels": {
+            "bsonType": "array",
+            "title": "包装层级链",
+            "description": "从最小内包单位逐级向上，决定各级数量如何换算。例：瓶/箱/托 = [{key:'case',unit:'箱',per:36},{key:'pallet',unit:'托',per:64}]；条/盒/箱 = [{key:'mid',unit:'盒',per:30},{key:'case',unit:'箱',per:20}]",
+            "items": {
+                "bsonType": "object",
+                "required": ["key", "per"],
+                "properties": {
+                    "key": {
+                        "bsonType": "string",
+                        "title": "层级键",
+                        "enum": ["mid", "case", "pallet"],
+                        "description": "mid 中包装(盒) | case 外箱(件) | pallet 托。materials[].basis 引用该键"
+                    },
+                    "unit": {
+                        "bsonType": "string",
+                        "title": "层级单位名",
+                        "description": "盒 | 箱 | 托"
+                    },
+                    "per": {
+                        "bsonType": "number",
+                        "title": "每上级单位含本级数量",
+                        "description": "如 36（每箱 36 瓶）、20（每箱 20 盒）"
+                    }
+                }
+            }
+        },
+        "bottlePerCase": {
+            "bsonType": "number",
+            "title": "内包/箱（历史别名）",
+            "description": "仅当第一级就是「箱」时等于 packLevels[0].per；否则为 0。早期只支持瓶/箱/托两种时使用，新数据一律以 packLevels 为准"
+        },
+        "casePerPallet": {
+            "bsonType": "number",
+            "title": "箱/托（历史别名）",
+            "description": "等于 packLevels 中 key=pallet 的 per；瓶装模板可能无托级（为 0 时托类物料需人工填）"
+        },
+        "workshop": {
+            "bsonType": "string",
+            "title": "生产车间",
+            "description": "如 301"
+        },
+        "allergens": {
+            "bsonType": "array",
+            "title": "过敏原标记",
+            "description": "如 ['大豆','奶类']，对应指令单『过敏原标记』行"
+        },
+        "certifications": {
+            "bsonType": "array",
+            "title": "认证标记",
+            "description": "如 ['奶类']，对应指令单『认证标记』行"
+        },
+        "sampleNote": {
+            "bsonType": "string",
+            "title": "取样备注",
+            "description": "指令单『备注』行原文，如 取样：1瓶成品+1瓶精密+5瓶菌检+8瓶留样，本批料包完（Y）"
+        },
+        "packRequirements": {
+            "bsonType": "array",
+            "title": "包装要求",
+            "description": "指令单『包装要求』逐条（喷码三行规则、批号追溯规则、装箱数、封箱方式、净含量范围等）。存原文数组，展示时逐条渲染"
+        },
+        "materials": {
+            "bsonType": "array",
+            "title": "包装材料清单",
+            "description": "有序物料行，与指令单『包装材料清单』表逐行对应。计划量 = roundBy(基准数 × qtyPerBasis ÷ (1 - wasteRate), roundMode)；基准数取 inner/mid/case/pallet 中对应层级的数量",
+            "items": {
+                "bsonType": "object",
+                "required": ["materialCode", "unit", "basis"],
+                "properties": {
+                    "seq": {
+                        "bsonType": "number",
+                        "title": "序号",
+                        "description": "指令单行号，保持与纸质单据一致便于核对"
+                    },
+                    "materialCode": {
+                        "bsonType": "string",
+                        "title": "物料编号",
+                        "description": "如 3100003463；粉料等原料带 -1 后缀（如 1314000418-1）。照片转录时最易错的字段，务必核对"
+                    },
+                    "materialName": {
+                        "bsonType": "string",
+                        "title": "物料名称",
+                        "description": "如 标签-OP7F、空白纸箱、透明胶带"
+                    },
+                    "spec": {
+                        "bsonType": "string",
+                        "title": "规格型号",
+                        "description": "如 200g/瓶-ON-长宽242*72mm-白格TC58-5QS"
+                    },
+                    "materialVersion": {
+                        "bsonType": "string",
+                        "title": "版本号",
+                        "description": "该物料自身的版本，如 02；无版本为 'N/A'（不可留空，需与单据一致）"
+                    },
+                    "unit": {
+                        "bsonType": "string",
+                        "title": "计量单位",
+                        "description": "千克 | 只 | 张 | 卷"
+                    },
+                    "category": {
+                        "bsonType": "string",
+                        "title": "物料归类",
+                        "description": "powder 粉料 | label 标签 | cap 瓶盖 | bottle 瓶身 | spoon 勺子 | gasket 垫片 | case 纸箱 | carton 纸盒 | board 衬板 | divider 隔板 | tape 胶带 | pallet 托盘 | mark 唛头 | film 复合膜 | other。用于 UI 分组与损耗率默认值"
+                    },
+                    "basis": {
+                        "bsonType": "string",
+                        "title": "用量基准（包装层级）",
+                        "enum": ["inner", "bottle", "mid", "case", "pallet", "manual"],
+                        "description": "inner 按最小内包单位(瓶/条/袋) | mid 按中包装(盒) | case 按外箱 | pallet 按托 | manual 人工填写。bottle 为 inner 的历史别名。经验取值（待真实单据证实）：粉料/标签/瓶盖/瓶/勺子/垫片 按 inner；纸盒/隔板 按 mid；纸箱/胶带 按 case；衬板/托盘/复合膜/唛头 多为人工"
+                    },
+                    "qtyPerBasis": {
+                        "bsonType": "number",
+                        "title": "每基准用量",
+                        "description": "basis=inner 时为每瓶/每条用量（粉料为 kg/单位，包材多为 1 只/单位）；basis=mid 时为每盒用量（纸盒 1 只/盒）；basis=case 时为每箱用量（胶带 0.052 卷/箱）。basis=manual 时忽略"
+                    },
+                    "wasteRate": {
+                        "bsonType": "number",
+                        "title": "损耗率",
+                        "description": "0~0.99，如 0.02 表示 2%。经验取值（待真实单据证实）：瓶/盖/垫片 1.5%、标签/纸盒 2%、勺子 3%、纸箱 1%、隔板 0%。同一批内各物料损耗率确实可能不同，故设计为逐行存，不设全局系数"
+                    },
+                    "roundMode": {
+                        "bsonType": "string",
+                        "title": "取整方式",
+                        "enum": ["ceil", "round", "floor", "none"],
+                        "description": "默认 ceil（向上取整，保物料够用）；粉料等按重量计用 none（不取整，保留 2 位小数，如 3712.50 不能变 3713）"
+                    },
+                    "manualQty": {
+                        "bsonType": "number",
+                        "title": "人工计划量",
+                        "description": "basis=manual 时的计划量（衬板/托盘随码放层数变化、复合膜按面积计、唛头随分桶数变化，均难用固定系数表达）"
+                    },
+                    "supplied": {
+                        "bsonType": "string",
+                        "title": "供料方",
+                        "description": "self 自购 | customer 客供。指令单里标『（客供）』的项（瓶身、垫片等）领用与损耗口径不同"
+                    },
+                    "note": {
+                        "bsonType": "string",
+                        "title": "备注"
+                    }
+                }
+            }
+        },
+        "enabled": {
+            "bsonType": "boolean",
+            "title": "是否启用",
+            "description": "停用产品不参与批号匹配"
+        },
+        "bomVersion": {
+            "bsonType": "number",
+            "title": "BOM 版本",
+            "description": "BOM 自身版本，每次编辑 +1；与生产记录的 version 无关"
+        },
+        "source": {
+            "bsonType": "string",
+            "title": "数据来源",
+            "description": "manual 手工录入 | import 批量导入 | photo 由人工或其他端从纸质指令单转录（⚠ 当前模型不能读图，不能由本助手转录；转录后需双人核对物料编号）"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "云端更新时间",
+            "description": "写入云端的毫秒时间戳，用于排序"
+        },
+        "updatedBy": {
+            "bsonType": "string",
+            "title": "操作人",
+            "description": "最近写入的用户 uid"
+        }
+    }
+}
