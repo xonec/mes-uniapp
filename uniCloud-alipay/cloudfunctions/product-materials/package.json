@@ -1,0 +1,9 @@
+{
+    "name": "product-materials",
+    "version": "1.0.0",
+    "description": "product_materials 集合受控读写云函数（产品物料清单档案，登录鉴权）",
+    "main": "index.js",
+    "dependencies": {
+        "mes-common": "file:../common/mes-common"
+    }
+}

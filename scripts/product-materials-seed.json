@@ -1,0 +1,37 @@
+{
+    "说明": "product_materials 首批灌库数据（由两张包装指令单照片转录，2026-09-21）。用法：HBuilderX 部署 product-materials 云函数后，调 action=upsert 逐条写入；或在 uniCloud Web 控制台直接导入。⚠ 转录自照片，物料编号务必与纸质单据人工核对后再启用。",
+    "records": [
+        {
+            "productCode": "1306005276",
+            "productName": "SWISSE® 乳清蛋白粉",
+            "packSpec": "AP5R-450g/罐*6罐/箱",
+            "sourceOrderNo": "564008",
+            "source": "photo",
+            "materials": [
+                { "seq": 1, "materialCode": "1314000581-1", "materialName": "SWISSE® 乳清蛋白粉-混合", "spec": "AP5R", "materialVersion": "N/A", "unit": "千克" },
+                { "seq": 2, "materialCode": "3100002827", "materialName": "空白唛头", "spec": "100*70mm", "materialVersion": "01", "unit": "只" },
+                { "seq": 3, "materialCode": "3203032006", "materialName": "蓝色胶盖", "spec": "配D502铁罐", "materialVersion": "N/A", "unit": "只" },
+                { "seq": 4, "materialCode": "3204310015", "materialName": "D502*608五条筋铁罐-AP5R", "spec": "罐身高165.00±0.30mm，卷封直径128.75±0.15mm，翻边宽度2.90±0.20mm，卷封长度3.00±0.20mm", "materialVersion": "01", "unit": "只" },
+                { "seq": 5, "materialCode": "3209000218", "materialName": "底部铁盖", "spec": "外径137.30±0.20mm，压头直径126.20±0.20mm，封口胶重135±25mg，埋头深度3.18±0.20mm，15个酒窝（深度0.50±0.20mm）（中心为蓝色涂层）", "materialVersion": "01", "unit": "只" },
+                { "seq": 6, "materialCode": "3209000225", "materialName": "25cc透明勺子-嘉美", "spec": "25ml-透明-圆底带两透气孔", "materialVersion": "N/A", "unit": "只" },
+                { "seq": 7, "materialCode": "3302001361", "materialName": "健合定制LOGO纸箱-ZA202356-AP5R", "spec": "", "materialVersion": "N/A", "unit": "只" }
+            ]
+        },
+        {
+            "productCode": "1306008056",
+            "productName": "FoYes分离乳清蛋白粉（雪顶蜜瓜味）",
+            "packSpec": "APDD-FoYes-1.8kg/瓶*4瓶/箱",
+            "sourceOrderNo": "559290",
+            "source": "photo",
+            "materials": [
+                { "seq": 1, "materialCode": "1314001002-1", "materialName": "FoYes分离乳清蛋白粉（雪顶蜜瓜味）-混合", "spec": "APDD", "materialVersion": "N/A", "unit": "千克" },
+                { "seq": 2, "materialCode": "3100004832", "materialName": "标签-KL25286-AP91", "spec": "4磅-雪顶蜜瓜味-585*174mm-亮银BOPP，工艺：4色UV印刷+1色金属色+哑油，丝网印刷+可变二维码", "materialVersion": "01", "unit": "只" },
+                { "seq": 3, "materialCode": "3209000229", "materialName": "80cc勺子-独立包装（千帆）", "spec": "80cc 高透勺", "materialVersion": "N/A", "unit": "只" },
+                { "seq": 4, "materialCode": "3302001142", "materialName": "空白纸箱", "spec": "405*405*288mm-A7K/C-印刷标志-倒角", "materialVersion": "N/A", "unit": "只" },
+                { "seq": 5, "materialCode": "3309000090", "materialName": "透明胶带", "spec": "6cm*50m", "materialVersion": "N/A", "unit": "卷" },
+                { "seq": 6, "materialCode": "3503000050", "materialName": "120mm电镀银色盖-泉金（客供）", "spec": "PET热封发泡透气垫片（单耳）-FoYes定制LOGO垫片-客供", "materialVersion": "N/A", "unit": "只" },
+                { "seq": 7, "materialCode": "3504000080", "materialName": "1.85gal 紫色PET 瓶-顺枫(客供）", "spec": "", "materialVersion": "N/A", "unit": "只" }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,97 @@
+{
+    "bsonType": "object",
+    "description": "产品物料清单档案：单产品单文档，_id 固定为 mat:<产品编码>。只记录「这个产品用什么物料」（编号/名称/规格型号/版本号/计量单位），取自包装指令单底部的『包装材料清单』，不做用量与损耗计算。客户端权限全 false，读写走云函数 product-materials。",
+    "required": ["productCode", "materials"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "固定为 mat:<产品编码>，主键唯一，一个产品只有一份物料清单"
+        },
+        "productCode": {
+            "bsonType": "string",
+            "title": "产品编码",
+            "description": "指令单『产品编码』列，如 1306005276"
+        },
+        "productName": {
+            "bsonType": "string",
+            "title": "产品名称",
+            "description": "指令单『产品名称』列，如 SWISSE® 乳清蛋白粉"
+        },
+        "packSpec": {
+            "bsonType": "string",
+            "title": "包装规格（件）",
+            "description": "原样保留，如 AP5R-450g/罐*6罐/箱、APDD-FoYes-1.8kg/瓶*4瓶/箱"
+        },
+        "materials": {
+            "bsonType": "array",
+            "title": "包装材料清单",
+            "description": "有序物料行，与指令单『包装材料清单』表逐行对应。只存档案信息，不存计划量/实用量",
+            "items": {
+                "bsonType": "object",
+                "required": ["materialCode", "unit"],
+                "properties": {
+                    "seq": {
+                        "bsonType": "number",
+                        "title": "序号",
+                        "description": "指令单行号，保持与纸质单据一致便于核对"
+                    },
+                    "materialCode": {
+                        "bsonType": "string",
+                        "title": "物料编号",
+                        "description": "如 3100002827；粉料等原料带 -1 后缀（如 1314000581-1）。转录时最易错的字段，务必核对"
+                    },
+                    "materialName": {
+                        "bsonType": "string",
+                        "title": "物料名称",
+                        "description": "如 空白唛头、D502*608五条筋铁罐-AP5R"
+                    },
+                    "spec": {
+                        "bsonType": "string",
+                        "title": "规格型号",
+                        "description": "如 100*70mm、405*405*288mm-A7K/C-印刷标志-倒角"
+                    },
+                    "materialVersion": {
+                        "bsonType": "string",
+                        "title": "版本号",
+                        "description": "该物料自身的版本，如 01；无版本为 'N/A'（不可留空，需与单据一致）"
+                    },
+                    "unit": {
+                        "bsonType": "string",
+                        "title": "计量单位",
+                        "description": "千克 | 只 | 张 | 卷"
+                    }
+                }
+            }
+        },
+        "sourceOrderNo": {
+            "bsonType": "string",
+            "title": "来源指令单订单号",
+            "description": "本清单转录自哪张包装指令单，如 564008，便于回查纸质单据"
+        },
+        "source": {
+            "bsonType": "string",
+            "title": "数据来源",
+            "description": "manual 手工录入 | import 批量导入 | photo 从纸质指令单照片转录（转录后需人工核对物料编号）"
+        },
+        "enabled": {
+            "bsonType": "boolean",
+            "title": "是否启用",
+            "description": "停用产品不出现在列表"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "云端更新时间",
+            "description": "写入云端的毫秒时间戳，用于排序"
+        },
+        "updatedBy": {
+            "bsonType": "string",
+            "title": "操作人",
+            "description": "最近写入的用户 uid"
+        }
+    }
+}
