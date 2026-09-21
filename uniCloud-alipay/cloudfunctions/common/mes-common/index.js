@@ -55,8 +55,26 @@ function checkToken(token, tokenSecret) {
     return payload
 }
 
-// ---------- 鉴权（查用户表验证账号有效，禁用/删除后 token 立即失效）----------
-// db 为云函数内已初始化的数据库实例。返回 { errCode, uid }；errCode 非 0 表示失败。
+// 读用户记录（带一次重试，降低瞬时抖动导致的误判）
+async function loadUserWithRetry(db, uid) {
+    let lastErr = null
+    for (let i = 0; i < 2; i++) {
+        try {
+            const res = await db.collection(USER_COLL).doc(uid).get()
+            return { user: (res && res.data && res.data[0]) || null, err: null }
+        } catch (e) {
+            lastErr = e
+            if (i === 0) await new Promise(r => setTimeout(r, 150))
+        }
+    }
+    return { user: null, err: lastErr }
+}
+
+// ---------- 鉴权（查用户表验证账号有效，禁用/改密后 token 立即失效）----------
+// 返回 { errCode, uid }；errCode 0 表示通过。
+// 安全取向：**fail-closed** —— 查用户表失败时返回 503 拒绝本次请求，而不是放行。
+// 放行会让「已被禁用/已改密」的 token 在数据库抖动期间继续可用；宁可暂时拒绝也不能错放。
+// 用 503（而非 401）是为了避免客户端误判为「登录失效」而把用户踢到登录页。
 async function checkAuth(db, token) {
     const tokenSecret = getTokenSecret()
     if (!tokenSecret) return { errCode: 500, message: '服务端未配置环境变量 MES_TOKEN_SECRET' }
@@ -64,35 +82,32 @@ async function checkAuth(db, token) {
     const payload = checkToken(token, tokenSecret)
     if (payload.errCode) return { errCode: 401, message: '登录失效，请重新登录' }
     if (!payload.uid) return { errCode: 401, message: 'token 缺少 uid' }
-    try {
-        const res = await db.collection(USER_COLL).doc(payload.uid).get()
-        const u = (res && res.data && res.data[0]) || null
-        if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
-        // 改密后，签发时间早于改密的旧 token 立即失效（pwdVersion 不匹配）
-        if (Number(u.pwdVersion || 1) !== Number(payload.pv || 1)) {
-            return { errCode: 401, message: '密码已变更，请重新登录' }
-        }
-    } catch (e) {
-        // 查用户状态失败（瞬时故障）暂按放行，避免用户表抖动导致全站写失败
-        console.warn('[checkAuth] 查用户状态失败：', e && e.message)
+
+    const { user: u, err } = await loadUserWithRetry(db, payload.uid)
+    if (err) {
+        console.warn('[checkAuth] 查用户状态失败，拒绝本次请求（fail-closed）：', err && err.message)
+        return { errCode: 503, message: '服务暂时不可用，请稍后重试' }
+    }
+    if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
+    // 改密后，签发时间早于改密的旧 token 立即失效（pwdVersion 不匹配）
+    if (Number(u.pwdVersion || 1) !== Number(payload.pv || 1)) {
+        return { errCode: 401, message: '密码已变更，请重新登录' }
     }
     return { errCode: 0, uid: payload.uid }
 }
 
 // ---------- 管理员鉴权：验 token + 查用户表校验 status / pwdVersion / admin 角色 ----------
-// 与 checkAuth 的区别：这里查库失败按「拒绝」处理（fail-closed），因为管理类操作不能因抖动放开。
+// 同 checkAuth 一样是 fail-closed：查库失败返回 503，不放行。
 async function checkAdmin(db, token) {
     const auth = await checkAuth(db, token)
     if (auth.errCode) return auth
-    try {
-        const res = await db.collection(USER_COLL).doc(auth.uid).get()
-        const u = (res && res.data && res.data[0]) || null
-        if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
-        if ((u.role || []).indexOf('admin') < 0) return { errCode: 403, message: '无权限' }
-    } catch (e) {
-        console.warn('[checkAdmin] 校验权限失败：', e && e.message)
-        return { errCode: 500, message: '校验权限失败，请重试' }
+    const { user: u, err } = await loadUserWithRetry(db, auth.uid)
+    if (err) {
+        console.warn('[checkAdmin] 校验权限失败，拒绝本次请求（fail-closed）：', err && err.message)
+        return { errCode: 503, message: '服务暂时不可用，请稍后重试' }
     }
+    if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
+    if ((u.role || []).indexOf('admin') < 0) return { errCode: 403, message: '无权限' }
     return { errCode: 0, uid: auth.uid }
 }
 

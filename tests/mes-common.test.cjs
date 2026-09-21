@@ -3,11 +3,16 @@ const assert = require('node:assert')
 const crypto = require('crypto')
 const common = require('../uniCloud-alipay/cloudfunctions/common/mes-common/index.js')
 
-// mock uniCloud（checkAuth 查用户表用）
+// mock uniCloud（checkAuth / checkAdmin 查用户表用）
 const users = {
     uid1: { _id: 'uid1', status: 1 },
-    uid2: { _id: 'uid2', status: 0 }
+    uid2: { _id: 'uid2', status: 0 },
+    uid3: { _id: 'uid3', status: 1, role: ['admin'] },
+    uid4: { _id: 'uid4', status: 1, role: [] }
 }
+// 模拟数据库故障：'none' 正常；'always' 每次 get 都抛；'once' 首次抛、重试成功
+let dbFailMode = 'none'
+let dbFailCount = 0
 global.uniCloud = {
     database() {
         return {
@@ -15,7 +20,11 @@ global.uniCloud = {
                 return {
                     doc(id) {
                         return {
-                            get: async () => ({ data: users[id] ? [users[id]] : [] })
+                            get: async () => {
+                                if (dbFailMode === 'always') throw new Error('db down')
+                                if (dbFailMode === 'once' && dbFailCount++ === 0) throw new Error('db blip')
+                                return { data: users[id] ? [users[id]] : [] }
+                            }
                         }
                     }
                 }
@@ -23,6 +32,7 @@ global.uniCloud = {
         }
     }
 }
+function setDbFailMode(m) { dbFailMode = m; dbFailCount = 0 }
 
 process.env.MES_TOKEN_SECRET = 'test-secret-1234567890abcdef'
 
@@ -91,6 +101,55 @@ const b64 = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').rep
         const a = await common.checkAuth(global.uniCloud.database(), 'whatever')
         process.env.MES_TOKEN_SECRET = old
         assert.strictEqual(a.errCode, 500)
+    })
+
+    await test('checkAuth 查库失败 → 拒绝（fail-closed，503）', async () => {
+        const secret = common.getTokenSecret()
+        const t = common.createToken({ uid: 'uid1', role: [] }, secret)
+        setDbFailMode('always')
+        const a = await common.checkAuth(global.uniCloud.database(), t.token)
+        setDbFailMode('none')
+        assert.strictEqual(a.errCode, 503, '不应放行被禁用/改密风险未知的 token')
+        assert.ok(!a.uid)
+    })
+
+    await test('checkAuth 查库瞬时失败但重试成功 → 放行', async () => {
+        const secret = common.getTokenSecret()
+        const t = common.createToken({ uid: 'uid1', role: [] }, secret)
+        setDbFailMode('once')
+        const a = await common.checkAuth(global.uniCloud.database(), t.token)
+        setDbFailMode('none')
+        assert.strictEqual(a.errCode, 0)
+        assert.strictEqual(a.uid, 'uid1')
+    })
+
+    await test('checkAuth 拒绝改密后的旧 token（pwdVersion 不匹配）', async () => {
+        const secret = common.getTokenSecret()
+        const old = users.uid1.pwdVersion
+        users.uid1.pwdVersion = 2
+        const t = common.createToken({ uid: 'uid1', role: [], pv: 1 }, secret)
+        const a = await common.checkAuth(global.uniCloud.database(), t.token)
+        users.uid1.pwdVersion = old
+        assert.strictEqual(a.errCode, 401)
+    })
+
+    await test('checkAdmin 放行管理员 / 拒绝普通用户', async () => {
+        const secret = common.getTokenSecret()
+        const adminToken = common.createToken({ uid: 'uid3', role: ['admin'] }, secret).token
+        const userToken = common.createToken({ uid: 'uid4', role: [] }, secret).token
+        const a1 = await common.checkAdmin(global.uniCloud.database(), adminToken)
+        assert.strictEqual(a1.errCode, 0)
+        const a2 = await common.checkAdmin(global.uniCloud.database(), userToken)
+        assert.strictEqual(a2.errCode, 403)
+    })
+
+    await test('checkAdmin 查库失败 → 拒绝（fail-closed，503）', async () => {
+        const secret = common.getTokenSecret()
+        const t = common.createToken({ uid: 'uid3', role: ['admin'] }, secret)
+        setDbFailMode('always')
+        const a = await common.checkAdmin(global.uniCloud.database(), t.token)
+        setDbFailMode('none')
+        assert.strictEqual(a.errCode, 503)
     })
 
     await test('ok/fail 响应封装', () => {
