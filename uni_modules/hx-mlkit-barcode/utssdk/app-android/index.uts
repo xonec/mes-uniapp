@@ -1,0 +1,76 @@
+import { BarcodeData, ScanBarcodeOptions } from '../interface.uts'
+
+
+import Uri from "android.net.Uri"
+import File from "java.io.File"
+import Exception from "java.lang.Exception"
+import List from "kotlin.collections.List"
+import BarcodeScanning from "com.google.mlkit.vision.barcode.BarcodeScanning"
+import InputImage from "com.google.mlkit.vision.common.InputImage"
+import Barcode from "com.google.mlkit.vision.barcode.common.Barcode"
+
+
+
+export function scanBarcode(options : ScanBarcodeOptions) {
+	const context = UTSAndroid.getAppContext();
+	if (context == null) {
+		options.fail?.({ message: "Android Context 获取失败" });
+		return;
+	}
+
+	// --- 路径修复逻辑开始 ---
+	let inputPath = options.imagePath;
+	let absPath = "";
+
+
+	// 1. 判断是否已经是绝对路径或带协议的路径
+	if (inputPath.startsWith("/") || inputPath.startsWith("content://") || inputPath.startsWith("file:")) {
+		absPath = inputPath;
+	} else {
+		// 2. 只有是 uni-app 虚拟路径（如 _doc/）时才调用 getResourcePath
+		absPath = UTSAndroid.getResourcePath(inputPath);
+	}
+
+	// 3. 将 file: 或 file:// 前缀剥离，转换为标准的 Java File 路径
+	if (absPath.startsWith("file://")) {
+		absPath = absPath.substring(7);
+	} else if (absPath.startsWith("file:")) {
+		absPath = absPath.substring(5);
+	}
+	// --- 路径修复逻辑结束 ---
+
+	// 检查文件是否存在（可选，方便调试）
+	const file = new File(absPath);
+	if (!file.exists()) {
+		options.fail?.({ message: "文件不存在: " + absPath });
+		return;
+	}
+
+	// 使用修复后的路径创建 Uri
+	const uri = Uri.fromFile(file);
+	const image = InputImage.fromFilePath(context, uri);
+
+	const scanner = BarcodeScanning.getClient();
+
+	scanner.process(image)
+		.addOnSuccessListener((barcodes : any) => {
+			const results : BarcodeData[] = [];
+			const barcodeList = barcodes as List<Barcode> | null;
+
+			if (barcodeList != null) {
+				for (let i = 0; i < barcodeList.size; i++) {
+					const barcode = barcodeList.get(i.toInt());
+					results.push({
+						rawValue: barcode.getRawValue() ?? "",
+						format: barcode.getFormat().toInt(),
+						valueType: barcode.getValueType().toInt()
+					} as BarcodeData);
+				}
+			}
+			options.success?.({ barcodes: results });
+		})
+		.addOnFailureListener((e : Exception) => {
+			options.fail?.({ message: "识别失败: " + e.message });
+		});
+
+}

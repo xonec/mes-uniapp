@@ -27,3 +27,23 @@ export function resolveProduct(batch) {
     if (matches.length === 1) return { productCode: matches[0].code, perCase: matches[0].perCase, perPallet: matches[0].perPallet }
     return null
 }
+
+// 从扫码 / 相册识别 / 粘贴的原文中提取批号
+// 返回 { code, matched, raw, cleaned }
+//   matched = true 表示命中「合法的 11 位片段，且前 4 位能在产品目录里找到」——高置信，可直接使用
+//   matched = false 只表示「没找到高置信片段」，code 仍给出尽力而为的结果，由调用方决定是否要用户确认
+export function parseBatchCode(raw) {
+    const rawStr = String(raw == null ? '' : raw)
+    const cleaned = rawStr.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (!cleaned) return { code: '', matched: false, raw: rawStr, cleaned }
+    const prefixes = productCatalog.map(p => p.prefix)
+    let fallback = ''
+    for (let i = 0; i + 11 <= cleaned.length; i++) {
+        const w = cleaned.slice(i, i + 11)
+        if (!batchIsValid(w)) continue
+        if (prefixes.indexOf(w.slice(0, 4)) >= 0) return { code: w, matched: true, raw: rawStr, cleaned }
+        if (!fallback) fallback = w
+    }
+    if (fallback) return { code: fallback, matched: false, raw: rawStr, cleaned }
+    return { code: cleaned.slice(0, 11), matched: false, raw: rawStr, cleaned }
+}

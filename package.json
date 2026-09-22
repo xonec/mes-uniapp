@@ -4,7 +4,9 @@
     "private": true,
     "description": "MES 生产助手（uni-app + uniCloud 支付宝云）：包材计算、生产记录、版本追溯",
     "scripts": {
-        "test": "node --experimental-detect-module tests/calc.test.mjs && node --experimental-detect-module tests/mixins.test.mjs && node --experimental-detect-module tests/bom.test.mjs && node tests/mes-common.test.cjs && node tests/product-bom.test.cjs && node tests/product-materials.test.cjs && node tests/production-records.test.cjs",
+        "test": "node --experimental-detect-module tests/calc.test.mjs && node --experimental-detect-module tests/mixins.test.mjs && node --experimental-detect-module tests/bom.test.mjs && node --experimental-detect-module tests/batch-parse.test.mjs && node --experimental-detect-module tests/fr-fetch.test.mjs && node tests/mes-common.test.cjs && node tests/product-bom.test.cjs && node tests/product-materials.test.cjs && node tests/production-records.test.cjs",
+        "test:batch": "node --experimental-detect-module tests/batch-parse.test.mjs",
+        "test:fr": "node --experimental-detect-module tests/fr-fetch.test.mjs",
         "test:calc": "node --experimental-detect-module tests/calc.test.mjs",
         "test:mixins": "node --experimental-detect-module tests/mixins.test.mjs",
         "test:bom": "node --experimental-detect-module tests/bom.test.mjs",

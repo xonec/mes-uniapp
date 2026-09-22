@@ -1,31 +1,20 @@
-// 帆软 FineReport 报表配置（用于安卓端获取批号每桶件数）
+// 帆软 FineReport 报表配置（用于获取批号每桶数量，App / 微信小程序 / H5 通用）
 //
 // base 只是「出厂默认值」：运行时优先读管理员在「用户管理」页设置的覆盖值（本地 storage），
 // 换服务器 / 换 IP 时无需改代码重新打包。见文件末尾的 getReportBase / setReportBase。
+//
+// 字段说明（依据 wms-report-fetcher Go 工具 + 抓包 HAR 实证）：
+//   viewlet     —— 报表模板路径（报表页 URL 的 viewlet 参数）
+//   batchParam  —— 批号参数名（POST fr_dialog 的 __parameters__ 键名，原始中文，提交时经 cjkEncode 转 hex）
+//   取数接口    —— op=page_content 分页返回 HTML 表格；「桶编码 / 数量」列由 parseTable 按表头解析
 
 const config = {
     // 报表 servlet 基地址（出厂默认，可被 storage 覆盖）
     base: 'http://172.16.1.71:8981/webroot/decision/view/report',
     // 报表模板（URL 编码前的原始路径）
-    viewlet: 'WMS-Y/宜宾头部打印信息.cpt',
-    // 批号参数名（报表参数）
-    batchParam: '批号',
-    // 打开报表用的 op
-    op: 'write',
-    // 导出类型：simple = 原样导出（列最全）
-    extype: 'simple',
-    // 列名提示：解析 xlsx / JSON 时用于推断「桶号列」与「件数列」
-    // 可按实际报表表头调整（报表实际列为「桶编码」/「数量」/「数量单位」）
-    bucketColHint: ['桶编码', '桶号', '桶', '桶位', 'bucket'],
-    qtyColHint: ['件数', '箱数', '数量', '支数', '瓶数', 'qty', 'count'],
-
-    // ===== JSON 模式（去 Excel / SheetJS）=====
-    // true 时优先走帆软 JSON 输出（op=fr_json），失败自动回退 xlsx。
-    // 帆软 .cpt 支持在 URL 把 op 改成 fr_json 直接返回报表数据（行对象 JSON）。
-    // 安卓真机在公司 WiFi 直连内网帆软时启用，设备端不再加载 SheetJS / 解析 xlsx。
-    jsonMode: true,
-    // 若帆软版本不同，op 名按实际调整（常见为 fr_json）。该值会被注入到 webview 脚本中真正生效。
-    jsonOp: 'fr_json'
+    viewlet: 'WMS-Y/唛头打印信息.cpt',
+    // 批号参数名（POST __parameters__ 里的键名，原始中文）
+    batchParam: '批号'
 }
 
 export default config

@@ -1,11 +1,6 @@
 <template>
     <page-meta :disable-scroll="dragMode"></page-meta>
     <view class="page" @touchmove="onDragMove" @touchend="endDrag" @touchcancel="endDrag">
-        <view v-if="isAdmin" class="admin-strip" @tap="goUserManage">
-            <text class="as-ico">⚙</text>
-            <text class="as-txt">用户管理</text>
-            <text class="as-arrow">›</text>
-        </view>
         <!-- #ifdef MP-WEIXIN -->
         <button class="share-fab" open-type="share">分享</button>
         <!-- #endif -->
@@ -41,7 +36,7 @@
                     :inner-issued="innerIssued" :bucket-count="bucketCount"
                     :case-count-text="caseCountText" :pallet-code="palletCode"
                     :batch-status.sync="batchStatus"
-                    @change="calculateMaterial" @save="save" @history="openHistory" @clear="clearAll" />
+                    @change="calculateMaterial" @save="save" @history="goHistory" @clear="clearAll" />
                 <material-card v-else-if="c.key==='material'"
                     :label-extra.sync="labelExtra" :security-extra.sync="securityExtra"
                     :materials="materials" @change="calculateMaterial" />
@@ -56,71 +51,20 @@
                     @go="goPallet" />
             </view>
         </view>
-
-        <view class="pwd-entry" @tap="goChangePassword">
-            <text>修改密码</text>
-        </view>
-
-        <view style="height: 40rpx"></view>
-
-        <!-- 历史弹层 -->
-        <view class="sheet-mask" v-if="historyShow" @tap="closeHistory">
-            <view class="sheet" @tap.stop>
-                <!-- 批号列表 -->
-                <view v-if="!versionShow">
-                    <view class="sheet-head"><text>历史记录</text><text class="count">{{ historyList.length }} 条</text></view>
-                    <view class="search-bar">
-                        <input class="search-inp" v-model="historyKeyword" placeholder="搜索批号" confirm-type="search" />
-                    </view>
-                    <scroll-view scroll-y class="sheet-body">
-                        <view class="hist-item" v-for="(b, i) in filteredHistory" :key="i" @tap="openVersions(b)">
-                            <text class="code">{{ b }}</text>
-                            <text class="arrow">版本 ›</text>
-                        </view>
-                        <view v-if="historyLoading && filteredHistory.length===0" class="empty">加载中…</view>
-                        <view v-else-if="filteredHistory.length===0" class="empty">暂无匹配</view>
-                        <view v-else-if="!historyDone" class="load-more" @tap="loadMoreHistory">{{ historyLoading ? '加载中…' : '加载更多' }}</view>
-                    </scroll-view>
-                </view>
-                <!-- 版本列表 -->
-                <view v-else>
-                    <view class="sheet-head">
-                        <text class="back" @tap="versionShow=false">‹ 返回</text>
-                        <text class="count">{{ versionBatch }}</text>
-                    </view>
-                    <scroll-view scroll-y class="sheet-body">
-                        <view class="ver-item" v-for="(v, i) in versionList" :key="i">
-                            <view class="ver-info">
-                                <text class="ver-tag" :class="{ latest: v.isLatest }">{{ v.isLatest ? '最新' : 'v' + v.version }}</text>
-                                <text class="ver-time">{{ v.time }}</text>
-                                <text class="ver-desc">{{ v.desc }}</text>
-                            </view>
-                            <view class="ver-actions">
-                                <button class="btn mini" @tap="loadVersion(v)">载入</button>
-                                <button class="btn mini danger" v-if="!v.isLatest" @tap="rollbackVersion(v)">回滚</button>
-                            </view>
-                        </view>
-                        <view v-if="versionLoading" class="empty">加载中…</view>
-                        <view v-else-if="versionList.length===0" class="empty">暂无版本</view>
-                    </scroll-view>
-                </view>
-                <button class="btn" @tap="closeHistory">关闭</button>
-            </view>
-        </view>
     </view>
 </template>
 
 <script>
-import { productCatalog, exactBatch, batchIsValid, resolveProduct, productMatches } from '@/utils/product-data.js'
+import { productCatalog, exactBatch, batchIsValid, resolveProduct, productMatches, parseBatchCode } from '@/utils/product-data.js'
 import { isAppAndroid, fetchBatchBucketQtys } from '@/utils/fr-fetch.js'
 import { fetchBatchBucketsFromCloud, upsertBatchBuckets } from '@/utils/cloud-db.js'
+import { matchBomByBatchFromCloud } from '@/utils/bom-db.js'
 import { getDeviceId } from '@/utils/device.js'
 import { saveProductionRecord, fetchProductionRecord, saveDraftRecord, getDraftRecord } from '@/utils/production-db.js'
 import { getUser, checkLogin } from '@/utils/auth.js'
 import { computeMaterial, computeWeightRange } from '@/utils/calc.js'
-import { STORE_RESULTS, STORE_HISTORY, STORE_DRAFT, STORE_SHARE_BATCH } from '@/utils/storage-keys.js'
+import { STORE_RESULTS, STORE_HISTORY, STORE_DRAFT, STORE_SHARE_BATCH, STORE_LOAD_RECORD, STORE_LAST_BATCH } from '@/utils/storage-keys.js'
 import CardLayoutMixin from '@/mixins/card-layout.js'
-import HistoryMixin from '@/mixins/history.js'
 import BatchCard from '@/components/batch-card/batch-card.vue'
 import BucketsCard from '@/components/buckets-card/buckets-card.vue'
 import ProdCard from '@/components/prod-card/prod-card.vue'
@@ -132,7 +76,7 @@ const bucketKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
 
 export default {
     components: { BatchCard, BucketsCard, ProdCard, MaterialCard, WeightCard, PalletCard },
-    mixins: [CardLayoutMixin, HistoryMixin],
+    mixins: [CardLayoutMixin],
     data() {
         const buckets = {}
         bucketKeys.forEach(k => { buckets[k] = '' })
@@ -242,6 +186,15 @@ export default {
             this.calculateMaterial()
         }
     },
+    onShow() {
+        // 历史页「载入」切回：读取暂存记录回填表单
+        const rec = uni.getStorageSync(STORE_LOAD_RECORD)
+        if (rec && rec.batchNo) {
+            uni.removeStorageSync(STORE_LOAD_RECORD)
+            this.loadRecord(rec)
+            uni.showToast({ title: '已载入', icon: 'none' })
+        }
+    },
     onShareAppMessage() {
         const title = this.batchValid ? `批号 ${this.batchNo} · 包材计算` : 'MES生产助手 - 包材计算'
         return {
@@ -277,6 +230,26 @@ export default {
                 this.productCode = matches[0].code
                 this.applyProduct(matches[0].code)
             }
+            // 优先云端 BOM（product_bom）：命中唯一则覆盖硬编码结果；未灌库/未部署时静默回退
+            this.resolveProductFromBom(this.batchNo)
+        },
+        async resolveProductFromBom(batchNo) {
+            if (!batchIsValid(batchNo)) return
+            try {
+                const r = await matchBomByBatchFromCloud(batchNo)
+                if (r && r.bom) {
+                    const b = r.bom
+                    this.productCode = b.productCode || this.productCode
+                    const caseLv = (b.packLevels || []).find(l => l.key === 'case')
+                    const palLv = (b.packLevels || []).find(l => l.key === 'pallet')
+                    if (caseLv && caseLv.per) this.perCase = caseLv.per
+                    if (palLv && palLv.per) this.perPallet = palLv.per
+                    this.weightProduct = b.productName || this.productCode || '未选择产品'
+                    this.calculateMaterial()
+                }
+            } catch (e) {
+                // product_bom 尚未部署/灌库时静默，保持现有硬编码流程可用
+            }
         },
         smartFill() {
             const r = resolveProduct(this.batchNo)
@@ -311,15 +284,52 @@ export default {
                 }
             })
         },
+        // 从扫码/识别结果解析批号并应用（高置信直填，低置信先让用户确认）
+        applyBatchCode(raw) {
+            const parsed = parseBatchCode(raw)
+            if (!parsed.code) {
+                uni.showModal({ title: '没识别到内容', content: '原始内容：' + (parsed.raw || '（空）'), showCancel: false })
+                return
+            }
+            const use = (code) => {
+                this.batchNo = code
+                this.resolveProductOptions()
+                // 记住最近一次成功录入，扫码页会提示，防止重复扫错
+                try { uni.setStorageSync(STORE_LAST_BATCH, code) } catch (e) { /* ignore */ }
+            }
+            if (parsed.matched) { use(parsed.code); return }
+            // 低置信：提示原文与解析结果，用户可确认填入或重新扫
+            const looksLikeBatch = batchIsValid(parsed.code) && parsed.cleaned === parsed.code
+            uni.showModal({
+                title: looksLikeBatch ? '批号前缀未匹配' : '这不像批号',
+                content: '扫描内容：' + (parsed.raw || '（空）') + '\n解析为：' + parsed.code + '\n（批号格式：11 位字母数字，前 4 位为产品前缀）',
+                confirmText: '仍要填入',
+                cancelText: '重新扫',
+                success: (m) => { if (m.confirm) use(parsed.code) }
+            })
+        },
         scanBatch() {
+            // #ifdef APP-PLUS
+            // 自定义扫码页：实时取景 + 相册识别（ML Kit）+ 手电筒，仿微信扫码
+            uni.navigateTo({
+                url: '/pages/scan/scan',
+                events: {
+                    scanResult: (raw) => this.applyBatchCode(raw)
+                },
+                fail: (err) => {
+                    uni.showModal({ title: '打开扫码页失败', content: (err && err.errMsg) || JSON.stringify(err), showCancel: false })
+                }
+            })
+            // #endif
+            // #ifndef APP-PLUS
             uni.scanCode({
+                scanType: ['barCode', 'qrCode'],
                 success: (res) => {
-                    const v = (res.result || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)
-                    this.batchNo = v
-                    this.resolveProductOptions()
+                    this.applyBatchCode(res.result)
                 },
                 fail: () => {}
             })
+            // #endif
         },
         applyProduct(code) {
             const p = productCatalog.find(x => x.code === code)
@@ -379,7 +389,7 @@ export default {
             else if (act === 'last') this.currentPallet = this.totalPallets
             this.calculateMaterial()
         },
-        // ===== 安卓：从帆软获取每桶件数 =====
+        // ===== 从帆软获取每桶件数：取数 → 预览 → 确认插入 =====
         async fetchFromFr() {
             if (!this.batchValid) {
                 uni.showToast({ title: '请先输入有效批号', icon: 'none' })
@@ -389,26 +399,49 @@ export default {
             this.frMsg = '正在连接帆软…'
             try {
                 const result = await fetchBatchBucketQtys(this.batchNo)
-                this.bucketKeys.forEach(k => {
-                    this.buckets[k] = (result[k] || 0) ? String(result[k]) : ''
+                // 预览结果，让用户选择是否插入到分桶件数
+                const lines = this.bucketKeys
+                    .filter(k => (result[k] || 0) > 0)
+                    .map(k => `${k} 桶：${result[k]} 件`)
+                if (!lines.length) {
+                    this.frMsg = '报表无数据'
+                    uni.showToast({ title: '报表无数据', icon: 'none' })
+                    return
+                }
+                this.frMsg = '已获取，请确认是否插入'
+                uni.showModal({
+                    title: '获取到各桶件数',
+                    content: lines.join('\n'),
+                    confirmText: '插入',
+                    cancelText: '取消',
+                    success: (res) => {
+                        if (res.confirm) this.applyBuckets(result)
+                        else this.frMsg = '已取消插入'
+                    }
                 })
+            } catch (e) {
+                this.frMsg = '获取失败：' + (e.message || e)
+                uni.showModal({ title: '获取失败', content: (e.message || '') + '\n请确认能访问帆软报表服务器。', showCancel: false })
+            } finally {
+                this.fetching = false
+            }
+        },
+        // 确认插入：填入各桶件数 → 重算 → 同步云端
+        async applyBuckets(result) {
+            this.bucketKeys.forEach(k => {
+                this.buckets[k] = (result[k] || 0) ? String(result[k]) : ''
+            })
             this.calculateMaterial()
-            this.frMsg = '已获取每桶件数'
-            uni.showToast({ title: '帆软数据已填入', icon: 'success' })
-            // 手机即桥：手动获取后同步到云端，供小程序读取（失败不阻断）
+            this.frMsg = '已插入各桶件数'
+            uni.showToast({ title: '已插入', icon: 'success' })
+            // 手机即桥：同步到云端，供其他端读取（失败不阻断）
             try {
                 const bk = {}
                 this.bucketKeys.forEach(k => { bk[k] = Number(this.buckets[k]) || 0 })
                 await upsertBatchBuckets(this.batchNo, bk)
-                this.frMsg = '已获取并同步云端'
+                this.frMsg = '已插入并同步云端'
             } catch (ce) {
                 console.warn('[fr-fetch] 云端同步失败（可稍后用云端按钮重试）：', ce && ce.message)
-            }
-        } catch (e) {
-                this.frMsg = '获取失败：' + (e.message || e)
-                uni.showModal({ title: '获取失败', content: (e.message || '') + '\n请确认已在内网登录帆软，或手动录入。', showCancel: false })
-            } finally {
-                this.fetching = false
             }
         },
         // ===== 云端（uniCloud）：App / 微信小程序通用 =====
@@ -539,11 +572,8 @@ export default {
             uni.showToast({ title: '已清空', icon: 'none' })
         },
         // ===== 卡片折叠 / 排序 / 拖拽 ===== 由 mixins/card-layout.js 提供
-        goUserManage() {
-            uni.navigateTo({ url: '/pages/user-manage/user-manage' })
-        },
-        goChangePassword() {
-            uni.navigateTo({ url: '/pages/change-password/change-password' })
+        goHistory() {
+            uni.switchTab({ url: '/pages/history/history' })
         }
     }
 }

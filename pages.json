@@ -8,10 +8,36 @@
             }
         },
         {
+            "path": "pages/scan/scan",
+            "style": {
+                "navigationBarTitleText": "扫一扫",
+                "navigationBarBackgroundColor": "#000000",
+                "navigationBarTextStyle": "white"
+            }
+        },
+        {
             "path": "pages/materials/materials",
             "style": {
                 "navigationBarTitleText": "包材计算",
                 "enablePullDownRefresh": false
+            }
+        },
+        {
+            "path": "pages/history/history",
+            "style": {
+                "navigationBarTitleText": "历史记录"
+            }
+        },
+        {
+            "path": "pages/archive/archive",
+            "style": {
+                "navigationBarTitleText": "档案"
+            }
+        },
+        {
+            "path": "pages/me/me",
+            "style": {
+                "navigationBarTitleText": "我的"
             }
         },
         {
@@ -26,11 +52,144 @@
                 "navigationBarTitleText": "修改密码"
             }
         }
-    ],
+    ,{
+    "path": "uni_modules/uni-id-pages/pages/register/register",
+    "style": {
+        "navigationBarTitleText": "注册"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/login/login-withoutpwd",
+    "style": {
+        "navigationBarTitleText": "登录"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/login/login-withpwd",
+    "style": {
+        "navigationBarTitleText": "账号密码登录"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/login/login-smscode",
+    "style": {
+        "navigationBarTitleText": "手机验证码登录"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/userinfo/userinfo",
+    "style": {
+        "navigationBarTitleText": "个人资料"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/userinfo/bind-mobile/bind-mobile",
+    "style": {
+        "navigationBarTitleText": "绑定手机号码"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/userinfo/cropImage/cropImage",
+    "style": {
+        "navigationBarTitleText": ""
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/register/register-by-email",
+    "style": {
+        "navigationBarTitleText": "邮箱验证码注册"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/retrieve/retrieve",
+    "style": {
+        "navigationBarTitleText": "重置密码"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/retrieve/retrieve-by-email",
+    "style": {
+        "navigationBarTitleText": "通过邮箱重置密码"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/common/webview/webview",
+    "style": {
+        "enablePullDownRefresh": false,
+        "navigationBarTitleText": ""
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/userinfo/change_pwd/change_pwd",
+    "style": {
+        "enablePullDownRefresh": false,
+        "navigationBarTitleText": "修改密码"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/register/register-admin",
+    "style": {
+        "enablePullDownRefresh": false,
+        "navigationBarTitleText": "注册管理员账号"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/userinfo/set-pwd/set-pwd",
+    "style": {
+        "enablePullDownRefresh": false,
+        "navigationBarTitleText": "设置密码"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/userinfo/deactivate/deactivate",
+    "style": {
+        "navigationBarTitleText": "注销账号"
+    }
+}
+,{
+    "path": "uni_modules/uni-id-pages/pages/userinfo/realname-verify/realname-verify",
+    "style": {
+        "enablePullDownRefresh": false,
+        "navigationBarTitleText": "实名认证"
+    }
+}
+],
     "globalStyle": {
         "navigationBarTextStyle": "white",
         "navigationBarTitleText": "MES生产助手",
         "navigationBarBackgroundColor": "#008577",
         "backgroundColor": "#F2F4F3"
+    },
+    "tabBar": {
+        "color": "#77827D",
+        "selectedColor": "#008577",
+        "backgroundColor": "#ffffff",
+        "borderStyle": "black",
+        "list": [
+            {
+                "pagePath": "pages/materials/materials",
+                "text": "计算",
+                "iconPath": "static/tabbar/calc.png",
+                "selectedIconPath": "static/tabbar/calc-active.png"
+            },
+            {
+                "pagePath": "pages/history/history",
+                "text": "历史",
+                "iconPath": "static/tabbar/history.png",
+                "selectedIconPath": "static/tabbar/history-active.png"
+            },
+            {
+                "pagePath": "pages/archive/archive",
+                "text": "档案",
+                "iconPath": "static/tabbar/archive.png",
+                "selectedIconPath": "static/tabbar/archive-active.png"
+            },
+            {
+                "pagePath": "pages/me/me",
+                "text": "我的",
+                "iconPath": "static/tabbar/me.png",
+                "selectedIconPath": "static/tabbar/me-active.png"
+            }
+        ]
     }
 }
