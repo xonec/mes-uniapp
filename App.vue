@@ -1,12 +1,19 @@
 <script>
-import { checkAppUpdate } from '@/utils/app-version.js'
+// #ifdef APP-PLUS
+import checkUpdate from '@/uni_modules/uni-upgrade-center-app/utils/check-update'
+// #endif
 
 export default {
     onLaunch() {
-        // 锁定竖屏
         // #ifdef APP-PLUS
+        // 锁定竖屏
         plus.screen.lockOrientation('portrait-primary')
-        checkAppUpdate() // App 端版本检查（失败静默，不影响启动）
+        // 官方升级中心：wgt 静默更新 + apk 弹窗（升级中心未配置/云端未就绪时静默失败，不影响启动）
+        try {
+            checkUpdate().catch((e) => {
+                console.warn('[upgrade-center] 检查更新失败（忽略）：', e && (e.message || e))
+            })
+        } catch (e) { /* ignore */ }
         // #endif
 
         // #ifdef MP-WEIXIN
