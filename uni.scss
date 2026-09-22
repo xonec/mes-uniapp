@@ -1,3 +1,12 @@
+/* uni-ui / uni-id-pages 官方插件主题变量（$uni-color-primary 等） */
+@import '@/uni_modules/uni-scss/variables.scss';
+
+/* 旧版 uni-ui 插件用的旧变量名（uni-id-pages 等仍在使用），映射到 uni-scss 主题色 */
+$uni-color-primary: $uni-primary;
+$uni-color-success: $uni-success;
+$uni-color-warning: $uni-warning;
+$uni-color-error: $uni-error;
+
 /* 全局样式变量（与原型设计令牌保持一致） */
 $primary: #008577;
 $primary-soft: #E6F4F1;

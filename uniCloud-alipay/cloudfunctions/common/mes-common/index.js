@@ -1,58 +1,36 @@
 'use strict'
-// 公共模块：token 校验 + 鉴权 + 统一响应封装（3 个云函数共享，消除重复代码）
+// 公共模块：鉴权（委托 uni-id）+ 统一响应封装（多个云函数共享）
 // 位置：uniCloud-alipay/cloudfunctions/common/mes-common
-// 云函数 package.json 依赖："mes-common": "file:../common/mes-common"
-// 上传：HBuilderX 上传云函数时需一并上传公共模块（右键 common 目录 → 上传公共模块）。
+//
+// 鉴权已切换为 uni-app 官方 uni-id：token 校验走 uni-id-common 的 checkToken（JWT，HS256）。
+// 保留 checkAuth / checkAdmin 签名不变，业务云函数无需改动。
+// 依赖公共模块：uni-id-common（→ uni-config-center 读取 uni-id/config.json 的 tokenSecret）。
+//
+// 差异说明（相对旧自研 HMAC token）：
+//   - token 由 uni-id 签发（uni-id-co 登录 / uni-id-common createToken），载荷含 uid/role。
+//   - 禁用/封禁、角色变更在下一次登录/刷新时生效（uni-id 语义），不再有自研的 pwdVersion 即时失效。
+//   - checkAuth 仍为 fail-closed：查用户表失败返回 503 拒绝，不放行。
 
-const crypto = require('crypto')
+const uniID = require('uni-id-common')
 
-const TOKEN_TTL_MS = 7 * 24 * 3600 * 1000 // token 有效期 7 天
 const USER_COLL = 'uni-id-users'
 
-// 密钥从环境变量读取（云函数控制台配置），不再硬编码到源码
-function getTokenSecret() {
-    return process.env.MES_TOKEN_SECRET || ''
-}
-
-// ---------- base64url ----------
-function b64urlEncode(buf) {
-    return Buffer.from(buf).toString('base64')
-        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-function b64urlDecode(str) {
-    str = String(str).replace(/-/g, '+').replace(/_/g, '/')
-    while (str.length % 4) str += '='
-    return Buffer.from(str, 'base64')
-}
-
-// ---------- token ----------
-// 签发：payload.signature（payload = base64url(JSON)，signature = HMAC-SHA256(payload)）
-function createToken(payloadObj, tokenSecret) {
-    const iat = Date.now()
-    const exp = iat + TOKEN_TTL_MS
-    const payload = Object.assign({ iat, exp, client: 'mes' }, payloadObj)
-    const payloadStr = b64urlEncode(Buffer.from(JSON.stringify(payload)))
-    const sig = b64urlEncode(crypto.createHmac('sha256', tokenSecret).update(payloadStr).digest())
-    return { token: payloadStr + '.' + sig, tokenExpired: exp }
-}
-
-// 校验：返回 payload（成功）或 { errCode, message }
-function checkToken(token, tokenSecret) {
-    if (!token || typeof token !== 'string') return { errCode: 'TOKEN_INVALID', message: '未登录' }
-    const parts = String(token).split('.')
-    if (parts.length !== 2) return { errCode: 'TOKEN_INVALID', message: 'token 格式错误' }
-    const [payloadStr, sig] = parts
-    const expected = b64urlEncode(crypto.createHmac('sha256', tokenSecret).update(payloadStr).digest())
-    if (sig !== expected) return { errCode: 'TOKEN_INVALID', message: '签名校验失败' }
-    let payload
-    try {
-        payload = JSON.parse(b64urlDecode(payloadStr).toString('utf8'))
-    } catch (e) {
-        return { errCode: 'TOKEN_INVALID', message: 'token 解析失败' }
+// ---------- 面向客户端的业务错误 ----------
+class ClientError extends Error {
+    constructor(message, code = 500) {
+        super(message)
+        this.name = 'ClientError'
+        this.code = code
     }
-    const now = Date.now()
-    if (payload.exp && now > payload.exp) return { errCode: 'TOKEN_EXPIRED', message: '登录已过期' }
-    return payload
+}
+
+// uni-id 实例（惰性单例；固定 app 端 clientInfo 读取默认 config）
+let _ins = null
+function getUniID() {
+    if (!_ins) {
+        _ins = uniID.createInstance({ clientInfo: { platform: 'app' } })
+    }
+    return _ins
 }
 
 // 读用户记录（带一次重试，降低瞬时抖动导致的误判）
@@ -70,45 +48,43 @@ async function loadUserWithRetry(db, uid) {
     return { user: null, err: lastErr }
 }
 
-// ---------- 鉴权（查用户表验证账号有效，禁用/改密后 token 立即失效）----------
-// 返回 { errCode, uid }；errCode 0 表示通过。
-// 安全取向：**fail-closed** —— 查用户表失败时返回 503 拒绝本次请求，而不是放行。
-// 放行会让「已被禁用/已改密」的 token 在数据库抖动期间继续可用；宁可暂时拒绝也不能错放。
-// 用 503（而非 401）是为了避免客户端误判为「登录失效」而把用户踢到登录页。
+// uni-id status 语义：0/未设置=正常；1=封禁；2=审核中；3=审核失败；4=已注销
+function isBlocked(u) {
+    const s = u.status
+    return s === 1 || s === 2 || s === 3 || s === 4
+}
+
+// ---------- 鉴权 ----------
+// 验证 token → 返回 { errCode, uid, role }；errCode 0 表示通过（role 为数据库最新角色）。
+// fail-closed：查用户表失败返回 503 拒绝，不放行。
 async function checkAuth(db, token) {
-    const tokenSecret = getTokenSecret()
-    if (!tokenSecret) return { errCode: 500, message: '服务端未配置环境变量 MES_TOKEN_SECRET' }
     if (!token) return { errCode: 401, message: '未登录' }
-    const payload = checkToken(token, tokenSecret)
-    if (payload.errCode) return { errCode: 401, message: '登录失效，请重新登录' }
-    if (!payload.uid) return { errCode: 401, message: 'token 缺少 uid' }
+    let payload
+    try {
+        const r = await getUniID().checkToken(token, { autoRefresh: false })
+        if (r && r.errCode) return { errCode: 401, message: '登录失效，请重新登录' }
+        payload = r
+    } catch (e) {
+        return { errCode: 401, message: '登录失效，请重新登录' }
+    }
+    if (!payload || !payload.uid) return { errCode: 401, message: 'token 缺少 uid' }
 
     const { user: u, err } = await loadUserWithRetry(db, payload.uid)
     if (err) {
         console.warn('[checkAuth] 查用户状态失败，拒绝本次请求（fail-closed）：', err && err.message)
         return { errCode: 503, message: '服务暂时不可用，请稍后重试' }
     }
-    if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
-    // 改密后，签发时间早于改密的旧 token 立即失效（pwdVersion 不匹配）
-    if (Number(u.pwdVersion || 1) !== Number(payload.pv || 1)) {
-        return { errCode: 401, message: '密码已变更，请重新登录' }
-    }
-    return { errCode: 0, uid: payload.uid }
+    if (!u) return { errCode: 401, message: '账号不存在' }
+    if (isBlocked(u)) return { errCode: 401, message: '账号已失效，请重新登录' }
+    return { errCode: 0, uid: payload.uid, role: u.role || [] }
 }
 
-// ---------- 管理员鉴权：验 token + 查用户表校验 status / pwdVersion / admin 角色 ----------
-// 同 checkAuth 一样是 fail-closed：查库失败返回 503，不放行。
+// 管理员鉴权：验 token + 数据库最新角色含 admin（fail-closed）
 async function checkAdmin(db, token) {
     const auth = await checkAuth(db, token)
     if (auth.errCode) return auth
-    const { user: u, err } = await loadUserWithRetry(db, auth.uid)
-    if (err) {
-        console.warn('[checkAdmin] 校验权限失败，拒绝本次请求（fail-closed）：', err && err.message)
-        return { errCode: 503, message: '服务暂时不可用，请稍后重试' }
-    }
-    if (!u || u.status !== 1) return { errCode: 401, message: '账号已失效，请重新登录' }
-    if ((u.role || []).indexOf('admin') < 0) return { errCode: 403, message: '无权限' }
-    return { errCode: 0, uid: auth.uid }
+    if ((auth.role || []).indexOf('admin') < 0) return { errCode: 403, message: '无权限' }
+    return auth
 }
 
 // ---------- 统一响应封装：{ code, message, data } ----------
@@ -120,6 +96,5 @@ function fail(code, message) {
 }
 
 module.exports = {
-    getTokenSecret, createToken, checkToken, checkAuth, checkAdmin, ok, fail,
-    b64urlEncode, b64urlDecode, TOKEN_TTL_MS, USER_COLL
+    checkAuth, checkAdmin, ok, fail, ClientError, USER_COLL
 }

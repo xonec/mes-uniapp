@@ -1,0 +1,20 @@
+[
+    {
+        "IndexName": "username_unique",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "username", "Direction": "1", "Type": "string" }
+            ],
+            "MgoIsUnique": true
+        }
+    },
+    {
+        "IndexName": "register_date_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "register_date", "Direction": "1", "Type": "long" }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

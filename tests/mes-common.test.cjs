@@ -1,14 +1,27 @@
 // 公共模块单元测试（node 运行：node tests/mes-common.test.cjs）
+// 鉴权已切换为 uni-id：token 校验委托 uni-id-common（此处用测试桩），
+// 本文件重点测 checkAuth / checkAdmin 的 fail-closed 语义与角色/封禁判断。
 const assert = require('node:assert')
-const crypto = require('crypto')
+const path = require('node:path')
+const Module = require('node:module')
+
+// ---- require('uni-id-common') 指到测试桩 ----
+const UNIID_STUB = path.join(__dirname, 'helpers/uni-id-common-stub.cjs')
+const origResolve = Module._resolveFilename
+Module._resolveFilename = function (request, ...args) {
+    if (request === 'uni-id-common') return UNIID_STUB
+    return origResolve.call(this, request, ...args)
+}
+
 const common = require('../uniCloud-alipay/cloudfunctions/common/mes-common/index.js')
 
 // mock uniCloud（checkAuth / checkAdmin 查用户表用）
+// uni-id status 语义：0/未设置=正常；1=封禁；2=审核中；3=审核失败；4=已注销
 const users = {
-    uid1: { _id: 'uid1', status: 1 },
-    uid2: { _id: 'uid2', status: 0 },
-    uid3: { _id: 'uid3', status: 1, role: ['admin'] },
-    uid4: { _id: 'uid4', status: 1, role: [] }
+    uid1: { _id: 'uid1', status: 0 },
+    uid2: { _id: 'uid2', status: 1 },
+    uid3: { _id: 'uid3', status: 0, role: ['admin'] },
+    uid4: { _id: 'uid4', status: 0, role: [] }
 }
 // 模拟数据库故障：'none' 正常；'always' 每次 get 都抛；'once' 首次抛、重试成功
 let dbFailMode = 'none'
@@ -34,8 +47,6 @@ global.uniCloud = {
 }
 function setDbFailMode(m) { dbFailMode = m; dbFailCount = 0 }
 
-process.env.MES_TOKEN_SECRET = 'test-secret-1234567890abcdef'
-
 let passed = 0
 let failed = 0
 function test(name, fn) {
@@ -49,105 +60,62 @@ function test(name, fn) {
     })
 }
 
-const b64 = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+const tokenFor = (uid) => 'tok-' + uid
+const db = () => global.uniCloud.database()
 
 ;(async () => {
-    await test('createToken/checkToken 往返', () => {
-        const secret = common.getTokenSecret()
-        const t = common.createToken({ uid: 'uid1', role: ['admin'] }, secret)
-        const p = common.checkToken(t.token, secret)
-        assert.strictEqual(p.uid, 'uid1')
-        assert.deepStrictEqual(p.role, ['admin'])
-    })
-
-    await test('checkToken 拒绝篡改签名', () => {
-        const secret = common.getTokenSecret()
-        const t = common.createToken({ uid: 'uid1' }, secret)
-        const tampered = t.token.slice(0, -1) + (t.token.endsWith('A') ? 'B' : 'A')
-        const p = common.checkToken(tampered, secret)
-        assert.ok(p.errCode)
-    })
-
-    await test('checkToken 拒绝过期 token', () => {
-        const secret = common.getTokenSecret()
-        const t = common.createToken({ uid: 'uid1' }, secret)
-        const [payloadStr] = t.token.split('.')
-        const payload = JSON.parse(Buffer.from(payloadStr.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'))
-        payload.exp = Date.now() - 1000
-        const newPayloadStr = b64(Buffer.from(JSON.stringify(payload)))
-        const sig = b64(crypto.createHmac('sha256', secret).update(newPayloadStr).digest())
-        const p = common.checkToken(newPayloadStr + '.' + sig, secret)
-        assert.strictEqual(p.errCode, 'TOKEN_EXPIRED')
-    })
-
     await test('checkAuth 放行有效账号', async () => {
-        const secret = common.getTokenSecret()
-        const t = common.createToken({ uid: 'uid1', role: [] }, secret)
-        const a = await common.checkAuth(global.uniCloud.database(), t.token)
+        const a = await common.checkAuth(db(), tokenFor('uid1'))
         assert.strictEqual(a.errCode, 0)
         assert.strictEqual(a.uid, 'uid1')
     })
 
-    await test('checkAuth 拒绝禁用账号', async () => {
-        const secret = common.getTokenSecret()
-        const t = common.createToken({ uid: 'uid2', role: [] }, secret)
-        const a = await common.checkAuth(global.uniCloud.database(), t.token)
+    await test('checkAuth 拒绝封禁账号（status=1）', async () => {
+        const a = await common.checkAuth(db(), tokenFor('uid2'))
         assert.strictEqual(a.errCode, 401)
     })
 
-    await test('checkAuth 未配置密钥时返回 500', async () => {
-        const old = process.env.MES_TOKEN_SECRET
-        delete process.env.MES_TOKEN_SECRET
-        const a = await common.checkAuth(global.uniCloud.database(), 'whatever')
-        process.env.MES_TOKEN_SECRET = old
-        assert.strictEqual(a.errCode, 500)
+    await test('checkAuth 未带 token → 401', async () => {
+        const a = await common.checkAuth(db(), '')
+        assert.strictEqual(a.errCode, 401)
+    })
+
+    await test('checkAuth 坏 token → 401', async () => {
+        const a = await common.checkAuth(db(), 'garbage-token')
+        assert.strictEqual(a.errCode, 401)
+    })
+
+    await test('checkAuth 账号不存在 → 401', async () => {
+        const a = await common.checkAuth(db(), tokenFor('ghost'))
+        assert.strictEqual(a.errCode, 401)
     })
 
     await test('checkAuth 查库失败 → 拒绝（fail-closed，503）', async () => {
-        const secret = common.getTokenSecret()
-        const t = common.createToken({ uid: 'uid1', role: [] }, secret)
         setDbFailMode('always')
-        const a = await common.checkAuth(global.uniCloud.database(), t.token)
+        const a = await common.checkAuth(db(), tokenFor('uid1'))
         setDbFailMode('none')
-        assert.strictEqual(a.errCode, 503, '不应放行被禁用/改密风险未知的 token')
+        assert.strictEqual(a.errCode, 503)
         assert.ok(!a.uid)
     })
 
     await test('checkAuth 查库瞬时失败但重试成功 → 放行', async () => {
-        const secret = common.getTokenSecret()
-        const t = common.createToken({ uid: 'uid1', role: [] }, secret)
         setDbFailMode('once')
-        const a = await common.checkAuth(global.uniCloud.database(), t.token)
+        const a = await common.checkAuth(db(), tokenFor('uid1'))
         setDbFailMode('none')
         assert.strictEqual(a.errCode, 0)
         assert.strictEqual(a.uid, 'uid1')
     })
 
-    await test('checkAuth 拒绝改密后的旧 token（pwdVersion 不匹配）', async () => {
-        const secret = common.getTokenSecret()
-        const old = users.uid1.pwdVersion
-        users.uid1.pwdVersion = 2
-        const t = common.createToken({ uid: 'uid1', role: [], pv: 1 }, secret)
-        const a = await common.checkAuth(global.uniCloud.database(), t.token)
-        users.uid1.pwdVersion = old
-        assert.strictEqual(a.errCode, 401)
-    })
-
     await test('checkAdmin 放行管理员 / 拒绝普通用户', async () => {
-        const secret = common.getTokenSecret()
-        const adminToken = common.createToken({ uid: 'uid3', role: ['admin'] }, secret).token
-        const userToken = common.createToken({ uid: 'uid4', role: [] }, secret).token
-        const a1 = await common.checkAdmin(global.uniCloud.database(), adminToken)
+        const a1 = await common.checkAdmin(db(), tokenFor('uid3'))
         assert.strictEqual(a1.errCode, 0)
-        const a2 = await common.checkAdmin(global.uniCloud.database(), userToken)
+        const a2 = await common.checkAdmin(db(), tokenFor('uid4'))
         assert.strictEqual(a2.errCode, 403)
     })
 
     await test('checkAdmin 查库失败 → 拒绝（fail-closed，503）', async () => {
-        const secret = common.getTokenSecret()
-        const t = common.createToken({ uid: 'uid3', role: ['admin'] }, secret)
         setDbFailMode('always')
-        const a = await common.checkAdmin(global.uniCloud.database(), t.token)
+        const a = await common.checkAdmin(db(), tokenFor('uid3'))
         setDbFailMode('none')
         assert.strictEqual(a.errCode, 503)
     })

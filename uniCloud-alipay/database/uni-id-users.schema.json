@@ -1,6 +1,6 @@
 {
     "bsonType": "object",
-    "description": "用户表（uni-id）：仅云函数可读写，客户端不可直连，账号由管理员通过 uni-auth 云函数创建",
+    "description": "用户表（uni-id）：仅云函数/云对象可读写，客户端不可直连，账号由管理员通过 uni-id-co（addUser/updateUser）管理",
     "required": ["username", "password"],
     "permission": {
         "read": false,

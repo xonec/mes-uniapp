@@ -1,0 +1,9 @@
+{
+    "name": "user-admin",
+    "version": "1.0.0",
+    "description": "用户管理薄封装（列表 / 个人资料），鉴权委托 uni-id",
+    "main": "index.js",
+    "dependencies": {
+        "mes-common": "file:../common/mes-common"
+    }
+}

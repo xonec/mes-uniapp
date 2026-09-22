@@ -10,9 +10,11 @@ const Module = require('node:module')
 
 // ---- 把云函数里的 require('mes-common') 指到真实公共模块 ----
 const MES_COMMON = path.join(__dirname, '../uniCloud-alipay/cloudfunctions/common/mes-common/index.js')
+const UNIID_STUB = path.join(__dirname, 'helpers/uni-id-common-stub.cjs')
 const origResolve = Module._resolveFilename
 Module._resolveFilename = function (request, ...args) {
     if (request === 'mes-common') return MES_COMMON
+    if (request === 'uni-id-common') return UNIID_STUB
     return origResolve.call(this, request, ...args)
 }
 
@@ -76,10 +78,10 @@ async function test(name, f) {
 }
 function reset() {
     Object.keys(store).forEach(k => delete store[k])
-    // checkAuth 会回查用户表 status / pwdVersion
-    ensure('uni-id-users').set('u1', { _id: 'u1', status: 1, pwdVersion: 1, role: ['user'] })
+    // checkAuth 会回查用户表 status / role（uni-id 语义 status 0=正常）
+    ensure('uni-id-users').set('u1', { _id: 'u1', status: 0, role: ['user'] })
 }
-const tokenFor = (uid) => common.createToken({ uid, role: ['user'], pv: 1 }, 'test-secret').token
+const tokenFor = (uid) => 'tok-' + uid
 const T = () => tokenFor('u1')
 
 // 与真实单据 567299（肌酸粉 OP7F）同口径的一份 BOM

@@ -1,6 +1,6 @@
 // production-records 云函数单元测试（node 运行：node tests/production-records.test.cjs）
 // 覆盖：首次保存 / 内容去重 / 版本归档 / 乐观锁重试 / 更新计数形状兼容 /
-//       批号校验 / 鉴权 / 草稿按 uid 隔离 / 回滚
+//       批号校验 / 鉴权 / 草稿按 uid 隔离 / 回滚 / 游标分页
 //
 // 做法：用一个「内存版 uniCloud.database()」替身 + 把裸模块名 mes-common 指到真实公共模块。
 
@@ -8,11 +8,13 @@ const assert = require('node:assert')
 const path = require('node:path')
 const Module = require('node:module')
 
-// ---- 把云函数里的 require('mes-common') 指到真实公共模块 ----
+// ---- 把云函数里的 require('mes-common') / require('uni-id-common') 指到真实模块 / 测试桩 ----
 const MES_COMMON = path.join(__dirname, '../uniCloud-alipay/cloudfunctions/common/mes-common/index.js')
+const UNIID_STUB = path.join(__dirname, 'helpers/uni-id-common-stub.cjs')
 const origResolve = Module._resolveFilename
 Module._resolveFilename = function (request, ...args) {
     if (request === 'mes-common') return MES_COMMON
+    if (request === 'uni-id-common') return UNIID_STUB
     return origResolve.call(this, request, ...args)
 }
 
@@ -33,7 +35,11 @@ function updateResult(n) {
 function clone(v) { return JSON.parse(JSON.stringify(v)) }
 function matchCond(doc, cond) {
     if (!cond) return true
-    return Object.keys(cond).every(k => doc[k] === cond[k])
+    return Object.keys(cond).every(k => {
+        const c = cond[k]
+        if (c && typeof c === 'object' && '$lt' in c) return doc[k] < c.$lt
+        return doc[k] === c
+    })
 }
 function ensure(name) { if (!store[name]) store[name] = new Map(); return store[name] }
 
@@ -95,7 +101,9 @@ function makeCollection(name) {
     return base
 }
 
-global.uniCloud = { database: () => ({ collection: (name) => makeCollection(name) }) }
+global.uniCloud = {
+    database: () => ({ collection: (name) => makeCollection(name), command: { lt: (v) => ({ $lt: v }) } })
+}
 
 const fn = require('../uniCloud-alipay/cloudfunctions/production-records/index.js')
 
@@ -109,11 +117,11 @@ function reset() {
     Object.keys(store).forEach(k => delete store[k])
     UPDATE_RESULT_MODE = 'affectedDocsTop'
     noopUpdatesRemaining = 0
-    // 预置一个正常用户（checkAuth 会回查用户表 status / pwdVersion）
-    ensure('uni-id-users').set('u1', { _id: 'u1', status: 1, pwdVersion: 1, role: ['user'] })
-    ensure('uni-id-users').set('u2', { _id: 'u2', status: 1, pwdVersion: 1, role: ['user'] })
+    // 预置正常用户（checkAuth 回查用户表 status / role；uni-id 语义 status 0=正常）
+    ensure('uni-id-users').set('u1', { _id: 'u1', status: 0, role: ['user'] })
+    ensure('uni-id-users').set('u2', { _id: 'u2', status: 0, role: ['user'] })
 }
-const tokenFor = (uid) => common.createToken({ uid, role: ['user'], pv: 1 }, 'test-secret').token
+const tokenFor = (uid) => 'tok-' + uid
 const BATCH = 'OPDG26X1001'
 const rec = (over = {}) => Object.assign({
     batchNo: BATCH, productCode: '1306005930', batchStatus: 'incomplete',
@@ -230,10 +238,11 @@ const save = (record, uid = 'u1') => fn.main({ action: 'upsert', uniIdToken: tok
         reset()
         await save(rec())
         await save(rec({ caseCount: 20 }))
-        const list = await fn.main({ action: 'list', uniIdToken: tokenFor('u1'), limit: 10, skip: 0 })
+        const list = await fn.main({ action: 'list', uniIdToken: tokenFor('u1'), limit: 10 })
         assert.strictEqual(list.code, 0)
-        assert.strictEqual(list.data.length, 1)
-        assert.strictEqual(list.data[0].batchNo, BATCH)
+        assert.strictEqual(list.data.list.length, 1)
+        assert.strictEqual(list.data.list[0].batchNo, BATCH)
+        assert.strictEqual(list.data.hasMore, false)
         const vers = await fn.main({ action: 'listVersions', uniIdToken: tokenFor('u1'), batchNo: BATCH })
         assert.strictEqual(vers.code, 0)
         assert.strictEqual(vers.data.length, 1)
@@ -242,11 +251,26 @@ const save = (record, uid = 'u1') => fn.main({ action: 'upsert', uniIdToken: tok
         assert.strictEqual(got.data.version, 2)
     })
 
-    await test('pwdVersion 不匹配（改密后）→ 401', async () => {
+    await test('list 游标分页：before 过滤 + hasMore/nextBefore', async () => {
         reset()
-        const oldToken = tokenFor('u1')                 // pv=1
-        ensure('uni-id-users').get('u1').pwdVersion = 2 // 模拟已改密
-        const r = await fn.main({ action: 'get', uniIdToken: oldToken, batchNo: BATCH })
+        await save(rec())                                   // 记录 1
+        ensure('production_records').get('rec:' + BATCH).updatedAt = 1000
+        await save(rec({ batchNo: 'OPDG26X1002', caseCount: 5 })) // 记录 2
+        ensure('production_records').get('rec:OPDG26X1002').updatedAt = 2000
+        const p1 = await fn.main({ action: 'list', uniIdToken: tokenFor('u1'), limit: 1 })
+        assert.strictEqual(p1.data.list.length, 1)
+        assert.strictEqual(p1.data.list[0].batchNo, 'OPDG26X1002')
+        assert.strictEqual(p1.data.hasMore, true)
+        assert.strictEqual(p1.data.nextBefore, 2000)
+        const p2 = await fn.main({ action: 'list', uniIdToken: tokenFor('u1'), limit: 1, before: p1.data.nextBefore })
+        assert.strictEqual(p2.data.list[0].batchNo, BATCH)
+        assert.strictEqual(p2.data.hasMore, false)
+    })
+
+    await test('封禁用户（status=1）→ 401', async () => {
+        reset()
+        ensure('uni-id-users').get('u1').status = 1 // uni-id 语义：封禁
+        const r = await fn.main({ action: 'get', uniIdToken: tokenFor('u1'), batchNo: BATCH })
         assert.strictEqual(r.code, 401)
     })
 

@@ -3,5 +3,7 @@
     "version": "1.0.0",
     "description": "MES 云函数公共模块：token 校验、鉴权、统一响应封装",
     "main": "index.js",
-    "dependencies": {}
+    "dependencies": {
+        "uni-id-common": "file:../uni-id-common"
+    }
 }

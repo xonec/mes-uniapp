@@ -18,55 +18,40 @@
 - `database/production_records.index.json`：updatedAt 索引（历史排序）
 - `database/production_record_versions.index.json`：batchNo+version 复合索引（版本查询）
 
-**公共模块（1 个）**
+**公共模块（3 个）**
 
-- `cloudfunctions/common/mes-common/`：token 校验 / 鉴权 / 统一响应封装（3 个云函数共享）
+- `cloudfunctions/common/mes-common/`：鉴权（checkAuth / checkAdmin，委托 uni-id）+ 统一响应封装 + ClientError
+- `cloudfunctions/common/uni-id-common/`：uni-id token 签发/校验（官方）
+- `cloudfunctions/common/uni-config-center/`：配置中心，承载 `uni-id/config.json`（tokenSecret / passwordSecret）
 
-**云函数（4 个）**
+**云函数（6 个）**
 
 - `cloudfunctions/batch-buckets/`：桶件数读写（upsert / get）
-- `cloudfunctions/production-records/`：生产记录读写 + 版本 + 回滚 + 草稿（upsert / get / list / listVersions / rollback / saveDraft / getDraft）
-- `cloudfunctions/uni-auth/`：登录鉴权（login / createUser / checkLogin / init / listUsers / deleteUser / setUserStatus / changePassword / resetPassword）
+- `cloudfunctions/production-records/`：生产记录读写 + 版本 + 回滚 + 草稿
+- `cloudfunctions/product-bom/`：产品 BOM 读写
+- `cloudfunctions/product-materials/`：产品物料档案读写
+- `cloudfunctions/user-admin/`：用户管理薄封装（listUsers / profile）
 - `cloudfunctions/app-version/`：App 版本检查（get 公开 / set 管理员）
 
-## 密钥与环境变量（重要）
+## 鉴权（官方 uni-id）
 
-密钥**不再硬编码到源码**，改为从云函数环境变量读取，需在支付宝云控制台为 3 个云函数分别配置：
+登录 / 建号 / 改密 / 重置 / 禁用走云对象 `uni-id-co`（uni_modules 内，随「上传所有云函数、公共模块」部署）；token 校验走 `uni-id-common`（`mes-common.checkAuth` 委托它）。
 
-| 变量名 | 必填 | 说明 |
-| --- | --- | --- |
-| `MES_TOKEN_SECRET` | 是 | token 签名密钥（HMAC-SHA256），3 个云函数必须配同一个值 |
-| `MES_LEGACY_PASSWORD_SECRET` | 否 | 旧密码哈希的 pepper，仅用于把老账号密码透明迁移到新格式；所有老账号登录一轮后可删除 |
-
-- 生成 `MES_TOKEN_SECRET`：`openssl rand -hex 32`
-- 未配置 `MES_TOKEN_SECRET` 时，云函数会返回明确错误。
-- 密码存储已改为 scrypt 加盐哈希（`scrypt$<salt>$<hash>`）。老格式（无盐 sha256）在登录时自动兼容并透明升级。
+- 密钥在 `cloudfunctions/common/uni-config-center/uni-id/config.json`（真实随机值，**勿用 demo 值**）。
+- 所有读写云函数校验 `event.uniIdToken`，未登录/失效返回 `code: 401`，前端自动跳登录页。
+- 账号管理：管理员进「用户管理」页可新建/列表/启用禁用/删除/重置密码，走 `uni-id-co.addUser / updateUser` + `user-admin.listUsers`。
 
 ## 部署步骤（HBuilderX）
 
-1. **配置环境变量**：3 个云函数各配 `MES_TOKEN_SECRET`（同一随机值）；如要兼容老账号，再配 `MES_LEGACY_PASSWORD_SECRET`（值 = 旧 passwordSecret）。
-2. **上传 Schema（建集合）**：右键 6 个 `.schema.json` → 「上传数据集合 Schema」。
-3. **初始化索引**：右键 2 个 `.index.json` → 「初始化云数据库索引」。
-4. **上传公共模块 + 云函数**：先右键 `cloudfunctions/common/mes-common` → 「上传公共模块」，再右键 4 个云函数目录 → 「上传部署」→ 「全部文件」（自动带上 mes-common 依赖）。
-5. **初始化 admin 账号**：HBuilderX 云函数测试调 `uni-auth`，参数 `{ "action": "init" }`（仅用户表为空时生效）。不传 password 时会返回随机生成的强密码 `initPassword`，请立即记录并妥善保存。
+1. 上传 Schema（建集合）：右键 `database` → 上传所有 DB Schema（含 index.json 索引）。
+2. 上传公共模块 + 云函数：右键 `uni_modules` → 上传所有云函数、公共模块（含 uni-id-co + 3 个 common 模块）；再右键 `cloudfunctions` → 上传所有云函数。
+3. 首个管理员：admin 项目注册管理员，或直接访问 `#/uni_modules/uni-id-pages/pages/register/register-admin`。
 
-## 登录鉴权
+## 密码与账号状态
 
-- 所有**读写操作**都需登录：云函数校验 `event.uniIdToken` 并**回查用户表验证账号状态**，未登录/失效返回 `code: 401`，前端自动跳登录页。
-- **token 服务端吊销**：禁用/删除账号后，其已签发 token 立即失效（每次鉴权都回查用户表 `status`）。
-- **登录防爆破**：连续密码错误 5 次锁定 15 分钟（字段 `loginFailCount` / `lockUntil`），登录成功清零。
-- 每次写入记录 `savedBy`（操作人 uid），配合版本历史可追溯「谁改的」。
-- 账号管理：`admin` 登录后进入「用户管理」页（包材页顶部「用户管理」条仅管理员可见）可**新建 / 列表 / 启用禁用 / 删除**账号，全部走 `uni-auth` 的 `createUser` / `listUsers` / `setUserStatus` / `deleteUser` 动作。
-  - 新建时可指定角色（普通用户 / 管理员），服务端仅接受 `user` / `admin`，且仅管理员能授予 `admin`。
-  - 删除 / 禁用均不能作用于自己。
-  - 非管理员进入「用户管理」页会自动跳回主页。
-
-## 密码修改与失效
-
-- **本人改密**：主页底部「修改密码」入口 → `changePassword`（校验原密码，至少 6 位）。
-- **管理员重置**：用户管理页每行「重置密码」→ `resetPassword`（不能重置自己）。
-- 用户表有 `pwdVersion`（初始 1），token 载荷含 `pv`；改密/重置时 `pwdVersion+1`，**旧 token 立即失效**（其它设备/被重置者需重新登录）。本人改密后本机自动续期新 token。
-- 兼容性：本次改动前签发的旧 token 无 `pv`，按 `pv=1` 处理，与 `pwdVersion` 缺省值一致，故不会立刻掉线。
+- 本人改密：主页「修改密码」→ `uni-id-co.updatePwd`。
+- 管理员重置：用户管理页「重置密码」→ `uni-id-co.updateUser({ id, password })`。
+- 账号状态（uni-id 语义）：`status` 0=正常 / 1=封禁 / 2·3=审核 / 4=注销；禁用=status 1，删除=status 4（注销）。
 
 ## 草稿隔离（用户 + 设备）
 
@@ -90,7 +75,7 @@
 - 支付宝云 `add` **不会自动建表**：集合必须先「上传 Schema」创建。
 - 修改 Schema / 云函数后必须重新上传才生效。
 - **改了公共模块 `mes-common` 后，必须重传所有依赖它的云函数**，否则线上跑的还是旧模块。
-- 轮换 `MES_TOKEN_SECRET` 会导致已下发 token 失效，需重新登录。
+- 轮换 `uni-config-center/uni-id/config.json` 的 tokenSecret 会导致已下发 token 失效，需重新登录。
 - 微信小程序端连支付宝云，需在小程序后台配置 request 合法域名；App 端无此限制。
 - 云函数返回统一协议 `{ code, message, data }`（code 0 成功，data 放结果）。
 
@@ -109,5 +94,5 @@
 
 - `utils/fr-config.js` 的 `base` 只是出厂默认值；运行时可被覆盖（管理员在「用户管理」页设置，写入本地 storage `fr_base_override`），换服务器/IP 无需重新打包。
 - 该地址仅安卓 App 的「从帆软(内网)获取」使用。
-- `uni_modules/` 下的 `uni-id-common` / `uni-config-center` 已删除（云函数依赖 `common/mes-common`，自包含鉴权）。
+- `uni_modules/` 下的 `uni-id-common` / `uni-config-center` 已复制进 `cloudfunctions/common/`（云函数依赖 `common/uni-id-common`，其依赖 `common/uni-config-center`）。
 - 若公共模块解析失败（个别支付宝云环境），可在 HBuilderX 右键云函数 → 「管理公共模块依赖」重新勾选 `mes-common` 生成正确路径。

@@ -56,17 +56,17 @@
             <view class="card-title">账号列表<text class="count">{{ users.length }}</text></view>
             <view v-if="loading" class="empty">加载中…</view>
             <view v-else-if="users.length === 0" class="empty">暂无账号</view>
-            <view v-for="u in users" :key="u._id" class="user-row" :class="{ disabled: u.status !== 1 }">
+            <view v-for="u in users" :key="u._id" class="user-row" :class="{ disabled: u.status !== 0 }">
                 <view class="u-main">
                     <text class="u-name">{{ u.nickname || u.username }}</text>
                     <text class="u-sub">@{{ u.username }}</text>
                 </view>
                 <view class="u-tags">
                     <text class="tag" :class="roleClass(u.role)">{{ roleText(u.role) }}</text>
-                    <text class="tag" :class="u.status === 1 ? 'on' : 'off'">{{ u.status === 1 ? '启用' : '禁用' }}</text>
+                    <text class="tag" :class="u.status === 0 ? 'on' : 'off'">{{ u.status === 0 ? '启用' : '禁用' }}</text>
                 </view>
                 <view class="u-actions">
-                    <text class="act" @tap="toggleStatus(u)">{{ u.status === 1 ? '禁用' : '启用' }}</text>
+                    <text class="act" @tap="toggleStatus(u)">{{ u.status === 0 ? '禁用' : '启用' }}</text>
                     <text class="act" @tap="resetPwd(u)">重置密码</text>
                     <text class="act danger" @tap="removeUser(u)">删除</text>
                 </view>
@@ -76,7 +76,7 @@
 </template>
 
 <script>
-import { getUser, logout, checkLogin, resetPassword } from '@/utils/auth.js'
+import { getUser, logout, checkLogin, resetPassword, addUser, updateUser } from '@/utils/auth.js'
 import { callCloud } from '@/utils/cloud-call.js'
 import { getReportBase, setReportBase } from '@/utils/fr-config.js'
 
@@ -115,14 +115,10 @@ export default {
         roleClass(role) {
             return (role || []).indexOf('admin') >= 0 ? 'admin' : 'user'
         },
-        // 统一走 cloud-call：自动带 token、解析协议、401 跳登录
-        callAuth(action, data) {
-            return callCloud('uni-auth', action, data)
-        },
         async loadUsers() {
             this.loading = true
             try {
-                const r = await this.callAuth('listUsers')
+                const r = await callCloud('user-admin', 'listUsers')
                 this.users = r.list || []
             } catch (e) {
                 uni.showToast({ title: e.message || '加载失败', icon: 'none' })
@@ -138,11 +134,12 @@ export default {
             this.creating = true
             this.formMsg = ''
             try {
-                await this.callAuth('createUser', {
+                await addUser({
                     username,
                     password,
                     nickname: (this.form.nickname || '').trim() || username,
-                    role: [this.form.role]
+                    role: [this.form.role],
+                    status: 0
                 })
                 uni.showToast({ title: '创建成功', icon: 'success' })
                 this.form = { username: '', password: '', nickname: '', role: 'user' }
@@ -154,15 +151,16 @@ export default {
             }
         },
         toggleStatus(u) {
-            const next = u.status === 1 ? 0 : 1
+            // uni-id status：0=正常 1=封禁
+            const next = u.status === 0 ? 1 : 0
             uni.showModal({
-                title: next === 0 ? '禁用确认' : '启用确认',
-                content: `确定${next === 0 ? '禁用' : '启用'}账号 @${u.username} 吗？`,
+                title: next === 1 ? '禁用确认' : '启用确认',
+                content: `确定${next === 1 ? '禁用' : '启用'}账号 @${u.username} 吗？`,
                 success: async (res) => {
                     if (!res.confirm) return
                     try {
-                        await this.callAuth('setUserStatus', { username: u.username, status: next })
-                        uni.showToast({ title: next === 0 ? '已禁用' : '已启用', icon: 'none' })
+                        await updateUser({ id: u._id, status: next })
+                        uni.showToast({ title: next === 1 ? '已禁用' : '已启用', icon: 'none' })
                         this.loadUsers()
                     } catch (e) {
                         uni.showToast({ title: e.message || '操作失败', icon: 'none' })
@@ -173,11 +171,11 @@ export default {
         removeUser(u) {
             uni.showModal({
                 title: '删除确认',
-                content: `确定删除账号 @${u.username} 吗？不可恢复。`,
+                content: `确定删除账号 @${u.username} 吗？（注销后不可登录）`,
                 success: async (res) => {
                     if (!res.confirm) return
                     try {
-                        await this.callAuth('deleteUser', { username: u.username })
+                        await updateUser({ id: u._id, status: 4 }) // uni-id 注销
                         uni.showToast({ title: '已删除', icon: 'none' })
                         this.loadUsers()
                     } catch (e) {
@@ -200,7 +198,7 @@ export default {
                         return
                     }
                     try {
-                        await resetPassword(u.username, pwd)
+                        await resetPassword(u._id, pwd)
                         uni.showToast({ title: '已重置，请告知其用新密码登录', icon: 'none' })
                     } catch (e) {
                         uni.showToast({ title: e.message || '重置失败', icon: 'none' })
