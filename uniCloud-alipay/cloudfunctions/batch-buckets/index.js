@@ -4,9 +4,9 @@
 // 用途：batch_buckets 集合的受控读写入口（读写均走云函数并鉴权，客户端不直连数据库）。
 //   action = 'upsert'：幂等写入/更新某批号分桶件数（固定 _id = batch:<批号>）
 //   action = 'get'   ：读取某批号分桶件数（需登录）
-// 依赖公共模块 mes-common（token 校验 / 鉴权 / 响应封装）；密钥从环境变量 MES_TOKEN_SECRET 读取。
+// 依赖公共模块 mes-common（token 校验 / 鉴权 / 响应封装 / ClientError）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
-const { checkAuth, ok, fail } = require('mes-common')
+const { checkAuth, ok, fail, ClientError } = require('mes-common')
 
 const COLL = 'batch_buckets'
 const BUCKET_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
@@ -25,13 +25,13 @@ function docId(batchNo) {
 function normalizeBatchNo(v) {
     const s = String(v || '').trim().toUpperCase()
     if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(s)) {
-        throw new Error('批号非法：须为 11 位且同时含字母与数字')
+        throw new ClientError('批号非法：须为 11 位且同时含字母与数字')
     }
     return s
 }
 
 function normalizeBuckets(v) {
-    if (!v || typeof v !== 'object') throw new Error('buckets 缺失或格式错误')
+    if (!v || typeof v !== 'object') throw new ClientError('buckets 缺失或格式错误')
     const out = {}
     BUCKET_KEYS.forEach(k => {
         const n = Number(v[k])
@@ -124,7 +124,8 @@ exports.main = async (event) => {
 
         return fail(400, '未知 action: ' + action)
     } catch (e) {
+        if (e && e.name === 'ClientError') return fail(e.code || 500, e.message)
         console.error('[batch-buckets] 运行异常:', e && (e.stack || e.message || e))
-        return fail(500, '内部错误: ' + (e && (e.message || e.errMsg) || JSON.stringify(e)))
+        return fail(500, '服务内部错误，请稍后重试')
     }
 }

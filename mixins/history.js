@@ -18,7 +18,7 @@ export default {
             historyShow: false,
             historyList: [],
             historyKeyword: '',
-            historyLoaded: 0,
+            historyCursor: 0,
             historyDone: false,
             historyLoading: false,
             // 历史版本
@@ -44,7 +44,7 @@ export default {
                 return
             }
             this.historyKeyword = ''
-            this.historyLoaded = 0
+            this.historyCursor = 0
             this.historyDone = false
             // 先用本地历史即时显示，再合并云端；本地独有的也保留，避免「云端非空时丢本地」
             this.historyList = uni.getStorageSync(STORE_HISTORY) || []
@@ -55,12 +55,12 @@ export default {
             if (this.historyLoading || this.historyDone) return
             this.historyLoading = true
             try {
-                const page = await listProductionRecords(50, this.historyLoaded)
-                const remote = (page || []).map(r => r.batchNo).filter(Boolean)
+                const page = await listProductionRecords(50, this.historyCursor)
+                const remote = (page.list || []).map(r => r.batchNo).filter(Boolean)
                 const merged = [...this.historyList, ...remote.filter(x => this.historyList.indexOf(x) < 0)]
                 this.historyList = merged
-                this.historyLoaded += (page || []).length
-                if ((page || []).length < 50) this.historyDone = true
+                this.historyCursor = page.nextBefore || 0
+                if (!page.hasMore) this.historyDone = true
             } catch (e) {
                 console.warn('[cloud] 读取云端历史失败：', e && e.message)
                 this.historyDone = true

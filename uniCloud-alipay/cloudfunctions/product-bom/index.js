@@ -10,9 +10,9 @@
 //   action = 'upsert'       ：幂等写入/更新一份 BOM（同产品编码始终同一 _id）
 //
 // 读取需登录；写入按 batch-buckets 同样口径需登录（如需收紧为管理员，把 checkAuth 换成 checkAdmin 即可）。
-// 依赖公共模块 mes-common（token 校验 / 鉴权 / 响应封装）；密钥从环境变量 MES_TOKEN_SECRET 读取。
+// 依赖公共模块 mes-common（token 校验 / 鉴权 / 响应封装 / ClientError）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
-const { checkAuth, ok, fail } = require('mes-common')
+const { checkAuth, ok, fail, ClientError } = require('mes-common')
 
 const COLL = 'product_bom'
 const BASIS = ['inner', 'bottle', 'mid', 'case', 'pallet', 'manual']
@@ -51,9 +51,9 @@ function clampWaste(v) {
 // 产品编码：非空、去空格、禁含 ':'（避免与 _id 前缀混淆）
 function normalizeProductCode(v) {
     const s = str(v)
-    if (!s) throw new Error('产品编码缺失')
-    if (s.indexOf(':') >= 0) throw new Error('产品编码非法：不能含冒号')
-    if (s.length > 40) throw new Error('产品编码过长')
+    if (!s) throw new ClientError('产品编码缺失')
+    if (s.indexOf(':') >= 0) throw new ClientError('产品编码非法：不能含冒号')
+    if (s.length > 40) throw new ClientError('产品编码过长')
     return s
 }
 
@@ -80,11 +80,11 @@ function normalizeLevels(v) {
 
 function normalizeMaterials(v) {
     if (!Array.isArray(v)) return []
-    if (v.length > MAX_MATERIALS) throw new Error('物料行数超过上限 ' + MAX_MATERIALS)
+    if (v.length > MAX_MATERIALS) throw new ClientError('物料行数超过上限 ' + MAX_MATERIALS)
     return v.map((row, i) => {
         row = row || {}
         const basis = str(row.basis).toLowerCase()
-        if (BASIS.indexOf(basis) < 0) throw new Error('第 ' + (i + 1) + ' 行 basis 非法：' + basis)
+        if (BASIS.indexOf(basis) < 0) throw new ClientError('第 ' + (i + 1) + ' 行 basis 非法：' + basis)
         const roundMode = str(row.roundMode).toLowerCase()
         const r = {
             seq: Number.isFinite(Number(row.seq)) ? Number(row.seq) : i + 1,
@@ -107,11 +107,11 @@ function normalizeMaterials(v) {
 
 // 归一化整份 BOM：入参 = 客户端传来的 bom 对象（或直接是文档）
 function normalizeBom(input) {
-    if (!input || typeof input !== 'object') throw new Error('bom 缺失或格式错误')
+    if (!input || typeof input !== 'object') throw new ClientError('bom 缺失或格式错误')
     const productCode = normalizeProductCode(input.productCode)
     const packLevels = normalizeLevels(input.packLevels)
     const materials = normalizeMaterials(input.materials)
-    if (!materials.length) throw new Error('物料清单为空（materials 至少 1 行）')
+    if (!materials.length) throw new ClientError('物料清单为空（materials 至少 1 行）')
 
     // 历史别名：packLevels 缺省时由 bottlePerCase / casePerPallet 合成
     let levels = packLevels
@@ -248,7 +248,8 @@ exports.main = async (event) => {
 
         return fail(400, '未知 action: ' + action)
     } catch (e) {
+        if (e && e.name === 'ClientError') return fail(e.code || 500, e.message)
         console.error('[product-bom] 运行异常:', e && (e.stack || e.message || e))
-        return fail(500, '内部错误: ' + ((e && (e.message || e.errMsg)) || JSON.stringify(e)))
+        return fail(500, '服务内部错误，请稍后重试')
     }
 }

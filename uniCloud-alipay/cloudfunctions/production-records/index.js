@@ -13,9 +13,9 @@
 //   - 内容比对用「递归按键排序」的稳定序列化，避免云端键序变化导致去重失效。
 //   - 草稿 _id = draft:<uid>:<设备ID>:<批号>，uid 纳入主键以隔离用户，防跨用户读写他人草稿。
 //
-// 依赖公共模块 mes-common（鉴权 / 响应封装）；密钥从环境变量 MES_TOKEN_SECRET 读取。
+// 依赖公共模块 mes-common（鉴权 / 响应封装 / ClientError）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
-const { checkAuth, ok, fail } = require('mes-common')
+const { checkAuth, ok, fail, ClientError } = require('mes-common')
 
 const COLL = 'production_records'
 const VER_COLL = 'production_record_versions'
@@ -41,7 +41,7 @@ function verId(batchNo, version) {
 // 把 uid 纳入主键，避免任一登录用户凭一个 deviceId 读写他人草稿。
 function normalizeDeviceId(v) {
     const s = String(v || '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64)
-    if (!s) throw new Error('设备ID非法')
+    if (!s) throw new ClientError('设备ID非法')
     return s
 }
 function draftId(uid, deviceId, batchNo) {
@@ -51,7 +51,7 @@ function draftId(uid, deviceId, batchNo) {
 function normalizeBatchNo(v) {
     const s = String(v || '').trim().toUpperCase()
     if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(s)) {
-        throw new Error('批号非法：须为 11 位且同时含字母与数字')
+        throw new ClientError('批号非法：须为 11 位且同时含字母与数字')
     }
     return s
 }
@@ -168,7 +168,7 @@ async function upsertLocked(batchNo, cleanRecord, authUid) {
         }
         // 乐观锁冲突：重试
     }
-    throw new Error('并发保存冲突，请重试')
+    throw new ClientError('并发保存冲突，请重试', 409)
 }
 
 exports.main = async (event) => {
@@ -196,18 +196,28 @@ exports.main = async (event) => {
             return ok(rows.length ? rows[0] : null)
         }
 
+        // 游标分页：按 updatedAt 倒序，before 传上一页末尾的 updatedAt 游标（替代 skip 全表扫）
         if (action === 'list') {
             const auth = await checkAuth(db, event.uniIdToken)
             if (auth.errCode) return fail(auth.errCode, auth.message)
-            const limit = Math.min(Number(event.limit) || 50, 100)
-            const skip = Math.max(0, Number(event.skip) || 0)
-            const res = await db.collection(COLL)
-                .field({ batchNo: true })
+            const limit = Math.min(Math.max(1, Number(event.limit) || 50), 100)
+            const before = Number(event.before)
+            let q = db.collection(COLL)
+                .field({ batchNo: true, updatedAt: true })
                 .orderBy('updatedAt', 'desc')
-                .skip(skip)
-                .limit(limit)
-                .get()
-            return ok((res && res.data) || [])
+                .limit(limit + 1)
+            if (Number.isFinite(before) && before > 0) {
+                q = q.where({ updatedAt: db.command.lt(before) })
+            }
+            const res = await q.get()
+            const rows = (res && res.data) || []
+            const hasMore = rows.length > limit
+            const page = rows.slice(0, limit)
+            return ok({
+                list: page,
+                hasMore,
+                nextBefore: page.length ? page[page.length - 1].updatedAt : (before || 0)
+            })
         }
 
         if (action === 'listVersions') {
@@ -294,7 +304,8 @@ exports.main = async (event) => {
 
         return fail(400, '未知 action: ' + action)
     } catch (e) {
+        if (e && e.name === 'ClientError') return fail(e.code || 500, e.message)
         console.error('[production-records] 运行异常:', e && (e.stack || e.message || e))
-        return fail(500, '内部错误: ' + (e && (e.message || e.errMsg) || JSON.stringify(e)))
+        return fail(500, '服务内部错误，请稍后重试')
     }
 }

@@ -1,7 +1,7 @@
 {
-    "name" : "MES生产助手",
-    "appid" : "__UNI__MES0001",
-    "description" : "MES 现场生产助手（安卓 / 微信小程序），含包材计算页面",
+    "name" : "生产助手",
+    "appid" : "__UNI__A2E52B9",
+    "description" : "现场生产助手（安卓 / 微信小程序），含包材计算页面",
     "versionName" : "1.1.0",
     "versionCode" : "110",
     "transformPx" : false,
@@ -18,17 +18,45 @@
             "autoclose" : true,
             "delay" : 0
         },
-        "modules" : {},
+        "modules" : {
+            "Barcode" : {},
+            "Camera" : {},
+            "Record" : {},
+            "Fingerprint" : {},
+            "SQLite" : {},
+            "Bluetooth" : {},
+            "iBeacon" : {},
+            "VideoPlayer" : {},
+            "Geolocation" : {}
+        },
         "distribute" : {
             "android" : {
                 "permissions" : [
                     "<uses-permission android:name=\"android.permission.INTERNET\"/>",
                     "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>",
-                    "<uses-permission android:name=\"android.permission.CAMERA\"/>"
+                    "<uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.CHANGE_WIFI_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.CAMERA\"/>",
+                    "<uses-permission android:name=\"android.permission.FLASHLIGHT\"/>",
+                    "<uses-permission android:name=\"android.permission.VIBRATE\"/>",
+                    "<uses-permission android:name=\"android.permission.WAKE_LOCK\"/>",
+                    "<uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>",
+                    "<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\"/>",
+                    "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\"/>",
+                    "<uses-permission android:name=\"android.permission.READ_MEDIA_IMAGES\"/>",
+                    "<uses-permission android:name=\"android.permission.READ_MEDIA_VIDEO\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\"/>",
+                    "<uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\"/>",
+                    "<uses-permission android:name=\"android.permission.BLUETOOTH\"/>",
+                    "<uses-permission android:name=\"android.permission.BLUETOOTH_ADMIN\"/>",
+                    "<uses-permission android:name=\"android.permission.BLUETOOTH_CONNECT\"/>",
+                    "<uses-permission android:name=\"android.permission.BLUETOOTH_SCAN\"/>"
                 ],
                 "minSdkVersion" : 21
             },
-            "ios" : {},
+            "ios" : {
+                "dSYMs" : false
+            },
             "sdkConfigs" : {}
         }
     },

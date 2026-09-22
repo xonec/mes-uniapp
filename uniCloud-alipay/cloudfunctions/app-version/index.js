@@ -7,7 +7,7 @@
 //
 // 返回协议 { code, message, data }；依赖公共模块 mes-common。
 
-const { checkAdmin, ok, fail } = require('mes-common')
+const { checkAdmin, ok, fail, ClientError } = require('mes-common')
 
 const COLL = 'app_versions'
 const DOC_ID = 'latest'
@@ -46,9 +46,9 @@ async function upsertDoc(id, data) {
 
 function normalizeInfo(e) {
     const versionName = String(e.versionName || '').trim()
-    if (!/^\d+(\.\d+){0,3}$/.test(versionName)) throw new Error('versionName 需形如 1.1.0')
+    if (!/^\d+(\.\d+){0,3}$/.test(versionName)) throw new ClientError('versionName 需形如 1.1.0')
     const url = String(e.url || '').trim()
-    if (!/^https?:\/\//.test(url)) throw new Error('url 需以 http:// 或 https:// 开头')
+    if (!/^https?:\/\//.test(url)) throw new ClientError('url 需以 http:// 或 https:// 开头')
     return {
         versionName,
         versionCode: Number(e.versionCode) || 0,
@@ -92,7 +92,8 @@ exports.main = async (event) => {
 
         return fail(400, '未知 action: ' + action)
     } catch (e) {
+        if (e && e.name === 'ClientError') return fail(e.code || 500, e.message)
         console.error('[app-version] 运行异常:', e && (e.stack || e.message || e))
-        return fail(500, '内部错误: ' + (e && (e.message || e.errMsg) || JSON.stringify(e)))
+        return fail(500, '服务内部错误，请稍后重试')
     }
 }

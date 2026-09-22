@@ -22,10 +22,11 @@ export async function fetchProductionRecord(batchNo) {
     return callFn('get', { batchNo: String(batchNo) })
 }
 
-// 列出生产记录（按 updatedAt 倒序，仅投影 batchNo，支持 skip 分页）
-export async function listProductionRecords(limit = 50, skip = 0) {
-    const r = await callFn('list', { limit, skip })
-    return Array.isArray(r) ? r : []
+// 列出生产记录（按 updatedAt 倒序，游标分页）
+// 返回 { list: [{batchNo,updatedAt}], hasMore, nextBefore }；下一页把 nextBefore 传回 before。
+export async function listProductionRecords(limit = 50, before = 0) {
+    const r = await callFn('list', { limit, before })
+    return (r && typeof r === 'object' && Array.isArray(r.list)) ? r : { list: [], hasMore: false, nextBefore: 0 }
 }
 
 // 列出某批号的历史版本（按 version 倒序）
