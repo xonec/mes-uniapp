@@ -75,7 +75,8 @@ export default {
                     if (!p) return
                     uni.compressImage({
                         src: p,
-                        quality: 60,
+                        quality: 70,
+                        compressedWidth: 1600, // 长边缩到 1600px：省 token、避免超云函数入参限制
                         success: (r) => this.readBase64(r.tempFilePath),
                         fail: () => this.readBase64(p)
                     })

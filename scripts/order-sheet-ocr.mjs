@@ -10,6 +10,23 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
+import { execFileSync } from 'node:child_process'
+
+// 预处理：sips 缩放长边到 1600px + 按 EXIF 转正（macOS 自带，免费）
+function preprocess(file) {
+    const tmp = path.join(os.tmpdir(), 'ocr-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.jpg')
+    try {
+        execFileSync('sips', [
+            '-s', 'format', 'jpeg', '-s', 'formatOptions', '82',
+            '--resampleHeightWidthMax', '1600',
+            file, '--out', tmp
+        ], { stdio: 'pipe' })
+        return tmp
+    } catch (e) {
+        return file // sips 失败则退回原图
+    }
+}
 
 const API_URL = process.env.SF_API_URL || 'https://api.siliconflow.cn/v1/chat/completions'
 const MODEL = process.env.SF_MODEL || 'Qwen/Qwen3-VL-8B-Instruct'
@@ -96,7 +113,7 @@ async function main() {
     for (const f of files) {
         process.stdout.write(`识别中: ${path.basename(f)} ... `)
         try {
-            const r = await recognize(f)
+            const r = await recognize(preprocess(f))
             rows.push([path.basename(f), r.orderNo || '', r.batchNo || '', r.productCode || '', r.productName || '', r.packSpec || '', r.plannedQty ?? '', r.sampleCount ?? '', (r.uncertain || []).join('、')])
             console.log('OK')
         } catch (e) {
