@@ -21,6 +21,12 @@ export default {
 
         // #ifdef MP-WEIXIN
         this.checkUpdate()
+        // 分享直进等场景：未登录先跳登录，避免目标页先渲染导致白屏
+        try {
+            if (!uni.getStorageSync('mes_user')) {
+                uni.reLaunch({ url: '/pages/login/login' })
+            }
+        } catch (e) { /* ignore */ }
         // #endif
     },
     methods: {
