@@ -12,7 +12,7 @@ const { checkAuth, ok, fail, ClientError } = require('mes-common')
 const COLL = 'production_orders'
 const SF_API_URL = 'https://api.siliconflow.cn/v1/chat/completions'
 const DEFAULT_MODEL = 'Qwen/Qwen3-VL-8B-Instruct'   // 图片模式（视觉模型）
-const DEFAULT_TEXT_MODEL = 'Qwen/Qwen3.5-9B'        // 文本模式（本地 OCR 后的结构化，纯文本模型更快更省）
+const DEFAULT_TEXT_MODEL = 'deepseek-ai/DeepSeek-V3.2' // 文本模式（调度快，Qwen3.5-9B 赠券期排队易超 60s）
 
 const SYSTEM_PROMPT = `你是工厂包装指令单的录入员。根据图片内容提取字段，只输出一个 JSON 对象，不要输出任何其它文字、不要用 markdown 代码块。
 字段与规则：
@@ -60,7 +60,7 @@ async function callSF(messages, model) {
             method: 'POST',
             contentType: 'json',
             dataType: 'json',
-            timeout: 60000,
+            timeout: 50000,
             headers: { Authorization: 'Bearer ' + getApiKey() },
             data: body
         })
