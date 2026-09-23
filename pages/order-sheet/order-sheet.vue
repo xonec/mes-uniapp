@@ -38,6 +38,14 @@
                 <text class="lbl">取样数</text>
                 <input class="inp" v-model="form.sampleCount" type="text" placeholder="如 17" />
             </view>
+            <view class="mat-block" v-if="matRows.length">
+                <text class="mat-title">包装材料清单（{{ matRows.length }} 行，将写入物料档案）</text>
+                <view class="mat-row" v-for="m in matRows" :key="m.seq">
+                    <text class="mat-code">{{ m.materialCode }}</text>
+                    <text class="mat-name">{{ m.materialName }}</text>
+                    <text class="mat-unit">{{ m.unit }}</text>
+                </view>
+            </view>
             <text class="warn-tip" v-if="uncertainText">⚠ 黄色标出字段识别不确定，请核对后保存</text>
             <button class="btn primary" :disabled="saving" @tap="save">{{ saving ? '保存中…' : '确认入库' }}</button>
         </view>
@@ -46,6 +54,7 @@
 
 <script>
 import { callCloud } from '@/utils/cloud-call.js'
+import { upsertProductMaterials } from '@/utils/product-materials-db.js'
 
 export default {
     data() {
@@ -59,6 +68,9 @@ export default {
         uncertainText() {
             const u = (this.form && this.form.uncertain) || []
             return u.filter(k => k !== 'productName' && k !== 'packSpec' && k !== 'sampleCount').join('、')
+        },
+        matRows() {
+            return (this.form && Array.isArray(this.form.materials)) ? this.form.materials : []
         }
     },
     methods: {
@@ -132,8 +144,25 @@ export default {
             this.saving = true
             try {
                 await callCloud('doc-ocr', 'save', { record: this.form })
-                uni.showToast({ title: '已入库', icon: 'success' })
-                setTimeout(() => uni.navigateBack(), 800)
+                // 物料清单同步写入物料档案（product_materials，source=photo）
+                let matMsg = ''
+                if (this.matRows.length && String(this.form.productCode || '').trim()) {
+                    try {
+                        await upsertProductMaterials({
+                            productCode: String(this.form.productCode).trim(),
+                            productName: String(this.form.productName || '').trim(),
+                            packSpec: String(this.form.packSpec || '').trim(),
+                            materials: this.matRows,
+                            sourceOrderNo: String(this.form.orderNo || '').trim(),
+                            source: 'photo'
+                        })
+                        matMsg = '，物料已入档案'
+                    } catch (e) {
+                        matMsg = '，物料入档案失败：' + (e.message || '请稍后重试')
+                    }
+                }
+                uni.showToast({ title: '已入库' + matMsg, icon: 'none', duration: 2500 })
+                setTimeout(() => uni.navigateBack(), 900)
             } catch (e) {
                 uni.showToast({ title: e.message || '保存失败', icon: 'none' })
             } finally {
@@ -157,4 +186,11 @@ export default {
 .lbl { width: 150rpx; font-size: 26rpx; color: #77827D; flex-shrink: 0; }
 .inp { flex: 1; height: 84rpx; font-size: 28rpx; background: transparent; }
 .warn-tip { display: block; margin: 4rpx 0 12rpx; font-size: 22rpx; color: #BA7517; }
+.mat-block { background: #F4F7F6; border-radius: 12rpx; padding: 16rpx; margin-bottom: 12rpx; }
+.mat-title { display: block; font-size: 24rpx; color: #008577; font-weight: 700; margin-bottom: 8rpx; }
+.mat-row { display: flex; align-items: center; gap: 10rpx; padding: 8rpx 0; border-bottom: 1rpx dashed #E3E8E5; }
+.mat-row:last-child { border-bottom: none; }
+.mat-code { font-size: 24rpx; color: #1f2622; flex-shrink: 0; font-family: monospace; }
+.mat-name { flex: 1; min-width: 0; font-size: 24rpx; color: #4a554f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mat-unit { font-size: 22rpx; color: #77827D; flex-shrink: 0; }
 </style>

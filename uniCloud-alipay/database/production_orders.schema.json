@@ -51,6 +51,11 @@
             "title": "不确定字段",
             "description": "识别不确定的字段名列表"
         },
+        "materials": {
+            "bsonType": "array",
+            "title": "包装材料清单",
+            "description": "识别出的物料行（编号/名称/规格/版本/单位）"
+        },
         "savedBy": {
             "bsonType": "string",
             "title": "操作人",

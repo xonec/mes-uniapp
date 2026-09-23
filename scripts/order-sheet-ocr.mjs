@@ -40,10 +40,11 @@ const SYSTEM_PROMPT = `你是工厂包装指令单的录入员。根据图片内
 - productName: 产品名称
 - packSpec: 包装规格（如 "4瓶/箱"、"6罐/箱"）
 - plannedQty: 计划产量（件，即箱数，数值；若单据只给总瓶数，按 总瓶数÷每箱数 计算箱数）
-- sampleCount: 取样数量（成品+精密+菌检+留样合计；若单据写"每个追溯码留样1罐"这类不确定数量，取能确定的合计并在 uncertain 中标注）
+- sampleCount: 取样数量（成品+精密+菌检+留样 等各项相加的总和，必须是数字；取样行文字看不清或行被裁切时，置空字符串并把 sampleCount 加入 uncertain，绝不要猜测或只取其中一项）
+- materials: 「包装材料清单」表格的每一行，数组对象，字段 seq(序号)/materialCode(物料编号)/materialName(物料名称)/spec(规格型号)/materialVersion(版本号，没有则"N/A")/unit(计量单位，必填，看不清就跳过该行)；没有物料表格则空数组
 - uncertain: 不确定/识别不清的字段名数组，没有则为空数组
 提取不到或不确定的字段填空字符串。输出示例：
-{"orderNo":"559288","batchNo":"APDE26X1007","productCode":"1306008058","productName":"FoYes分离乳清蛋白粉（锡兰红茶味）","packSpec":"4瓶/箱","plannedQty":250,"sampleCount":17,"uncertain":[]}`
+{"orderNo":"559288","batchNo":"APDE26X1007","productCode":"1306008058","productName":"FoYes分离乳清蛋白粉（锡兰红茶味）","packSpec":"4瓶/箱","plannedQty":250,"sampleCount":17,"materials":[{"seq":1,"materialCode":"1314001003-1","materialName":"FoYes分离乳清蛋白粉（锡兰红茶味）-混合","spec":"APDE","materialVersion":"N/A","unit":"千克"}],"uncertain":[]}`
 
 function toDataUrl(file) {
     const buf = fs.readFileSync(file)
@@ -110,20 +111,25 @@ async function main() {
 
     const header = ['文件名', '订单号', '批号', '产品编码', '产品名称', '包装规格', '计划产量(件)', '取样数', '不确定项']
     const rows = []
+    const fullResults = []
     for (const f of files) {
         process.stdout.write(`识别中: ${path.basename(f)} ... `)
         try {
             const r = await recognize(preprocess(f))
             rows.push([path.basename(f), r.orderNo || '', r.batchNo || '', r.productCode || '', r.productName || '', r.packSpec || '', r.plannedQty ?? '', r.sampleCount ?? '', (r.uncertain || []).join('、')])
+            fullResults.push({ file: path.basename(f), ...r })
             console.log('OK')
         } catch (e) {
             rows.push([path.basename(f), '', '', '', '', '', '', '', '失败: ' + (e.message || e)])
+            fullResults.push({ file: path.basename(f), error: e.message || String(e) })
             console.log('FAIL: ' + (e.message || e))
         }
     }
     const csv = [header.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\n')
     fs.writeFileSync(outFile, '\ufeff' + csv, 'utf8') // BOM 让 Excel 正确识别中文
-    console.log(`\n完成 ${rows.length} 张，结果已写入 ${outFile}`)
+    const jsonFile = outFile.replace(/\.csv$/i, '') + '.json'
+    fs.writeFileSync(jsonFile, JSON.stringify(fullResults, null, 2), 'utf8')
+    console.log(`\n完成 ${rows.length} 张，结果已写入 ${outFile} 与 ${jsonFile}（含物料清单）`)
 }
 
 main().catch(e => { console.error(e); process.exit(1) })
