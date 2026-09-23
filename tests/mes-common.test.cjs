@@ -106,6 +106,14 @@ const db = () => global.uniCloud.database()
         assert.strictEqual(a.uid, 'uid1')
     })
 
+    await test('checkAuth 拒绝改密后的旧 token（valid_token_date 晚于签发）', async () => {
+        const old = users.uid1.valid_token_date
+        users.uid1.valid_token_date = Date.now() // 刚改密
+        const a = await common.checkAuth(db(), tokenFor('uid1'))
+        users.uid1.valid_token_date = old
+        assert.strictEqual(a.errCode, 401)
+    })
+
     await test('checkAdmin 放行管理员 / 拒绝普通用户', async () => {
         const a1 = await common.checkAdmin(db(), tokenFor('uid3'))
         assert.strictEqual(a1.errCode, 0)

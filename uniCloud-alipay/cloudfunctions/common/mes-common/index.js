@@ -76,6 +76,10 @@ async function checkAuth(db, token) {
     }
     if (!u) return { errCode: 401, message: '账号不存在' }
     if (isBlocked(u)) return { errCode: 401, message: '账号已失效，请重新登录' }
+    // 改密后旧 token 立即失效：签发时间早于 valid_token_date 则拒绝（uni-id 改密/重置会更新该字段）
+    if (u.valid_token_date && payload.iat && Number(u.valid_token_date) > Number(payload.iat) * 1000) {
+        return { errCode: 401, message: '密码已变更，请重新登录' }
+    }
     return { errCode: 0, uid: payload.uid, role: u.role || [] }
 }
 

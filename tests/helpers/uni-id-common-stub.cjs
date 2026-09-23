@@ -11,7 +11,8 @@ module.exports = {
                 }
                 const m = /^tok-(.+)$/.exec(token)
                 if (!m) return { errCode: 'uni-id-check-token-failed', errMsg: 'invalid token' }
-                return { errCode: 0, uid: m[1], role: ['user'] }
+                // iat 取 60 秒前（秒级），供 mes-common 校验 valid_token_date（改密失效）用
+                return { errCode: 0, uid: m[1], role: ['user'], iat: Math.floor(Date.now() / 1000) - 60 }
             }
         }
     }
