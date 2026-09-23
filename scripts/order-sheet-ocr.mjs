@@ -41,10 +41,10 @@ const SYSTEM_PROMPT = `你是工厂包装指令单的录入员。根据图片内
 - packSpec: 包装规格（如 "4瓶/箱"、"6罐/箱"）
 - plannedQty: 计划产量（件，即箱数，数值；若单据只给总瓶数，按 总瓶数÷每箱数 计算箱数）
 - sampleCount: 取样数量（成品+精密+菌检+留样 等各项相加的总和，必须是数字；取样行文字看不清或行被裁切时，置空字符串并把 sampleCount 加入 uncertain，绝不要猜测或只取其中一项）
-- materials: 「包装材料清单」表格的每一行，数组对象，字段 seq(序号)/materialCode(物料编号)/materialName(物料名称)/spec(规格型号)/materialVersion(版本号，没有则"N/A")/unit(计量单位，必填，看不清就跳过该行)；没有物料表格则空数组
+- materials: 「包装材料清单」表格的每一行，数组对象，字段 seq(序号)/materialCode(物料编号，**纯数字**，带连字符或后缀只取数字部分)/materialName(物料名称)/spec(规格型号)/materialVersion(版本号，没有则"N/A")/unit(计量单位，必填，看不清就跳过该行)；没有物料表格则空数组
 - uncertain: 不确定/识别不清的字段名数组，没有则为空数组
 提取不到或不确定的字段填空字符串。输出示例：
-{"orderNo":"559288","batchNo":"APDE26X1007","productCode":"1306008058","productName":"FoYes分离乳清蛋白粉（锡兰红茶味）","packSpec":"4瓶/箱","plannedQty":250,"sampleCount":17,"materials":[{"seq":1,"materialCode":"1314001003-1","materialName":"FoYes分离乳清蛋白粉（锡兰红茶味）-混合","spec":"APDE","materialVersion":"N/A","unit":"千克"}],"uncertain":[]}`
+{"orderNo":"559288","batchNo":"APDE26X1007","productCode":"1306008058","productName":"FoYes分离乳清蛋白粉（锡兰红茶味）","packSpec":"4瓶/箱","plannedQty":250,"sampleCount":17,"materials":[{"seq":1,"materialCode":"1314001003","materialName":"FoYes分离乳清蛋白粉（锡兰红茶味）-混合","spec":"APDE","materialVersion":"N/A","unit":"千克"}],"uncertain":[]}`
 
 function toDataUrl(file) {
     const buf = fs.readFileSync(file)

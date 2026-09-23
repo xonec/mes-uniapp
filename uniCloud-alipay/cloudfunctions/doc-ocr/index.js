@@ -24,7 +24,7 @@ const SYSTEM_PROMPT = `你是工厂包装指令单的录入员。根据图片内
 - sampleCount: 取样数量（成品+精密+菌检+留样 等各项相加的总和，必须是数字；取样行文字看不清或行被裁切时，置空字符串并把 sampleCount 加入 uncertain，绝不要猜测或只取其中一项）
 - materials: 「包装材料清单」表格的每一行，数组对象，字段：
   - seq: 序号（数字）
-  - materialCode: 物料编号（形如 1314001003-1，保持原样）
+  - materialCode: 物料编号（**纯数字**，形如 1314001003；图片上若带连字符或后缀，只取数字部分，如 "1314001003-1" 记作 "1314001003"）
   - materialName: 物料名称
   - spec: 规格型号（没有则空字符串）
   - materialVersion: 版本号（没有则 "N/A"）
@@ -32,7 +32,7 @@ const SYSTEM_PROMPT = `你是工厂包装指令单的录入员。根据图片内
   物料行看不清或表格被裁切时，能提取几行就几行，漏行时在 uncertain 里加入 "materials"；没有物料表格时 materials 为空数组
 - uncertain: 不确定/识别不清的字段名数组，没有则为空数组
 提取不到或不确定的字段填空字符串。输出示例：
-{"orderNo":"559288","batchNo":"APDE26X1007","productCode":"1306008058","productName":"FoYes分离乳清蛋白粉（锡兰红茶味）","packSpec":"4瓶/箱","plannedQty":250,"sampleCount":17,"materials":[{"seq":1,"materialCode":"1314001003-1","materialName":"FoYes分离乳清蛋白粉（锡兰红茶味）-混合","spec":"APDE","materialVersion":"N/A","unit":"千克"}],"uncertain":[]}`
+{"orderNo":"559288","batchNo":"APDE26X1007","productCode":"1306008058","productName":"FoYes分离乳清蛋白粉（锡兰红茶味）","packSpec":"4瓶/箱","plannedQty":250,"sampleCount":17,"materials":[{"seq":1,"materialCode":"1314001003","materialName":"FoYes分离乳清蛋白粉（锡兰红茶味）-混合","spec":"APDE","materialVersion":"N/A","unit":"千克"}],"uncertain":[]}`
 
 let db = null
 function getDb() {

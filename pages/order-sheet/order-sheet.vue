@@ -148,11 +148,15 @@ export default {
                 let matMsg = ''
                 if (this.matRows.length && String(this.form.productCode || '').trim()) {
                     try {
+                        // 物料编号只保留纯数字（-1 等后缀剔除），空编号行跳过
+                        const materials = this.matRows
+                            .map(m => ({ ...m, materialCode: String(m.materialCode || '').replace(/[^0-9]/g, '') }))
+                            .filter(m => m.materialCode)
                         await upsertProductMaterials({
                             productCode: String(this.form.productCode).trim(),
                             productName: String(this.form.productName || '').trim(),
                             packSpec: String(this.form.packSpec || '').trim(),
-                            materials: this.matRows,
+                            materials,
                             sourceOrderNo: String(this.form.orderNo || '').trim(),
                             source: 'photo'
                         })
