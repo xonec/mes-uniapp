@@ -474,7 +474,6 @@ export default {
         // ===== 草稿持久化 =====
         async save() {
             if (!this.batchValid) { uni.showToast({ title: '批号须为11位且含字母与数字', icon: 'none' }); return }
-            if (!/^\d{10}$/.test(this.productCode)) { uni.showToast({ title: '请选择10位产品编码', icon: 'none' }); return }
             this.calculateMaterial()
             const statusVal = this.batchStatus
             const materialInputs = {}
