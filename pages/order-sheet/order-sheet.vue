@@ -84,6 +84,22 @@ export default {
             })
         },
         readBase64(filePath) {
+            // #ifdef APP-PLUS
+            // App 端没有 uni.getFileSystemManager，用 plus.io 读文件为 base64（自带 data URL 前缀）
+            plus.io.resolveLocalFileSystemURL(filePath, (entry) => {
+                entry.file((file) => {
+                    const reader = new plus.io.FileReader()
+                    reader.onloadend = (e) => {
+                        const result = e.target && e.target.result
+                        if (result) this.recognize(result)
+                        else uni.showToast({ title: '读取图片失败', icon: 'none' })
+                    }
+                    reader.onerror = () => uni.showToast({ title: '读取图片失败', icon: 'none' })
+                    reader.readAsDataURL(file)
+                }, () => uni.showToast({ title: '读取图片失败', icon: 'none' }))
+            }, () => uni.showToast({ title: '读取图片失败', icon: 'none' }))
+            // #endif
+            // #ifndef APP-PLUS
             uni.getFileSystemManager().readFile({
                 filePath,
                 encoding: 'base64',
@@ -93,6 +109,7 @@ export default {
                 },
                 fail: () => uni.showToast({ title: '读取图片失败', icon: 'none' })
             })
+            // #endif
         },
         async recognize(imageBase64) {
             this.recognizing = true
