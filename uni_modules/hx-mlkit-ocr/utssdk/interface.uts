@@ -1,0 +1,16 @@
+export type RecognizeTextOptions = {
+  /**
+   * 图像的本地路径 (支持 uni-app 的相对路径/临时路径等)
+   */
+  imagePath: string;
+  success?: (res: TextResult) => void;
+  fail?: (err: ErrorResult) => void;
+}
+
+export type TextResult = {
+  text: string;
+}
+
+export type ErrorResult = {
+  message: string;
+}

@@ -56,7 +56,7 @@
 import { callCloud } from '@/utils/cloud-call.js'
 import { upsertProductMaterials } from '@/utils/product-materials-db.js'
 // #ifdef APP-PLUS
-import * as mlkitorc from '@/uni_modules/cms-mlkitorc'
+import { recognizeText as mlkitRecognizeText } from '@/uni_modules/hx-mlkit-ocr'
 // #endif
 
 export default {
@@ -93,9 +93,8 @@ export default {
                     this.recognizing = true
                     let path2 = p
                     try { path2 = plus.io.convertLocalFileSystemURL(p) } catch (e) { /* ignore */ }
-                    mlkitorc.ocrText({
-                        url: path2,
-                        language: 'zh',
+                    mlkitRecognizeText({
+                        imagePath: path2,
                         success: (r) => {
                             const text = (r && r.text) || ''
                             if (!text.trim()) {
@@ -105,9 +104,9 @@ export default {
                             }
                             this.recognizeText(text)
                         },
-                        fail: (code, msg) => {
+                        fail: (err) => {
                             this.recognizing = false
-                            uni.showModal({ title: '本地识别失败', content: (msg || '错误码 ' + code), showCancel: false })
+                            uni.showModal({ title: '本地识别失败', content: (err && err.message) || '未知错误', showCancel: false })
                         }
                     })
                     // #endif

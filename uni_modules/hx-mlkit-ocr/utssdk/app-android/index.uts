@@ -1,0 +1,53 @@
+import { TextResult, RecognizeTextOptions } from '../interface.uts'
+
+import Uri from "android.net.Uri"
+import File from "java.io.File"
+import Exception from "java.lang.Exception"
+import TextRecognition from "com.google.mlkit.vision.text.TextRecognition"
+import ChineseTextRecognizerOptions from "com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions"
+import InputImage from "com.google.mlkit.vision.common.InputImage"
+
+export function recognizeText(options : RecognizeTextOptions) {
+	const context = UTSAndroid.getAppContext();
+	if (context == null) {
+		options.fail?.({ message: "Android Context 获取失败" });
+		return;
+	}
+
+	// --- 路径修复逻辑（与 hx-mlkit-barcode 一致）---
+	let inputPath = options.imagePath;
+	let absPath = "";
+
+	if (inputPath.startsWith("/") || inputPath.startsWith("content://") || inputPath.startsWith("file:")) {
+		absPath = inputPath;
+	} else {
+		absPath = UTSAndroid.getResourcePath(inputPath);
+	}
+
+	if (absPath.startsWith("file://")) {
+		absPath = absPath.substring(7);
+	} else if (absPath.startsWith("file:")) {
+		absPath = absPath.substring(5);
+	}
+
+	const file = new File(absPath);
+	if (!file.exists()) {
+		options.fail?.({ message: "文件不存在: " + absPath });
+		return;
+	}
+
+	const uri = Uri.fromFile(file);
+	const image = InputImage.fromFilePath(context, uri);
+
+	const recOptions = new ChineseTextRecognizerOptions.Builder().build();
+	const recognizer = TextRecognition.getClient(recOptions);
+
+	recognizer.process(image)
+		.addOnSuccessListener((result : any) => {
+			const text = result.getText() ?? "";
+			options.success?.({ text: text } as TextResult);
+		})
+		.addOnFailureListener((e : Exception) => {
+			options.fail?.({ message: "识别失败: " + e.message });
+		});
+}
