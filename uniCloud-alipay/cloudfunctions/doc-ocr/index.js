@@ -1,0 +1,151 @@
+'use strict'
+
+// 云函数：doc-ocr —— 包装指令单识别与存储
+//   action = 'recognize'：图片 base64 → 硅基流动视觉模型 → 结构化 7 字段（需登录）
+//   action = 'save'     ：确认后的字段写入 production_orders（_id = order:<订单号>，需登录）
+// 环境变量（云函数控制台配置）：
+//   SF_API_KEY  硅基流动 API Key（必填）
+//   SF_MODEL    模型名（可选，默认 Qwen/Qwen3-VL-8B-Instruct；可换 Qwen/Qwen3-VL-32B-Instruct）
+
+const { checkAuth, ok, fail, ClientError } = require('mes-common')
+
+const COLL = 'production_orders'
+const SF_API_URL = 'https://api.siliconflow.cn/v1/chat/completions'
+const DEFAULT_MODEL = 'Qwen/Qwen3-VL-8B-Instruct'
+
+const SYSTEM_PROMPT = `你是工厂包装指令单的录入员。根据图片内容提取字段，只输出一个 JSON 对象，不要输出任何其它文字、不要用 markdown 代码块。
+字段与规则：
+- orderNo: 订单号/订单编号（纯数字）
+- batchNo: 生产批号（11 位字母数字，如 APDE26X1007）
+- productCode: 产品编码（10 位数字）
+- productName: 产品名称
+- packSpec: 包装规格（如 "4瓶/箱"、"6罐/箱"）
+- plannedQty: 计划产量（件，即箱数，数值；若单据只给总瓶数，按 总瓶数÷每箱数 计算箱数）
+- sampleCount: 取样数量（成品+精密+菌检+留样合计；若单据写"每个追溯码留样1罐"这类不确定数量，取能确定的合计并在 uncertain 中标注）
+- uncertain: 不确定/识别不清的字段名数组，没有则为空数组
+提取不到或不确定的字段填空字符串。输出示例：
+{"orderNo":"559288","batchNo":"APDE26X1007","productCode":"1306008058","productName":"FoYes分离乳清蛋白粉（锡兰红茶味）","packSpec":"4瓶/箱","plannedQty":250,"sampleCount":17,"uncertain":[]}`
+
+let db = null
+function getDb() {
+    if (!db) db = uniCloud.database()
+    return db
+}
+
+function getApiKey() {
+    const k = process.env.SF_API_KEY || ''
+    if (!k) throw new ClientError('服务端未配置环境变量 SF_API_KEY')
+    return k
+}
+
+// 调硅基流动 VLM（带一次重试）
+async function callSF(imageBase64) {
+    const model = process.env.SF_MODEL || DEFAULT_MODEL
+    const body = {
+        model,
+        messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            {
+                role: 'user',
+                content: [
+                    { type: 'image_url', image_url: { url: imageBase64 } },
+                    { type: 'text', text: '请提取这张包装指令单的字段。' }
+                ]
+            }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1
+    }
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const res = await uniCloud.httpclient.request(SF_API_URL, {
+            method: 'POST',
+            contentType: 'json',
+            dataType: 'json',
+            timeout: 60000,
+            headers: { Authorization: 'Bearer ' + getApiKey() },
+            data: body
+        })
+        if (res.statusCode !== 200) {
+            const msg = (res.data && (res.data.message || JSON.stringify(res.data))) || ('HTTP ' + res.statusCode)
+            if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue }
+            throw new ClientError('识别服务调用失败: ' + msg)
+        }
+        const content = res.data && res.data.choices && res.data.choices[0] && res.data.choices[0].message && res.data.choices[0].message.content
+        try {
+            return JSON.parse(String(content).trim())
+        } catch (e) {
+            if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue }
+            throw new ClientError('模型返回无法解析为 JSON')
+        }
+    }
+}
+
+// 服务端轻校验：批号 11 位字母数字；产品编码 10 位数字；订单号纯数字
+function validateFields(f) {
+    const uncertain = Array.isArray(f.uncertain) ? f.uncertain : []
+    const marks = {}
+    const checks = [
+        ['orderNo', /^\d{4,12}$/],
+        ['batchNo', /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/],
+        ['productCode', /^\d{10}$/],
+        ['plannedQty', (v) => v === '' || v === undefined || v === null || (!isNaN(Number(v)) && Number(v) >= 0)]
+    ]
+    for (const [k, re] of checks) {
+        const v = f[k]
+        if (v === undefined || v === null || v === '') {
+            if (uncertain.indexOf(k) < 0) uncertain.push(k)
+            marks[k] = false
+            continue
+        }
+        const passed = typeof re === 'function' ? re(v) : re.test(String(v))
+        marks[k] = passed
+        if (!passed && uncertain.indexOf(k) < 0) uncertain.push(k)
+    }
+    return { ...f, uncertain }
+}
+
+exports.main = async (event) => {
+    event = event || {}
+    const db = getDb()
+    try {
+        const auth = await checkAuth(db, event.uniIdToken)
+        if (auth.errCode) return fail(auth.errCode, auth.message)
+
+        // 识别：图片 base64 → 结构化字段
+        if (event.action === 'recognize') {
+            const imageBase64 = String(event.imageBase64 || '')
+            if (!/^data:image\/[a-z]+;base64,/.test(imageBase64)) {
+                return fail(400, '缺少有效的图片数据（imageBase64）')
+            }
+            const r = await callSF(imageBase64)
+            return ok(validateFields(r || {}))
+        }
+
+        // 保存：确认后的字段落库（_id = order:<订单号>，幂等覆盖）
+        if (event.action === 'save') {
+            const f = event.record || {}
+            const orderNo = String(f.orderNo || '').trim()
+            if (!/^\d{4,12}$/.test(orderNo)) return fail(400, '订单号非法')
+            const doc = {
+                orderNo,
+                batchNo: String(f.batchNo || '').trim(),
+                productCode: String(f.productCode || '').trim(),
+                productName: String(f.productName || '').trim(),
+                packSpec: String(f.packSpec || '').trim(),
+                plannedQty: Number(f.plannedQty) || 0,
+                sampleCount: String(f.sampleCount == null ? '' : f.sampleCount).trim(),
+                uncertain: Array.isArray(f.uncertain) ? f.uncertain : [],
+                savedBy: auth.uid,
+                savedAt: Date.now()
+            }
+            await db.collection(COLL).doc('order:' + orderNo).set(doc)
+            return ok({ _id: 'order:' + orderNo })
+        }
+
+        return fail(400, '未知 action: ' + action)
+    } catch (e) {
+        if (e instanceof ClientError) return fail(500, e.message)
+        console.error('[doc-ocr] 运行异常:', e && (e.stack || e.message || e))
+        return fail(500, '服务内部错误，请稍后重试')
+    }
+}

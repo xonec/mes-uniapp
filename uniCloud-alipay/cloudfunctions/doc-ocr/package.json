@@ -1,0 +1,9 @@
+{
+    "name": "doc-ocr",
+    "version": "1.0.0",
+    "description": "包装指令单识别（硅基流动视觉模型）与存储",
+    "main": "index.js",
+    "dependencies": {
+        "mes-common": "file:../common/mes-common"
+    }
+}

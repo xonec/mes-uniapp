@@ -17,6 +17,10 @@
                 <text>用户管理</text>
                 <text class="arrow">›</text>
             </view>
+            <view class="cell" @tap="goOrderSheet">
+                <text>指令单录入</text>
+                <text class="arrow">›</text>
+            </view>
             <view class="cell danger" @tap="doLogout">
                 <text>退出登录</text>
                 <text class="arrow">›</text>
@@ -69,6 +73,9 @@ export default {
         },
         goUserManage() {
             uni.navigateTo({ url: '/pages/user-manage/user-manage' })
+        },
+        goOrderSheet() {
+            uni.navigateTo({ url: '/pages/order-sheet/order-sheet' })
         },
         doLogout() {
             logout()

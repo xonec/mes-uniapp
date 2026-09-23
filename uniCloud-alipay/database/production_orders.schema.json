@@ -1,0 +1,65 @@
+{
+    "bsonType": "object",
+    "description": "包装指令单表：单订单单文档，_id 固定为 order:<订单号>。写走云函数 doc-ocr，客户端只读。",
+    "required": ["orderNo"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "固定为 order:<订单号>，主键唯一，保证幂等"
+        },
+        "orderNo": {
+            "bsonType": "string",
+            "title": "订单编号",
+            "description": "纯数字"
+        },
+        "batchNo": {
+            "bsonType": "string",
+            "title": "生产批号",
+            "description": "11 位、同时含字母与数字"
+        },
+        "productCode": {
+            "bsonType": "string",
+            "title": "产品编码",
+            "description": "10 位数字"
+        },
+        "productName": {
+            "bsonType": "string",
+            "title": "产品名称"
+        },
+        "packSpec": {
+            "bsonType": "string",
+            "title": "包装规格",
+            "description": "如 4瓶/箱、6罐/箱"
+        },
+        "plannedQty": {
+            "bsonType": "number",
+            "title": "计划产量（件）",
+            "minimum": 0
+        },
+        "sampleCount": {
+            "bsonType": "string",
+            "title": "取样数",
+            "description": "取样合计（成品+精密+菌检+留样），字符串以兼容不确定描述"
+        },
+        "uncertain": {
+            "bsonType": "array",
+            "title": "不确定字段",
+            "description": "识别不确定的字段名列表"
+        },
+        "savedBy": {
+            "bsonType": "string",
+            "title": "操作人",
+            "description": "写入的用户 uid"
+        },
+        "savedAt": {
+            "bsonType": "number",
+            "title": "保存时间",
+            "description": "毫秒时间戳"
+        }
+    }
+}
