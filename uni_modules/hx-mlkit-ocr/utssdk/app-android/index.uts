@@ -6,6 +6,7 @@ import Exception from "java.lang.Exception"
 import TextRecognition from "com.google.mlkit.vision.text.TextRecognition"
 import ChineseTextRecognizerOptions from "com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions"
 import InputImage from "com.google.mlkit.vision.common.InputImage"
+import Text from "com.google.mlkit.vision.text.Text"
 
 export function recognizeText(options : RecognizeTextOptions) {
 	const context = UTSAndroid.getAppContext();
@@ -43,7 +44,7 @@ export function recognizeText(options : RecognizeTextOptions) {
 	const recognizer = TextRecognition.getClient(recOptions);
 
 	recognizer.process(image)
-		.addOnSuccessListener((result : any) => {
+		.addOnSuccessListener((result : Text) => {
 			const text = result.getText() ?? "";
 			options.success?.({ text: text } as TextResult);
 		})
