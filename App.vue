@@ -9,10 +9,13 @@ export default {
         // 锁定竖屏
         plus.screen.lockOrientation('portrait-primary')
         // 官方升级中心：wgt 静默更新 + apk 弹窗（升级中心未配置/云端未就绪时静默失败，不影响启动）
+        // 标准调试基座拿不到应用版本号，直接跳过检查，避免无谓报错
         try {
-            checkUpdate().catch((e) => {
-                console.warn('[upgrade-center] 检查更新失败（忽略）：', e && (e.message || e))
-            })
+            if (plus.runtime.version) {
+                checkUpdate().catch((e) => {
+                    console.warn('[upgrade-center] 检查更新失败（忽略）：', e && (e.message || e))
+                })
+            }
         } catch (e) { /* ignore */ }
         // #endif
 
