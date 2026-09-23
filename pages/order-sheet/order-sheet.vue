@@ -76,7 +76,7 @@ export default {
                     uni.compressImage({
                         src: p,
                         quality: 60,
-                        compressedWidth: 1024, // 长边缩到 1024px：识别精度够用，速度/ token 再降一半
+                        compressedWidth: 1280, // 长边 1280px：正文/小字兼顾，取样行等小字可读
                         success: (r) => this.readBase64(r.tempFilePath),
                         fail: () => this.readBase64(p)
                     })

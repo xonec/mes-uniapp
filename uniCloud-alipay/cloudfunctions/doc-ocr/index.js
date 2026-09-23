@@ -21,7 +21,7 @@ const SYSTEM_PROMPT = `你是工厂包装指令单的录入员。根据图片内
 - productName: 产品名称
 - packSpec: 包装规格（如 "4瓶/箱"、"6罐/箱"）
 - plannedQty: 计划产量（件，即箱数，数值；若单据只给总瓶数，按 总瓶数÷每箱数 计算箱数）
-- sampleCount: 取样数量（成品+精密+菌检+留样合计；若单据写"每个追溯码留样1罐"这类不确定数量，取能确定的合计并在 uncertain 中标注）
+- sampleCount: 取样数量（成品+精密+菌检+留样 等各项相加的总和，必须是数字；取样行文字看不清或行被裁切时，置空字符串并把 sampleCount 加入 uncertain，绝不要猜测或只取其中一项）
 - uncertain: 不确定/识别不清的字段名数组，没有则为空数组
 提取不到或不确定的字段填空字符串。输出示例：
 {"orderNo":"559288","batchNo":"APDE26X1007","productCode":"1306008058","productName":"FoYes分离乳清蛋白粉（锡兰红茶味）","packSpec":"4瓶/箱","plannedQty":250,"sampleCount":17,"uncertain":[]}`

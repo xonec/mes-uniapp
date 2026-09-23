@@ -19,7 +19,7 @@ function preprocess(file) {
     try {
         execFileSync('sips', [
             '-s', 'format', 'jpeg', '-s', 'formatOptions', '82',
-            '--resampleHeightWidthMax', '1024',
+            '--resampleHeightWidthMax', '1280',
             file, '--out', tmp
         ], { stdio: 'pipe' })
         return tmp
