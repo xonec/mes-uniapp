@@ -55,6 +55,9 @@
 <script>
 import { callCloud } from '@/utils/cloud-call.js'
 import { upsertProductMaterials } from '@/utils/product-materials-db.js'
+// #ifdef APP-PLUS
+import * as mlkitorc from '@/uni_modules/cms-mlkitorc'
+// #endif
 
 export default {
     data() {
@@ -85,6 +88,31 @@ export default {
                 success: (res) => {
                     const p = res.tempFilePaths && res.tempFilePaths[0]
                     if (!p) return
+                    // #ifdef APP-PLUS
+                    // 安卓：本地 ML Kit 文本识别（离线免费），文字送云端小模型结构化
+                    this.recognizing = true
+                    let path2 = p
+                    try { path2 = plus.io.convertLocalFileSystemURL(p) } catch (e) { /* ignore */ }
+                    mlkitorc.ocrText({
+                        url: path2,
+                        language: 'zh',
+                        success: (r) => {
+                            const text = (r && r.text) || ''
+                            if (!text.trim()) {
+                                this.recognizing = false
+                                uni.showModal({ title: '本地识别无结果', content: '图片中没识别到文字，请重拍或换一张', showCancel: false })
+                                return
+                            }
+                            this.recognizeText(text)
+                        },
+                        fail: (code, msg) => {
+                            this.recognizing = false
+                            uni.showModal({ title: '本地识别失败', content: (msg || '错误码 ' + code), showCancel: false })
+                        }
+                    })
+                    // #endif
+                    // #ifndef APP-PLUS
+                    // 小程序：压缩后传图给云端视觉模型
                     uni.compressImage({
                         src: p,
                         quality: 60,
@@ -92,8 +120,20 @@ export default {
                         success: (r) => this.readBase64(r.tempFilePath),
                         fail: () => this.readBase64(p)
                     })
+                    // #endif
                 }
             })
+        },
+        async recognizeText(text) {
+            try {
+                const r = await callCloud('doc-ocr', 'recognize', { text })
+                this.form = r || {}
+                this.recognizing = false
+                uni.showToast({ title: '识别完成，请核对', icon: 'none' })
+            } catch (e) {
+                this.recognizing = false
+                uni.showModal({ title: '识别失败', content: e.message || '请重试', showCancel: false })
+            }
         },
         readBase64(filePath) {
             // #ifdef APP-PLUS

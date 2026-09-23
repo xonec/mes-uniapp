@@ -11,7 +11,8 @@ const { checkAuth, ok, fail, ClientError } = require('mes-common')
 
 const COLL = 'production_orders'
 const SF_API_URL = 'https://api.siliconflow.cn/v1/chat/completions'
-const DEFAULT_MODEL = 'Qwen/Qwen3-VL-8B-Instruct'
+const DEFAULT_MODEL = 'Qwen/Qwen3-VL-8B-Instruct'   // 图片模式（视觉模型）
+const DEFAULT_TEXT_MODEL = 'Qwen/Qwen3.5-9B'        // 文本模式（本地 OCR 后的结构化，纯文本模型更快更省）
 
 const SYSTEM_PROMPT = `你是工厂包装指令单的录入员。根据图片内容提取字段，只输出一个 JSON 对象，不要输出任何其它文字、不要用 markdown 代码块。
 字段与规则：
@@ -46,21 +47,11 @@ function getApiKey() {
     return k
 }
 
-// 调硅基流动 VLM（带一次重试）
-async function callSF(imageBase64) {
-    const model = process.env.SF_MODEL || DEFAULT_MODEL
+// 调硅基流动（带一次重试）：messages 由调用方构造，model 可指定
+async function callSF(messages, model) {
     const body = {
         model,
-        messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            {
-                role: 'user',
-                content: [
-                    { type: 'image_url', image_url: { url: imageBase64 } },
-                    { type: 'text', text: '请提取这张包装指令单的字段。' }
-                ]
-            }
-        ],
+        messages,
         response_format: { type: 'json_object' },
         temperature: 0.1
     }
@@ -122,13 +113,30 @@ exports.main = async (event) => {
         const auth = await checkAuth(db, event.uniIdToken)
         if (auth.errCode) return fail(auth.errCode, auth.message)
 
-        // 识别：图片 base64 → 结构化字段
+        // 识别：图片 base64（小程序）或本地 OCR 文本（App）→ 结构化字段
         if (event.action === 'recognize') {
+            const text = String(event.text || '').trim()
             const imageBase64 = String(event.imageBase64 || '')
-            if (!/^data:image\/[a-z]+;base64,/.test(imageBase64)) {
-                return fail(400, '缺少有效的图片数据（imageBase64）')
+            if (text) {
+                const r = await callSF([
+                    { role: 'system', content: SYSTEM_PROMPT },
+                    { role: 'user', content: '以下是包装指令单的 OCR 识别文本（顺序可能错乱、可能有错字漏字），请按规则提取字段：\n\n' + text.slice(0, 6000) }
+                ], process.env.SF_TEXT_MODEL || DEFAULT_TEXT_MODEL)
+                return ok(validateFields(r || {}))
             }
-            const r = await callSF(imageBase64)
+            if (!/^data:image\/[a-z]+;base64,/.test(imageBase64)) {
+                return fail(400, '缺少图片数据或 OCR 文本')
+            }
+            const r = await callSF([
+                { role: 'system', content: SYSTEM_PROMPT },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'image_url', image_url: { url: imageBase64 } },
+                        { type: 'text', text: '请提取这张包装指令单的字段。' }
+                    ]
+                }
+            ], process.env.SF_MODEL || DEFAULT_MODEL)
             return ok(validateFields(r || {}))
         }
 
