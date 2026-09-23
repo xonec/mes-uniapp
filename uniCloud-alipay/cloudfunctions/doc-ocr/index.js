@@ -65,12 +65,15 @@ async function callSF(imageBase64) {
             headers: { Authorization: 'Bearer ' + getApiKey() },
             data: body
         })
-        if (res.statusCode !== 200) {
-            const msg = (res.data && (res.data.message || JSON.stringify(res.data))) || ('HTTP ' + res.statusCode)
+        const data = res && res.data
+        // 支付宝云 httpclient 的 statusCode 不一定可靠，直接按响应内容判定成功与否
+        if (!data || !data.choices || !data.choices[0]) {
+            const code = res && res.statusCode
+            const msg = (data && (data.message || JSON.stringify(data))) || ('HTTP ' + code)
             if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue }
             throw new ClientError('识别服务调用失败: ' + msg)
         }
-        const content = res.data && res.data.choices && res.data.choices[0] && res.data.choices[0].message && res.data.choices[0].message.content
+        const content = data.choices[0].message && data.choices[0].message.content
         try {
             return JSON.parse(String(content).trim())
         } catch (e) {
