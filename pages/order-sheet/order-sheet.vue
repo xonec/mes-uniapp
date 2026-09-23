@@ -124,14 +124,22 @@ export default {
             })
         },
         async recognizeText(text) {
-            try {
-                const r = await callCloud('doc-ocr', 'recognize', { text })
-                this.form = r || {}
-                this.recognizing = false
-                uni.showToast({ title: '识别完成，请核对', icon: 'none' })
-            } catch (e) {
-                this.recognizing = false
-                uni.showModal({ title: '识别失败', content: e.message || '请重试', showCancel: false })
+            // 赠券高峰期模型可能排队超时，自动重试一次
+            for (let attempt = 0; attempt < 2; attempt++) {
+                if (attempt === 1) {
+                    uni.showToast({ title: '排队超时，自动重试…', icon: 'none' })
+                }
+                try {
+                    const r = await callCloud('doc-ocr', 'recognize', { text })
+                    this.form = r || {}
+                    this.recognizing = false
+                    uni.showToast({ title: '识别完成，请核对', icon: 'none' })
+                    return
+                } catch (e) {
+                    if (attempt === 0) continue
+                    this.recognizing = false
+                    uni.showModal({ title: '识别失败', content: (e.message || '请重试') + '（已自动重试一次）', showCancel: false })
+                }
             }
         },
         readBase64(filePath) {
