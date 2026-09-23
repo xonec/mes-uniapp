@@ -4,7 +4,7 @@
             <view class="card-title">包装指令单识别</view>
             <view class="tip">拍一张指令单照片，自动提取订单号、批号、产品、包装规格、计划产量、取样数。</view>
             <button class="btn primary" :disabled="recognizing" @tap="chooseImage">
-                {{ recognizing ? '识别中…' : '拍照 / 选图识别' }}
+                {{ recognizing ? '识别中（约 5~10 秒）…' : '拍照 / 选图识别' }}
             </button>
         </view>
 
@@ -75,8 +75,8 @@ export default {
                     if (!p) return
                     uni.compressImage({
                         src: p,
-                        quality: 70,
-                        compressedWidth: 1600, // 长边缩到 1600px：省 token、避免超云函数入参限制
+                        quality: 60,
+                        compressedWidth: 1024, // 长边缩到 1024px：识别精度够用，速度/ token 再降一半
                         success: (r) => this.readBase64(r.tempFilePath),
                         fail: () => this.readBase64(p)
                     })
