@@ -47,7 +47,7 @@ function getApiKey() {
     return k
 }
 
-// 调硅基流动（带一次重试）：messages 由调用方构造，model 可指定
+// 调硅基流动（服务端退避重试：赠券高峰模型会排队，单次要 35s 超时 + 多次退避，吸收峰值）
 async function callSF(messages, model) {
     const body = {
         model,
@@ -55,31 +55,42 @@ async function callSF(messages, model) {
         response_format: { type: 'json_object' },
         temperature: 0.1
     }
-    for (let attempt = 0; attempt < 2; attempt++) {
-        const res = await uniCloud.httpclient.request(SF_API_URL, {
-            method: 'POST',
-            contentType: 'json',
-            dataType: 'json',
-            timeout: 50000,
-            headers: { Authorization: 'Bearer ' + getApiKey() },
-            data: body
-        })
-        const data = res && res.data
-        // 支付宝云 httpclient 的 statusCode 不一定可靠，直接按响应内容判定成功与否
-        if (!data || !data.choices || !data.choices[0]) {
-            const code = res && res.statusCode
-            const msg = (data && (data.message || JSON.stringify(data))) || ('HTTP ' + code)
-            if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue }
-            throw new ClientError('识别服务调用失败: ' + msg)
-        }
-        const content = data.choices[0].message && data.choices[0].message.content
+    const MAX_ATTEMPTS = 3
+    const PER_CALL_TIMEOUT = 35000          // 单次调用上限，留足函数总超时余量
+    const BACKOFF = [4000, 6000]            // 失败后退避间隔（指数退避）
+    let lastErr = '识别服务调用失败'
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, BACKOFF[attempt - 1] || 4000))
         try {
-            return JSON.parse(String(content).trim())
+            const res = await uniCloud.httpclient.request(SF_API_URL, {
+                method: 'POST',
+                contentType: 'json',
+                dataType: 'json',
+                timeout: PER_CALL_TIMEOUT,
+                headers: { Authorization: 'Bearer ' + getApiKey() },
+                data: body
+            })
+            const data = res && res.data
+            // 支付宝云 httpclient 的 statusCode 不一定可靠，直接按响应内容判定成功与否
+            if (!data || !data.choices || !data.choices[0]) {
+                const code = res && res.statusCode
+                lastErr = '识别服务返回异常: ' + ((data && (data.message || JSON.stringify(data))) || ('HTTP ' + code))
+                continue
+            }
+            const content = data.choices[0].message && data.choices[0].message.content
+            try {
+                return JSON.parse(String(content).trim())
+            } catch (e) {
+                lastErr = '模型返回无法解析为 JSON'
+                continue
+            }
         } catch (e) {
-            if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue }
-            throw new ClientError('模型返回无法解析为 JSON')
+            // httpclient 超时 / 网络异常：典型为赠券高峰排队，继续重试
+            lastErr = '识别服务调用失败: ' + ((e && e.message) || e)
+            continue
         }
     }
+    throw new ClientError(lastErr)
 }
 
 // 服务端轻校验：批号 11 位字母数字；产品编码 10 位数字；订单号纯数字

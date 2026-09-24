@@ -4,7 +4,7 @@
             <view class="card-title">包装指令单识别</view>
             <view class="tip">拍一张指令单照片，自动提取订单号、批号、产品、包装规格、计划产量、取样数。</view>
             <button class="btn primary" :disabled="recognizing" @tap="chooseImage">
-                {{ recognizing ? '识别中（约 5~10 秒）…' : '拍照 / 选图识别' }}
+                {{ recognizing ? '识别中（约 10~60 秒）…' : '拍照 / 选图识别' }}
             </button>
         </view>
 
