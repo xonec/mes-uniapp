@@ -1,0 +1,20 @@
+[
+    {
+        "IndexName": "plan_version",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "planId",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "version",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

@@ -1,0 +1,39 @@
+/* 现场页面共用样式，颜色沿用 uni.scss；页面独立引入并保持 scoped。 */
+.fw-page { box-sizing: border-box; min-height: 100vh; padding: 1rem; color: $ink; background: $canvas; }
+.fw-header { margin: .25rem 0 1.2rem; }
+.fw-eyebrow { display: block; color: $primary; font-size: .75rem; font-weight: 600; margin-bottom: .4rem; }
+.fw-title { display: block; font-size: 1.4rem; font-weight: 700; line-height: 1.4; }
+.fw-subtitle { display: block; color: $muted; font-size: .85rem; line-height: 1.6; margin-top: .4rem; }
+.fw-card { padding: 1rem; margin-bottom: .8rem; border-radius: .85rem; background: $surface; }
+.fw-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .9rem; }
+.fw-heading-title { font-size: 1rem; font-weight: 700; }
+.fw-note { color: $muted; font-size: .8rem; line-height: 1.6; }
+.fw-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.fw-button { box-sizing: border-box; margin: 0; min-height: 2.75rem; line-height: 2.75rem; padding: 0 1rem; border-radius: .6rem; font-size: .9rem; font-weight: 600; background: $primary-soft; color: $primary; }
+.fw-button::after { border: 0; }
+.fw-button.primary { background: $primary; color: $surface; }
+.fw-button.secondary { background: $canvas; color: $ink; }
+.fw-button[disabled] { background: $canvas; color: $muted; opacity: .75; }
+.fw-link { color: $primary; font-size: .85rem; line-height: 2.6rem; padding: 0 .25rem; }
+.fw-badge { flex-shrink: 0; display: inline-block; font-size: .72rem; line-height: 1.5; color: $primary; background: $primary-soft; padding: .25rem .6rem; border-radius: .4rem; }
+.fw-badge.warning { color: $warning; background: mix($warning, $surface, 10%); }
+.fw-badge.muted { color: $muted; background: $canvas; }
+.fw-field { margin-bottom: .9rem; }
+.fw-label { display: block; font-size: .8rem; color: $muted; margin-bottom: .4rem; }
+.fw-input, .fw-textarea { box-sizing: border-box; width: 100%; font-size: .95rem; min-height: 2.9rem; padding: .7rem .8rem; background: $canvas; border: 1px solid transparent; border-radius: .55rem; line-height: 1.5; }
+.fw-field.warn .fw-input, .fw-field.warn .fw-textarea { border-color: $warning; background: mix($warning, $surface, 5%); }
+.fw-field-grid { display: flex; flex-wrap: wrap; gap: .75rem; }
+.fw-field-grid .fw-field { flex: 1 1 8rem; min-width: 0; }
+.fw-notice { border-radius: .65rem; padding: .8rem 1rem; font-size: .85rem; line-height: 1.6; background: $primary-soft; color: $primary; margin-bottom: .8rem; overflow-wrap: anywhere; }
+.fw-notice.warning { color: $warning; background: mix($warning, $surface, 10%); }
+.fw-notice.error { color: $danger; background: mix($danger, $surface, 8%); }
+.fw-empty { padding: 2.5rem 1rem; text-align: center; }
+.fw-empty-title { display: block; font-size: 1rem; font-weight: 600; margin-bottom: .6rem; }
+.fw-empty .fw-button { margin: 1rem auto 0; display: inline-block; }
+.fw-search { display: flex; align-items: center; gap: .5rem; background: $surface; border-radius: .7rem; padding: .25rem .8rem; margin-bottom: .9rem; border: 1px solid $line; }
+.fw-search input { min-width: 0; flex: 1; height: 2.7rem; font-size: .9rem; }
+.fw-search-clear { color: $muted; font-size: .8rem; padding: .6rem 0 .6rem .5rem; }
+.fw-footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom)); background: $surface; border-top: 1px solid $line; }
+.fw-footer .fw-actions { flex-wrap: nowrap; }
+.fw-footer .fw-button { flex: 1; min-width: 0; }
+.fw-footer-note { margin-bottom: .5rem; font-size: .75rem; color: $muted; line-height: 1.5; }

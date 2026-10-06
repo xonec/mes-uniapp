@@ -3,8 +3,44 @@
         "IndexName": "batchNo_version_idx",
         "MgoKeySchema": {
             "MgoIndexKeys": [
-                { "Name": "batchNo", "Direction": "1", "Type": "varchar" },
-                { "Name": "version", "Direction": "-1", "Type": "long" }
+                {
+                    "Name": "batchNo",
+                    "Direction": "1",
+                    "Type": "varchar"
+                },
+                {
+                    "Name": "version",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "order_adopted_version",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "batchNo",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "snapshot.orderNo",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "snapshot.orderVersion",
+                    "Direction": "1",
+                    "Type": "long"
+                },
+                {
+                    "Name": "version",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
             ],
             "MgoIsUnique": false
         }

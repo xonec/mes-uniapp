@@ -1,0 +1,20 @@
+[
+    {
+        "IndexName": "order_batch",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "orderNo",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "batchNo",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

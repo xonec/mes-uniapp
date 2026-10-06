@@ -1,7 +1,9 @@
 {
     "bsonType": "object",
     "description": "生产记录表：单批号单文档，_id 固定为 rec:<批号>，由云函数 production-records 写入，客户端只读（读走 clientDB，写走云函数）",
-    "required": ["batchNo"],
+    "required": [
+        "batchNo"
+    ],
     "permission": {
         "read": false,
         "create": false,
@@ -80,8 +82,7 @@
             "title": "领用内包数"
         },
         "totalPallets": {
-            "bsonType": "number",
-            "title": "托数"
+            "description": "实际计算托数；关联订单上托待补充时为null"
         },
         "markCount": {
             "bsonType": "number",
@@ -124,6 +125,41 @@
             "bsonType": "number",
             "title": "云端更新时间",
             "description": "写入云端的毫秒时间戳，用于排序"
+        },
+        "orderNo": {
+            "bsonType": "string",
+            "description": "实际采用订单号；旧记录未关联为空"
+        },
+        "orderVersion": {
+            "description": "实际采用的订单版本；未知为null，不能自动推测"
+        },
+        "planVersionId": {
+            "bsonType": "string",
+            "description": "不可变包装方案版本ID"
+        },
+        "customerId": {
+            "bsonType": "string",
+            "description": "采用订单明确选定客户"
+        },
+        "sourceDocumentId": {
+            "bsonType": "string",
+            "description": "采用订单的原始单据ID"
+        },
+        "recognitionRunId": {
+            "bsonType": "string",
+            "description": "采用的识别记录ID"
+        },
+        "orderSnapshot": {
+            "bsonType": "object",
+            "description": "服务端核对订单版本后冻结的产品、材料、上托和来源；不跟随当前订单更新"
+        },
+        "palletPending": {
+            "bsonType": "bool",
+            "description": "上托待补充时不进行分托和托数计算"
+        },
+        "audit": {
+            "bsonType": "object",
+            "description": "实际操作人、时间、原因、前后版本号"
         }
     }
 }

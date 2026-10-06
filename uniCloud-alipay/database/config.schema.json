@@ -1,0 +1,139 @@
+{
+    "bsonType": "object",
+    "description": "共用 OCR 配置：独立供应商 Key、初筛引擎顺序、模型顺序、Prompt 模板、请求预算和缓存；仅通过管理员云函数读写",
+    "required": [
+        "apiUrl",
+        "model",
+        "textModel"
+    ],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "固定为 ocr，主键唯一"
+        },
+        "apiUrl": {
+            "bsonType": "string",
+            "title": "识别端点",
+            "description": "OpenAI 兼容的 Chat Completions 端点，如 https://api.deepseek.com/chat/completions"
+        },
+        "apiKey": {
+            "bsonType": "string",
+            "title": "API Key",
+            "description": "供应商密钥，仅在服务端使用，不向客户端明文返回"
+        },
+        "ocrSpaceApiKey": {
+            "bsonType": "string",
+            "title": "OCR.space API Key",
+            "description": "仅在服务端使用，客户端仅返回脱敏值；留空保存时保留原值"
+        },
+        "ocrSpaceEngine": {
+            "bsonType": "number",
+            "title": "OCR.space 引擎",
+            "description": "默认 2；允许 1、2、3，Engine 3 使用 Markdown 表格"
+        },
+        "model": {
+            "bsonType": "string",
+            "title": "图片/多模态模型名",
+            "description": "支持图片输入的模型，如 deepseek-flash 或 Qwen/Qwen2.5-VL-72B-Instruct"
+        },
+        "textModel": {
+            "bsonType": "string",
+            "title": "文本兜底模型名",
+            "description": "文本识别/补全模型，如 deepseek-flash"
+        },
+        "timeout": {
+            "bsonType": "number",
+            "title": "单次调用超时(ms)",
+            "description": "单次识别调用上限，自托管慢模型可调大，如 60000"
+        },
+        "maxAttempts": {
+            "bsonType": "number",
+            "title": "最多尝试次数",
+            "description": "每个模型最多尝试次数，含首次；省钱模式为 1。所有实际请求还受 maxModelCalls 总上限限制"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "更新时间",
+            "description": "毫秒时间戳"
+        },
+        "updatedBy": {
+            "bsonType": "string",
+            "title": "操作人",
+            "description": "最近写入的用户 uid"
+        },
+        "dailyLimit": {
+            "bsonType": "number",
+            "title": "大模型全局每日上限",
+            "minimum": 0
+        },
+        "userDailyLimit": {
+            "bsonType": "number",
+            "title": "大模型每人每日上限",
+            "minimum": 0
+        },
+        "dedupMinutes": {
+            "bsonType": "number",
+            "title": "去重缓存分钟",
+            "minimum": 0
+        },
+        "economyMode": {
+            "bsonType": "bool",
+            "title": "省钱模式",
+            "description": "默认开启；缓存至少复用 7 天，每个模型最多尝试一次，所有模型请求受总上限限制。已有产品跳过模型"
+        },
+        "providers": {
+            "bsonType": "array",
+            "title": "独立供应商配置",
+            "description": "最多 8 项，稳定 ID、类型、端点、启用状态及服务端 Key；客户端不直接读写",
+            "items": {
+                "bsonType": "object"
+            }
+        },
+        "modelChain": {
+            "bsonType": "array",
+            "title": "模型调用顺序",
+            "description": "最多 6 项，依序引用供应商、视觉模型及文本模型，成功后停止",
+            "items": {
+                "bsonType": "object"
+            }
+        },
+        "screenEngines": {
+            "bsonType": "array",
+            "title": "OCR.space 初筛引擎顺序",
+            "items": {
+                "bsonType": "number",
+                "enum": [
+                    1,
+                    2,
+                    3
+                ]
+            }
+        },
+        "maxModelCalls": {
+            "bsonType": "number",
+            "title": "单次模型请求总上限",
+            "minimum": 1,
+            "maximum": 6
+        },
+        "contentPrompt": {
+            "bsonType": "string",
+            "title": "内容识别 Prompt 模板",
+            "maxLength": 20000
+        },
+        "bomPrompt": {
+            "bsonType": "string",
+            "title": "BOM 补充 Prompt",
+            "maxLength": 20000
+        },
+        "orderPrompt": {
+            "bsonType": "string",
+            "title": "订单补充 Prompt",
+            "maxLength": 20000
+        }
+    }
+}

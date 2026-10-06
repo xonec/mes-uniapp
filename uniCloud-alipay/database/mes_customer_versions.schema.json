@@ -1,0 +1,40 @@
+{
+    "bsonType": "object",
+    "description": "客户历史版本；固定主键，仅新增，历史快照先保存再更新当前记录。",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "服务端固定主键，客户端不可直接写入"
+        },
+        "customerId": {
+            "bsonType": "string",
+            "description": "原记录标识"
+        },
+        "version": {
+            "bsonType": "number",
+            "description": "归档版本"
+        },
+        "savedAt": {
+            "bsonType": "string",
+            "description": "旧版本保存时间ISO字符串"
+        },
+        "updatedBy": {
+            "bsonType": "string",
+            "description": "旧版本操作人"
+        },
+        "snapshot": {
+            "bsonType": "object",
+            "description": "完整旧版本，含当时审计信息"
+        }
+    },
+    "required": [
+        "customerId",
+        "version",
+        "snapshot"
+    ]
+}

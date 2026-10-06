@@ -1,0 +1,51 @@
+{
+    "bsonType": "object",
+    "description": "客户档案，名称和状态修改带版本与原因。",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "服务端固定主键，客户端不可直接写入"
+        },
+        "name": {
+            "bsonType": "string",
+            "description": "手工确认的客户名称，不能从品牌自动推断"
+        },
+        "externalCode": {
+            "bsonType": "string",
+            "description": "可选外部客户编号"
+        },
+        "note": {
+            "bsonType": "string",
+            "description": "客户说明"
+        },
+        "enabled": {
+            "bsonType": "bool",
+            "description": "是否启用"
+        },
+        "version": {
+            "bsonType": "number",
+            "description": "内容版本"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "description": "服务端更新时间"
+        },
+        "updatedBy": {
+            "bsonType": "string",
+            "description": "实际操作人"
+        },
+        "audit": {
+            "bsonType": "object",
+            "description": "服务端生成：操作人、时间、原因、前后版本及变化字段"
+        }
+    },
+    "required": [
+        "name",
+        "version"
+    ]
+}

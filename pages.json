@@ -18,7 +18,7 @@
         {
             "path": "pages/materials/materials",
             "style": {
-                "navigationBarTitleText": "包材计算",
+                "navigationBarTitleText": "生产计算",
                 "enablePullDownRefresh": false
             }
         },
@@ -31,7 +31,7 @@
         {
             "path": "pages/archive/archive",
             "style": {
-                "navigationBarTitleText": "档案"
+                "navigationBarTitleText": "产品档案"
             }
         },
         {
@@ -56,6 +56,12 @@
             "path": "pages/change-password/change-password",
             "style": {
                 "navigationBarTitleText": "修改密码"
+            }
+        },
+        {
+            "path": "pages/settings-ocr/settings-ocr",
+            "style": {
+                "navigationBarTitleText": "识别设置"
             }
         }
     ,{

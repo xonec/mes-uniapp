@@ -1,0 +1,169 @@
+{
+    "bsonType": "object",
+    "description": "每个发布方案版本的不可变完整内容，订单明确引用planVersionId，后续方案更新不改已保存订单。",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "服务端固定主键，客户端不可直接写入"
+        },
+        "productCode": {
+            "bsonType": "string",
+            "description": "10位产品编码"
+        },
+        "productName": {
+            "bsonType": "string",
+            "description": "建立方案时产品名称"
+        },
+        "packSpec": {
+            "bsonType": "string",
+            "description": "产品固定包装规格；不含上托数量"
+        },
+        "customerId": {
+            "bsonType": "string",
+            "description": "明确选定客户ID"
+        },
+        "customerName": {
+            "bsonType": "string",
+            "description": "当时客户名称快照"
+        },
+        "planName": {
+            "bsonType": "string",
+            "description": "同产品同客户可以有多份方案"
+        },
+        "materials": {
+            "bsonType": "array",
+            "description": "仅材料档案清单；不保存标准用量或损耗系数",
+            "items": {
+                "bsonType": "object",
+                "required": [
+                    "materialCode",
+                    "unit"
+                ],
+                "properties": {
+                    "seq": {
+                        "bsonType": "number",
+                        "description": "合并跨页物料后的行序"
+                    },
+                    "materialCode": {
+                        "bsonType": "string",
+                        "description": "原样保留物料编号及 -1 后缀"
+                    },
+                    "materialName": {
+                        "bsonType": "string",
+                        "description": "物料名称"
+                    },
+                    "spec": {
+                        "bsonType": "string",
+                        "description": "完整规格型号，最多2000字符"
+                    },
+                    "materialVersion": {
+                        "description": "印刷版本号原样保存，例如01或N/A；无法识别或无记录为null，不能猜成N/A"
+                    },
+                    "unit": {
+                        "bsonType": "string",
+                        "description": "原始计量单位"
+                    },
+                    "sourcePages": {
+                        "bsonType": "array",
+                        "description": "来源原图页码1至6；跨页物料可以关联多页，未知为空数组",
+                        "items": {
+                            "bsonType": "number"
+                        }
+                    }
+                }
+            }
+        },
+        "pallet": {
+            "bsonType": "object",
+            "description": "订单或方案的上托要求。待补充不进行自动托数计算",
+            "properties": {
+                "status": {
+                    "bsonType": "string",
+                    "description": "pending 待补充 | confirmed 已确认",
+                    "enum": [
+                        "pending",
+                        "confirmed"
+                    ]
+                },
+                "casesPerLayer": {
+                    "description": "每层箱数，正整数；未知为null"
+                },
+                "layers": {
+                    "description": "层数，正整数；未知为null"
+                },
+                "casesPerPallet": {
+                    "description": "每托箱数，正整数；同时填层数时校验每层箱数×层数，未知为null"
+                },
+                "dimensions": {
+                    "bsonType": "string",
+                    "description": "托盘尺寸；不得把大衬板尺寸当作托盘尺寸"
+                },
+                "placement": {
+                    "bsonType": "string",
+                    "description": "摆放方式说明"
+                },
+                "sourceType": {
+                    "bsonType": "string",
+                    "description": "customer 客户要求 | site 现场标准 | document 单据明示；未知为空"
+                },
+                "sourceNote": {
+                    "bsonType": "string",
+                    "description": "实际要求的来源依据，已确认状态必填"
+                }
+            }
+        },
+        "packingRequirements": {
+            "bsonType": "string",
+            "description": "可复用包装要求，不含本批日期/批号等动态信息"
+        },
+        "sourceDocumentId": {
+            "bsonType": "string",
+            "description": "不可变原始单据 ID"
+        },
+        "recognitionRunId": {
+            "bsonType": "string",
+            "description": "本次实际识别运行 ID"
+        },
+        "enabled": {
+            "bsonType": "bool",
+            "description": "是否可新选此方案"
+        },
+        "version": {
+            "bsonType": "number",
+            "description": "方案版本"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "description": "服务端更新时间"
+        },
+        "updatedBy": {
+            "bsonType": "string",
+            "description": "实际操作人"
+        },
+        "audit": {
+            "bsonType": "object",
+            "description": "服务端生成：操作人、时间、原因、前后版本及变化字段"
+        },
+        "planId": {
+            "bsonType": "string",
+            "description": "方案固定ID"
+        },
+        "planVersionId": {
+            "bsonType": "string",
+            "description": "planv:<方案标识>:<版本号>"
+        },
+        "materialCount": {
+            "bsonType": "number",
+            "description": "服务端计算材料行数，仅供列表展示，减少传输整份材料"
+        }
+    },
+    "required": [
+        "planId",
+        "version"
+    ]
+}

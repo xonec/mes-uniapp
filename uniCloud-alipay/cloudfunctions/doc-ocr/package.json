@@ -1,9 +1,14 @@
 {
     "name": "doc-ocr",
     "version": "1.0.0",
-    "description": "包装指令单识别（硅基流动视觉模型）与存储",
+    "description": "包装指令单免费 OCR、可选大模型辅助与存储",
     "main": "index.js",
+    "cloudfunction-config": { "timeout": 180, "memorySize": 512 },
     "dependencies": {
-        "mes-common": "file:../common/mes-common"
+        "mes-common": "file:../common/mes-common",
+        "order-parser": "file:../common/order-parser",
+        "ocr-config": "file:../common/ocr-config",
+        "mes-document-store": "file:../common/mes-document-store",
+        "uni-config-center": "file:../common/uni-config-center"
     }
 }

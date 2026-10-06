@@ -1,0 +1,41 @@
+{
+    "bsonType": "object",
+    "description": "产品物料档案历史版本表：每次 upsert 内容变更前的旧版本快照，_id = ver:<产品编码>:<版本号>，追加不覆盖，用于追溯每次物料清单修改。客户端权限全 false，读写只走云函数 product-materials。",
+    "required": ["productCode", "version"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "ver:<产品编码>:<版本号>，确定性主键，同产品同版本只一条（幂等）"
+        },
+        "productCode": {
+            "bsonType": "string",
+            "title": "产品编码",
+            "description": "与 product_materials 同一编码"
+        },
+        "version": {
+            "bsonType": "number",
+            "title": "版本号",
+            "description": "从 1 递增；首次建档为 1，每次内容变更 +1"
+        },
+        "savedAt": {
+            "bsonType": "string",
+            "title": "该版本保存时间",
+            "description": "该版本当时保存的 ISO 时间"
+        },
+        "updatedBy": {
+            "bsonType": "string",
+            "title": "操作人",
+            "description": "当时写入的用户 uid"
+        },
+        "snapshot": {
+            "bsonType": "object",
+            "title": "档案快照",
+            "description": "该版本的完整 product_materials 文档（含 productName/packSpec/materials/source 等）"
+        }
+    }
+}

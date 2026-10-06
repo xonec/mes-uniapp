@@ -1,0 +1,35 @@
+{
+    "bsonType": "object",
+    "description": "完整生产批号到唯一订单的不可变关联。批号不按前缀映射产品；批号纠错后原关联保留以查询历史。",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "服务端固定主键，客户端不可直接写入"
+        },
+        "batchNo": {
+            "bsonType": "string",
+            "description": "完整11位生产批号"
+        },
+        "orderNo": {
+            "bsonType": "string",
+            "description": "订单号"
+        },
+        "createdBy": {
+            "bsonType": "string",
+            "description": "实际录入人 uid"
+        },
+        "createdAt": {
+            "bsonType": "number",
+            "description": "服务端创建时间，毫秒"
+        }
+    },
+    "required": [
+        "batchNo",
+        "orderNo"
+    ]
+}

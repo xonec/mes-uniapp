@@ -1,0 +1,43 @@
+[
+    {
+        "IndexName": "order_version",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "orderNo",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "version",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "order_batch",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "orderNo",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "snapshot.batchNo",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "version",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

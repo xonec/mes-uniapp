@@ -1,0 +1,20 @@
+[
+    {
+        "IndexName": "owner_created",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "createdBy",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "createdAt",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

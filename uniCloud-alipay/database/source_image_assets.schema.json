@@ -1,0 +1,44 @@
+{
+    "bsonType": "object",
+    "description": "校验实际文件SHA-256后新增的原图资产。同用户同哈希只存一次，服务端独立归档目录，访问时生成临时URL。",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "服务端固定主键，客户端不可直接写入"
+        },
+        "sha256": {
+            "bsonType": "string",
+            "description": "原图字节的SHA-256，不是压缩图片哈希"
+        },
+        "fileID": {
+            "bsonType": "string",
+            "description": "服务端归档原图文件标识"
+        },
+        "bytes": {
+            "bsonType": "number",
+            "description": "原图字节数"
+        },
+        "mime": {
+            "bsonType": "string",
+            "description": "按原图魔数识别的文件类型"
+        },
+        "createdBy": {
+            "bsonType": "string",
+            "description": "实际录入人 uid"
+        },
+        "createdAt": {
+            "bsonType": "number",
+            "description": "服务端创建时间，毫秒"
+        }
+    },
+    "required": [
+        "sha256",
+        "fileID",
+        "createdBy"
+    ]
+}

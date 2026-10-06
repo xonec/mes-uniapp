@@ -1,0 +1,35 @@
+{
+    "bsonType": "object",
+    "description": "生产订单历史版本快照；只能通过云函数读写。",
+    "required": [
+        "orderNo",
+        "version",
+        "snapshot"
+    ],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "ver:<订单号>:<版本号>"
+        },
+        "orderNo": {
+            "bsonType": "string"
+        },
+        "version": {
+            "bsonType": "number"
+        },
+        "savedAt": {
+            "bsonType": "string"
+        },
+        "updatedBy": {
+            "bsonType": "string"
+        },
+        "snapshot": {
+            "bsonType": "object"
+        }
+    }
+}

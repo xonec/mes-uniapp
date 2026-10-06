@@ -1,0 +1,26 @@
+{
+    "bsonType": "object",
+    "description": "识别额度计数表：按北京时间日历日保护模型额度，超限前直接拦截。_id = g:<日期>（全局）或 u:<日期>:<uid>（个人），calls 为当日实际模型 HTTP 尝试次数，含重试、不含缓存。只由 doc-ocr 维护。",
+    "required": ["_id", "calls", "date"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "g:<日期> 全局计数 / u:<日期>:<uid> 个人计数，确定性主键"
+        },
+        "calls": {
+            "bsonType": "number",
+            "title": "当日累计识别次数",
+            "description": "每次实际模型 HTTP 尝试前 +1，包括重试；命中缓存与手动录入不计数"
+        },
+        "date": {
+            "bsonType": "string",
+            "title": "所属日期",
+            "description": "日历日 YYYY-MM-DD，便于按天统计与清理"
+        }
+    }
+}

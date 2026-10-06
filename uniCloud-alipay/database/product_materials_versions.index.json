@@ -1,0 +1,12 @@
+[
+    {
+        "IndexName": "productCode_version_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "productCode", "Direction": "1", "Type": "varchar" },
+                { "Name": "version", "Direction": "-1", "Type": "long" }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

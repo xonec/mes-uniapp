@@ -1,0 +1,72 @@
+{
+    "bsonType": "object",
+    "description": "永久保留实际识别输出及当次Prompt。与短期OCR去重缓存分开；缓存命中也记录实际采用来源，不推测缺失字段。",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "服务端固定主键，客户端不可直接写入"
+        },
+        "sourceDocumentId": {
+            "bsonType": "string",
+            "description": "不可变原始单据 ID"
+        },
+        "recognitionRunId": {
+            "bsonType": "string",
+            "description": "本次实际识别运行 ID"
+        },
+        "createdBy": {
+            "bsonType": "string",
+            "description": "实际录入人 uid"
+        },
+        "createdAt": {
+            "bsonType": "number",
+            "description": "服务端创建时间，毫秒"
+        },
+        "purpose": {
+            "bsonType": "string",
+            "description": "bom或order"
+        },
+        "source": {
+            "bsonType": "string",
+            "description": "ocrspace/model/cache/archive"
+        },
+        "provider": {
+            "bsonType": "string",
+            "description": "实际采用的供应商"
+        },
+        "model": {
+            "bsonType": "string",
+            "description": "实际采用的模型"
+        },
+        "modelUsed": {
+            "bsonType": "bool",
+            "description": "本次是否真实请求大模型"
+        },
+        "processedHashes": {
+            "bsonType": "array",
+            "description": "OCR.space预处理图片哈希，按页保存"
+        },
+        "output": {
+            "bsonType": "object",
+            "description": "脱敏识别结果，含实际模型原始JSON、材料来源页及不确定字段"
+        },
+        "rawText": {
+            "bsonType": "string",
+            "description": "实际识别转录文字；未识别的页不得补造文字"
+        },
+        "prompt": {
+            "bsonType": "object",
+            "description": "当次内容识别Prompt、任务Prompt、页指令、实际模式及供应商标识；不含Key"
+        }
+    },
+    "required": [
+        "sourceDocumentId",
+        "createdBy",
+        "createdAt"
+    ]
+}

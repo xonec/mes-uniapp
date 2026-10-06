@@ -14,6 +14,7 @@ const UNIID_STUB = path.join(__dirname, 'helpers/uni-id-common-stub.cjs')
 const origResolve = Module._resolveFilename
 Module._resolveFilename = function (request, ...args) {
     if (request === 'mes-common') return MES_COMMON
+    if (request === 'mes-document-store') return path.join(__dirname, '../uniCloud-alipay/cloudfunctions/common/mes-document-store/index.js')
     if (request === 'uni-id-common') return UNIID_STUB
     return origResolve.call(this, request, ...args)
 }
@@ -36,8 +37,20 @@ function makeQuery(name, cond) {
     const q = {
         limit(n) { q._limit = n; return q },
         field(f) { q._field = f; return q },
+        orderBy(k, dir) { q._order = [k, dir]; return q },
+        async update(data) {
+            let updated = 0
+            for (const [id, doc] of ensure(name)) {
+                if (matchCond(doc, cond)) { ensure(name).set(id, Object.assign({}, doc, clone(data))); updated++ }
+            }
+            return { updated }
+        },
         async get() {
             let rows = [...ensure(name).values()].map(clone).filter(r => matchCond(r, cond))
+            if (q._order) {
+                const [k, dir] = q._order
+                rows.sort((a, b) => (a[k] > b[k] ? 1 : a[k] < b[k] ? -1 : 0) * (dir === 'desc' ? -1 : 1))
+            }
             if (q._limit) rows = rows.slice(0, q._limit)
             return { data: rows }
         }
@@ -80,6 +93,7 @@ function reset() {
     Object.keys(store).forEach(k => delete store[k])
     // checkAuth 会回查用户表 status / role（uni-id 语义 status 0=正常）
     ensure('uni-id-users').set('u1', { _id: 'u1', status: 0, role: ['user'] })
+    ensure('uni-id-users').set('admin', { _id: 'admin', status: 0, role: ['admin'] })
 }
 const tokenFor = (uid) => 'tok-' + uid
 const T = () => tokenFor('u1')
@@ -172,7 +186,7 @@ const upsert = (record, uid = 'u1') => fn.main({ action: 'upsert', uniIdToken: t
     await test('list → 只列启用项、带 materialCount、不含 materials', async () => {
         reset()
         await upsert(recFoyes())
-        await upsert(recFoyes({ productCode: '1306005276', productName: 'SWISSE® 乳清蛋白粉', enabled: false }))
+        await upsert(recFoyes({ productCode: '1306005276', productName: 'SWISSE® 乳清蛋白粉', enabled: false }), 'admin')
         const all = await fn.main({ action: 'list', uniIdToken: T() })
         assert.strictEqual(all.code, 0)
         assert.deepStrictEqual(all.data.map(x => x.productCode), ['1306008056'])
@@ -219,6 +233,29 @@ const upsert = (record, uid = 'u1') => fn.main({ action: 'upsert', uniIdToken: t
         reset()
         await upsert(recFoyes({ source: 'hack' }))
         assert.strictEqual(ensure('product_materials').get('mat:1306008056').source, 'manual')
+    })
+
+    await test('upsert 产生历史版本：二次更新写入 product_materials_versions，listVersions 可查', async () => {
+        reset()
+        await upsert(recFoyes())
+        const r2 = await upsert(recFoyes({ productName: 'FoYes（改）', sourceOrderNo: '559291' }))
+        assert.strictEqual(r2.data.version, 2)
+        const versions = await fn.main({ action: 'listVersions', uniIdToken: T(), productCode: '1306008056' })
+        assert.strictEqual(versions.code, 0)
+        // 首次新建无快照；二次更新产生 1 条快照（旧 v1 基线）
+        assert.strictEqual(versions.data.length, 1)
+        assert.strictEqual(versions.data[0].version, 1)
+        assert.strictEqual(versions.data[0].snapshot.productName, 'FoYes分离乳清蛋白粉（雪顶蜜瓜味）')
+    })
+
+    await test('upsert 相同内容重扫不刷版本', async () => {
+        reset()
+        await upsert(recFoyes())
+        const before = ensure('product_materials_versions').size
+        const r = await upsert(recFoyes())   // 完全相同的第二次
+        assert.strictEqual(r.data.unchanged, true)
+        assert.strictEqual(ensure('product_materials_versions').size, before)
+        assert.strictEqual(ensure('product_materials').get('mat:1306008056').version, 1)
     })
 
     console.log('\n' + passed + ' passed, ' + failed + ' failed')

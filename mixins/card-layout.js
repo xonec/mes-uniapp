@@ -10,9 +10,9 @@ const CARD_DEFS = [
     { key: 'batch', title: '批号 / 产品' },
     { key: 'buckets', title: '分桶件数' },
     { key: 'prod', title: '生产数据' },
-    { key: 'material', title: '包材卡片' },
+    { key: 'material', title: '包材用量' },
     { key: 'weight', title: '重量参数' },
-    { key: 'pallet', title: '托分页' }
+    { key: 'pallet', title: '每托件号' }
 ]
 const CARD_KEYS = CARD_DEFS.map(c => c.key)
 

@@ -1,0 +1,6 @@
+{
+    "name": "ocr-config",
+    "version": "1.0.0",
+    "main": "index.js",
+    "description": "OCR 服务配置与供应商预设"
+}

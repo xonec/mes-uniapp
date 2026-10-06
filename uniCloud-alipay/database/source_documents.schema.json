@@ -1,0 +1,35 @@
+{
+    "bsonType": "object",
+    "description": "不可变来源单据：按用户、按原始照片SHA-256及页顺序去重。订单和方案共同引用，多页作为一组。",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "服务端固定主键，客户端不可直接写入"
+        },
+        "pages": {
+            "bsonType": "array",
+            "description": "原图有序页：pageNo、sha256、assetId；不保存短期URL"
+        },
+        "textOnly": {
+            "bsonType": "bool",
+            "description": "只有输入文本而没有原图"
+        },
+        "createdBy": {
+            "bsonType": "string",
+            "description": "实际录入人 uid"
+        },
+        "createdAt": {
+            "bsonType": "number",
+            "description": "服务端创建时间，毫秒"
+        }
+    },
+    "required": [
+        "pages",
+        "createdBy"
+    ]
+}

@@ -1,0 +1,28 @@
+[
+    {
+        "IndexName": "updatedAt_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "updatedAt",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "batch_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "batchNo",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

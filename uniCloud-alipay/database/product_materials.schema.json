@@ -1,7 +1,10 @@
 {
     "bsonType": "object",
-    "description": "产品物料清单档案：单产品单文档，_id 固定为 mat:<产品编码>。只记录「这个产品用什么物料」（编号/名称/规格型号/版本号/计量单位），取自包装指令单底部的『包装材料清单』，不做用量与损耗计算。客户端权限全 false，读写走云函数 product-materials。",
-    "required": ["productCode", "materials"],
+    "description": "产品编码唯一的产品基本信息及起始材料档案。包装规格固定；不同客户/订单的材料、上托由包装方案和订单快照分别保存。",
+    "required": [
+        "productCode",
+        "materials"
+    ],
     "permission": {
         "read": false,
         "create": false,
@@ -25,45 +28,47 @@
         "packSpec": {
             "bsonType": "string",
             "title": "包装规格（件）",
-            "description": "原样保留，如 AP5R-450g/罐*6罐/箱、APDD-FoYes-1.8kg/瓶*4瓶/箱"
+            "description": "固定规格原样保留到箱级，例如907g/瓶*6瓶/箱；上托数量独立保存"
         },
         "materials": {
             "bsonType": "array",
-            "title": "包装材料清单",
-            "description": "有序物料行，与指令单『包装材料清单』表逐行对应。只存档案信息，不存计划量/实用量",
+            "description": "仅材料档案清单；不保存标准用量或损耗系数",
             "items": {
                 "bsonType": "object",
-                "required": ["materialCode", "unit"],
+                "required": [
+                    "materialCode",
+                    "unit"
+                ],
                 "properties": {
                     "seq": {
                         "bsonType": "number",
-                        "title": "序号",
-                        "description": "指令单行号，保持与纸质单据一致便于核对"
+                        "description": "合并跨页物料后的行序"
                     },
                     "materialCode": {
                         "bsonType": "string",
-                        "title": "物料编号",
-                        "description": "如 3100002827；粉料等原料带 -1 后缀（如 1314000581-1）。转录时最易错的字段，务必核对"
+                        "description": "原样保留物料编号及 -1 后缀"
                     },
                     "materialName": {
                         "bsonType": "string",
-                        "title": "物料名称",
-                        "description": "如 空白唛头、D502*608五条筋铁罐-AP5R"
+                        "description": "物料名称"
                     },
                     "spec": {
                         "bsonType": "string",
-                        "title": "规格型号",
-                        "description": "如 100*70mm、405*405*288mm-A7K/C-印刷标志-倒角"
+                        "description": "完整规格型号，最多2000字符"
                     },
                     "materialVersion": {
-                        "bsonType": "string",
-                        "title": "版本号",
-                        "description": "该物料自身的版本，如 01；无版本为 'N/A'（不可留空，需与单据一致）"
+                        "description": "印刷版本号原样保存，例如01或N/A；无法识别或无记录为null，不能猜成N/A"
                     },
                     "unit": {
                         "bsonType": "string",
-                        "title": "计量单位",
-                        "description": "千克 | 只 | 张 | 卷"
+                        "description": "原始计量单位"
+                    },
+                    "sourcePages": {
+                        "bsonType": "array",
+                        "description": "来源原图页码1至6；跨页物料可以关联多页，未知为空数组",
+                        "items": {
+                            "bsonType": "number"
+                        }
                     }
                 }
             }
@@ -92,6 +97,23 @@
             "bsonType": "string",
             "title": "操作人",
             "description": "最近写入的用户 uid"
+        },
+        "version": {
+            "bsonType": "number",
+            "title": "版本号",
+            "description": "从 1 递增；每次内容变更 +1，配合 product_materials_versions 做历史追溯"
+        },
+        "sourceDocumentId": {
+            "bsonType": "string",
+            "description": "不可变原始单据 ID"
+        },
+        "recognitionRunId": {
+            "bsonType": "string",
+            "description": "本次实际识别运行 ID"
+        },
+        "audit": {
+            "bsonType": "object",
+            "description": "服务端生成：操作人、时间、原因、前后版本及变化字段"
         }
     }
 }

@@ -1,0 +1,11 @@
+[
+    {
+        "IndexName": "expireAt_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "expireAt", "Direction": "1", "Type": "long" }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

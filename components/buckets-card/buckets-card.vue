@@ -3,22 +3,22 @@
         <view class="bucket-grid">
             <view class="bucket" v-for="(key, idx2) in bucketKeys" :key="key">
                 <text class="blbl">{{ key }}桶</text>
-                <input class="binp" type="number" min="0" :disabled="isBucketDisabled(idx2)"
+                <input class="binp" type="number" min="0" :disabled="disabled || isBucketDisabled(idx2)"
                     :placeholder="'0'" :value="buckets[key]" @input="onBucket(key, $event)" />
             </view>
         </view>
         <view class="data-grid bucket-tail">
             <view class="data-cell">
                 <text class="dlbl">零箱（瓶）</text>
-                <input class="dinp" type="number" min="0" :value="zeroCount" @input="onField('zeroCount', $event)" />
+                <input class="dinp" type="number" min="0" :disabled="disabled" :value="zeroCount" @input="onField('zeroCount', $event)" />
             </view>
             <view class="data-cell">
                 <text class="dlbl">瓶 / 件</text>
-                <input class="dinp" type="number" min="1" :value="perCase" @input="onField('perCase', $event)" />
+                <input class="dinp" type="number" min="1" :disabled="disabled" :value="perCase" @input="onField('perCase', $event)" />
             </view>
             <view class="data-cell">
                 <text class="dlbl">件 / 托</text>
-                <input class="dinp" type="number" min="1" :value="perPallet" @input="onField('perPallet', $event)" />
+                <input class="dinp" type="number" min="1" :value="perPallet" :disabled="disabled || palletLocked" :placeholder="palletLocked ? '采用订单要求' : ''" @input="onField('perPallet', $event)" />
             </view>
         </view>
     </view>
@@ -32,6 +32,7 @@ export default {
         zeroCount: { type: [String, Number], default: '' },
         perCase: { type: [String, Number], default: '' },
         perPallet: { type: [String, Number], default: '' },
+        palletLocked: Boolean, disabled: Boolean,
         bucketKeys: { type: Array, default: () => ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'] }
     },
     methods: {
@@ -52,15 +53,7 @@ export default {
 }
 </script>
 
-<style scoped>
-.bucket-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10rpx; }
-.bucket-tail { margin-top: 12rpx; }
-.bucket { display: flex; flex-direction: column; }
-.blbl { font-size: 20rpx; color: #77827D; margin-bottom: 4rpx; }
-.binp { height: 60rpx; border: 1rpx solid #E3E8E5; border-radius: 10rpx; font-size: 26rpx; text-align: center; background: #fff; }
-.binp[disabled] { background: #F2F4F3; color: #bbb; }
-.data-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12rpx; }
-.data-cell { background: #F7F9F8; border-radius: 12rpx; padding: 10rpx; min-height: 88rpx; display: flex; flex-direction: column; justify-content: center; }
-.dlbl { font-size: 20rpx; color: #77827D; }
-.dinp { margin-top: 4rpx; font-size: 26rpx; background: transparent; height: 40rpx; }
+<style lang="scss" scoped>
+.bucket-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }.bucket { display: flex; align-items: center; gap: .5rem; background: $canvas; padding: .5rem .6rem; border-radius: .55rem; }.blbl { flex-shrink: 0; font-size: .8rem; color: $primary; font-weight: 600; }.binp { flex: 1; min-width: 0; height: 2.3rem; font-size: 1rem; text-align: right; background: transparent; }.binp[disabled] { color: $muted; }
+.bucket-tail { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid $line; }.data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }.data-cell { background: $canvas; border-radius: .5rem; padding: .7rem; min-height: 3.2rem; display: flex; flex-direction: column; justify-content: center; }.dlbl { font-size: .75rem; color: $muted; }.dinp { margin-top: .3rem; font-size: .95rem; background: transparent; height: 2.2rem; }
 </style>

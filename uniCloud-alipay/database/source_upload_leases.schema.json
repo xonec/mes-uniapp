@@ -1,0 +1,44 @@
+{
+    "bsonType": "object",
+    "description": "原图补存的短期授权记录：先查哈希，仅缺失页上传，服务端验证并复制到归档目录后删除临时文件与授权。",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "服务端固定主键，客户端不可直接写入"
+        },
+        "sourceDocumentId": {
+            "bsonType": "string",
+            "description": "不可变原始单据 ID"
+        },
+        "recognitionRunId": {
+            "bsonType": "string",
+            "description": "本次实际识别运行 ID"
+        },
+        "uid": {
+            "bsonType": "string",
+            "description": "上传用户"
+        },
+        "prefix": {
+            "bsonType": "string",
+            "description": "本次授权临时目录"
+        },
+        "pageNumbers": {
+            "bsonType": "array",
+            "description": "允许补存的页码"
+        },
+        "expiresAt": {
+            "bsonType": "number",
+            "description": "10分钟有效期，过期不允许提交"
+        }
+    },
+    "required": [
+        "uid",
+        "prefix",
+        "expiresAt"
+    ]
+}

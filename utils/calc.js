@@ -35,17 +35,18 @@ export function computeMaterial(input) {
     const zero = Math.max(0, Number(input.zeroCount) || 0)
     const perCase = Math.max(1, Number(input.perCase) || 1)
     const perPallet = Math.max(1, Number(input.perPallet) || 1)
+    const palletReady = input.palletPending !== true
     const sample = Math.max(0, Number(input.sampleCount) || 0)
     const labelExtra = Math.max(0, Number(input.labelExtra) || 0)
     const securityExtra = Math.max(0, Number(input.securityExtra) || 0)
 
     const bottles = cases * perCase + zero
     const issued = bottles + sample
-    const pallets = Math.floor(cases / perPallet)
-    const palletRemainder = cases % perPallet
-    const totalPallets = Math.max(1, Math.ceil(cases / perPallet))
+    const pallets = palletReady ? Math.floor(cases / perPallet) : null
+    const palletRemainder = palletReady ? cases % perPallet : null
+    const totalPallets = palletReady ? Math.max(1, Math.ceil(cases / perPallet)) : null
     const marks = cases + (zero ? 1 : 0) + bucketCount
-    const currentPallet = Math.min(Math.max(1, Number(input.currentPallet) || 1), totalPallets)
+    const currentPallet = palletReady ? Math.min(Math.max(1, Number(input.currentPallet) || 1), totalPallets) : 0
 
     // 件号：按桶 A→J 顺序连续编号（桶字母 + 3 位序号，从 001 起），每托按 件/托 切分
     const codeList = []
@@ -53,8 +54,8 @@ export function computeMaterial(input) {
         const n = values[i]
         for (let j = 1; j <= n; j++) codeList.push(k + pad3(j))
     })
-    const chunk = codeList.slice((currentPallet - 1) * perPallet, currentPallet * perPallet)
-    const palletRange = segmentCodes(chunk) || '暂无件号'
+    const chunk = palletReady ? codeList.slice((currentPallet - 1) * perPallet, currentPallet * perPallet) : []
+    const palletRange = palletReady ? segmentCodes(chunk) || '暂无件号' : '上托待补充，暂不分托'
 
     // 零箱只可能位于最后一桶的最后一箱之后：取整批件号列表的最后一个再 +1
     const lastCode = codeList[codeList.length - 1]
@@ -86,8 +87,8 @@ export function computeMaterial(input) {
         currentPallet,
         inboundCount: bottles + ' 瓶',
         innerIssued: issued + ' 瓶',
-        palletCode: cases ? (pallets + ' 托' + (palletRemainder ? ` + ${palletRemainder} 件` : '') + (zero ? ` + ${zero} 瓶` : '')) : '0 托',
-        palletPage: `第 ${currentPallet} 托 / 共 ${totalPallets} 托`,
+        palletCode: palletReady ? (cases ? (pallets + ' 托' + (palletRemainder ? ` + ${palletRemainder} 件` : '') + (zero ? ` + ${zero} 瓶` : '')) : '0 托') : '上托待补充',
+        palletPage: palletReady ? `第 ${currentPallet} 托 / 共 ${totalPallets} 托` : '上托待补充',
         palletRange,
         zeroBoxInfo,
         labelExtra,

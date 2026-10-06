@@ -1,0 +1,11 @@
+[
+    {
+        "IndexName": "date_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "date", "Direction": "1", "Type": "varchar" }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

@@ -15,6 +15,7 @@ export async function callCloud(name, action, payload = {}) {
     }
     const res = await uniCloud.callFunction({
         name,
+        timeout: (name === 'doc-ocr' && action === 'recognize') || (name === 'production-orders' && action === 'commitSourceImages') ? 210000 : 60000,
         data: Object.assign({ action, uniIdToken: getToken() }, payload)
     })
     const r = res && res.result
@@ -27,7 +28,9 @@ export async function callCloud(name, action, payload = {}) {
         throw new Error(r.message || '登录失效，请重新登录')
     }
     if (r.code !== 0) {
-        throw new Error(r.message || '云端操作失败')
+        const error = new Error(r.message || '云端操作失败')
+        error.code = r.code
+        throw error
     }
     return r.data
 }

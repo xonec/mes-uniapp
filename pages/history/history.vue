@@ -1,174 +1,89 @@
 <template>
-    <view class="page">
-        <view class="search-bar">
-            <input class="search-inp" v-model="kw" placeholder="搜索批号" confirm-type="search" />
-        </view>
-        <scroll-view scroll-y class="body">
-            <view class="hist-item" v-for="(b, i) in filtered" :key="i" @tap="openVersions(b)">
-                <text class="code">{{ b }}</text>
-                <text class="arrow">版本 ›</text>
-            </view>
-            <view v-if="loading && list.length === 0" class="empty">加载中…</view>
-            <view v-else-if="filtered.length === 0" class="empty">暂无记录</view>
-            <view v-else-if="!done" class="load-more" @tap="loadMore">{{ loading ? '加载中…' : '加载更多' }}</view>
-        </scroll-view>
-
-        <!-- 版本弹层 -->
-        <view class="sheet-mask" v-if="showVersions" @tap="showVersions = false">
+    <view class="fw-page">
+        <view class="fw-header"><text class="fw-eyebrow">生产记录</text><text class="fw-title">历史记录</text><text class="fw-subtitle">查找批号，查看保存版本并载入计算。</text></view>
+        <view class="fw-search"><input v-model="kw" placeholder="搜索批号，完整批号可查询云端" confirm-type="search" maxlength="30" @confirm="searchRemote" /><text v-if="kw" class="fw-search-clear" @tap="kw = ''">清除</text></view>
+        <view class="history-caption"><text>已载入 {{ list.length }} 个批号</text><text @tap="refresh">{{ loading ? '加载中…' : '刷新' }}</text></view>
+        <view v-if="error" class="fw-notice error">{{ error }}<button class="fw-button secondary" :disabled="loading" @tap="loadMore">重试加载</button></view>
+        <view v-if="searchError" class="fw-notice warning">{{ searchError }}</view>
+        <view v-if="loading && !list.length" class="fw-card fw-empty"><text class="fw-empty-title">正在加载记录</text><text class="fw-note">请稍候…</text></view>
+        <view v-else-if="!filtered.length && !error" class="fw-card fw-empty"><text class="fw-empty-title">{{ kw ? '已加载记录中没有匹配批号' : '暂无生产记录' }}</text><text class="fw-note">{{ kw ? '输入完整批号可查询云端记录。' : '在计算页保存后，可在这里查看和载入。' }}</text><button v-if="kw" class="fw-button" :disabled="searching" @tap="searchRemote">{{ searching ? '查询中…' : '查询完整批号' }}</button><button v-else class="fw-button" @tap="goCalculation">前往计算</button></view>
+        <view v-for="record in filtered" :key="record.batchNo" class="history-item fw-card" @tap="openVersions(record.batchNo)"><view class="history-row"><text class="batch-code">{{ record.batchNo }}</text><text class="version-link">查看版本 ›</text></view><text class="record-time">{{ record.updatedAt ? '最近更新 ' + fmtTime(record.updatedAt) : '生产记录' }}</text></view>
+        <button v-if="!done && !error && list.length" class="load-more" :disabled="loading" @tap="loadMore">{{ loading ? '加载中…' : '加载更多记录' }}</button>
+        <view v-if="done && list.length && !kw" class="end-note">已加载全部记录</view>
+        <view v-if="showVersions" class="sheet-mask" @tap="closeVersions">
             <view class="sheet" @tap.stop>
-                <view class="sheet-head">
-                    <text class="back" @tap="showVersions = false">‹ 返回</text>
-                    <text class="count">{{ versionBatch }}</text>
-                </view>
+                <view class="sheet-handle"></view><view class="sheet-head"><view><text class="sheet-title">保存版本</text><text class="sheet-batch">{{ versionBatch }}</text></view><button class="sheet-close" @tap="closeVersions" aria-label="关闭版本列表">×</button></view>
                 <scroll-view scroll-y class="sheet-body">
-                    <view class="ver-item" v-for="(v, i) in versions" :key="i">
-                        <view class="ver-info">
-                            <text class="ver-tag" :class="{ latest: v.isLatest }">{{ v.isLatest ? '最新' : 'v' + v.version }}</text>
-                            <text class="ver-time">{{ v.time }}</text>
-                            <text class="ver-desc">{{ v.desc }}</text>
-                        </view>
-                        <button class="btn mini" @tap="loadRecord(v)">载入</button>
-                    </view>
-                    <view v-if="verLoading" class="empty">加载中…</view>
-                    <view v-else-if="versions.length === 0" class="empty">暂无版本</view>
+                    <view v-if="versionError" class="fw-notice error">{{ versionError }}<button class="fw-button secondary" @tap="openVersions(versionBatch)">重新加载</button></view>
+                    <view v-for="version in versions" :key="version.version" class="version-item"><view class="version-top"><text class="fw-badge" :class="{ muted: !version.isLatest }">{{ version.isLatest ? '最新 · V' : 'V' }}{{ version.version }}</text><text class="fw-note">{{ version.time }}</text></view><view class="version-bottom"><view><text class="version-desc">{{ version.desc }}</text><text v-if="version.order" class="version-order">{{ version.order }}</text></view><button class="fw-button" @tap="loadRecord(version)">载入</button></view></view>
+                    <view v-if="verLoading" class="fw-empty"><text class="fw-note">正在加载版本…</text></view><view v-else-if="!versionError && !versions.length" class="fw-empty"><text class="fw-note">暂无保存版本</text></view>
+                    <view v-if="historyLimitReached" class="fw-note">此处显示最近 100 个历史版本及最新记录。</view>
                 </scroll-view>
             </view>
         </view>
     </view>
 </template>
-
 <script>
-// 历史记录独立页：生产记录列表（游标分页）+ 版本列表 + 载入到计算页
 import { listProductionRecords, listRecordVersions, fetchProductionRecord } from '@/utils/production-db.js'
 import { STORE_LOAD_RECORD } from '@/utils/storage-keys.js'
 import { getUser } from '@/utils/auth.js'
-
 export default {
-    data() {
-        return {
-            list: [],
-            kw: '',
-            cursor: 0,
-            done: false,
-            loading: false,
-            showVersions: false,
-            versionBatch: '',
-            versions: [],
-            verLoading: false
-        }
-    },
-    computed: {
-        filtered() {
-            const k = (this.kw || '').trim().toUpperCase()
-            if (!k) return this.list
-            return this.list.filter(b => String(b).toUpperCase().indexOf(k) >= 0)
-        }
-    },
-    onShow() {
-        if (!getUser()) {
-            uni.reLaunch({ url: '/pages/login/login' })
-            return
-        }
-        this.refresh()
-    },
+    data() { return { list: [], kw: '', cursor: 0, done: false, loading: false, error: '', searching: false, searchError: '', requestNo: 0, searchRequest: 0, showVersions: false, versionBatch: '', versions: [], verLoading: false, versionError: '', historyLimitReached: false, versionRequest: 0 } },
+    computed: { filtered() { const keyword = this.kw.trim().toUpperCase(); return keyword ? this.list.filter(row => row.batchNo.toUpperCase().includes(keyword)) : this.list } },
+    watch: { kw() { this.searchRequest++; this.searching = false; this.searchError = '' } },
+    onShow() { if (!getUser()) { uni.reLaunch({ url: '/pages/login/login' }); return }; this.refresh() },
+    onHide() { this.cancelRequests() },
+    onUnload() { this.cancelRequests() },
     methods: {
-        async refresh() {
-            this.cursor = 0
-            this.done = false
-            this.list = []
-            await this.loadMore()
-        },
+        cancelRequests() { this.requestNo++; this.searchRequest++; this.versionRequest++; this.loading = false; this.searching = false; this.verLoading = false; this.showVersions = false },
+        goCalculation() { uni.switchTab({ url: '/pages/materials/materials' }) },
+        async refresh() { if (this.loading) return; this.searchRequest++; this.searching = false; this.requestNo++; this.cursor = 0; this.done = false; this.list = []; this.error = ''; this.searchError = ''; await this.loadMore() },
         async loadMore() {
             if (this.loading || this.done) return
-            this.loading = true
+            const request = ++this.requestNo
+            this.loading = true; this.error = ''
             try {
                 const page = await listProductionRecords(50, this.cursor)
-                const remote = (page.list || []).map(r => r.batchNo).filter(Boolean)
-                this.list = [...this.list, ...remote.filter(x => this.list.indexOf(x) < 0)]
-                this.cursor = page.nextBefore || 0
-                if (!page.hasMore) this.done = true
-            } catch (e) {
-                this.done = true
-            } finally {
-                this.loading = false
-            }
+                if (request !== this.requestNo) return
+                const remote = (page.list || []).filter(row => row.batchNo)
+                this.list = [...this.list, ...remote.filter(row => !this.list.some(existing => existing.batchNo === row.batchNo))]
+                this.cursor = page.nextBefore || 0; this.done = !page.hasMore
+            } catch (error) { if (request === this.requestNo) this.error = error.message || '记录加载失败，请重试' }
+            finally { if (request === this.requestNo) this.loading = false }
         },
-        async openVersions(b) {
-            this.versionBatch = b
-            this.showVersions = true
-            this.versions = []
-            this.verLoading = true
+        async searchRemote() {
+            if (this.searching) return
+            const batch = this.kw.trim().toUpperCase()
+            if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(batch)) { uni.showToast({ title: '云端查询请填写完整 11 位批号', icon: 'none' }); return }
+            const request = ++this.searchRequest
+            this.searching = true; this.searchError = ''
+            try { const record = await fetchProductionRecord(batch); if (request !== this.searchRequest) return; if (!record) { this.searchError = '云端没有此批号的生产记录。'; return }; if (!this.list.some(row => row.batchNo === batch)) this.list.unshift({ batchNo: batch, updatedAt: record.updatedAt || record.savedAt }); await this.openVersions(batch) }
+            catch (error) { if (request === this.searchRequest) this.searchError = error.message || '云端查询失败，请重试' }
+            finally { if (request === this.searchRequest) this.searching = false }
+        },
+        closeVersions() { this.showVersions = false; this.versionRequest++; this.verLoading = false },
+        async openVersions(batch) {
+            const request = ++this.versionRequest
+            this.versionBatch = batch; this.showVersions = true; this.versions = []; this.versionError = ''; this.historyLimitReached = false; this.verLoading = true
             try {
-                const [latest, vers] = await Promise.all([
-                    fetchProductionRecord(b),
-                    listRecordVersions(b)
-                ])
-                const list = []
-                if (latest) {
-                    list.push({ version: latest.version || 1, isLatest: true, record: latest, savedAt: latest.savedAt })
-                }
-                vers.forEach(v => {
-                    list.push({ version: v.version, isLatest: false, record: v.snapshot, savedAt: v.savedAt })
-                })
-                list.sort((x, y) => (y.version || 0) - (x.version || 0))
-                this.versions = list.map(v => {
-                    const r = v.record || {}
-                    return {
-                        version: v.version,
-                        isLatest: v.isLatest,
-                        record: v.record,
-                        time: this.fmtTime(v.savedAt),
-                        desc: `${r.caseCount || 0} 件 · ${r.bucketCount || 0} 桶`
-                    }
-                })
-            } catch (e) {
-                console.warn('[history] 读取版本列表失败：', e && e.message)
-            } finally {
-                this.verLoading = false
-            }
+                const [latest, history] = await Promise.all([fetchProductionRecord(batch), listRecordVersions(batch, 100)])
+                if (request !== this.versionRequest) return
+                this.historyLimitReached = history.length >= 100
+                const versions = latest ? [{ version: latest.version || 1, isLatest: true, record: latest, savedAt: latest.savedAt }] : []
+                history.forEach(row => { if (!versions.some(version => version.version === row.version)) versions.push({ version: row.version, isLatest: false, record: row.snapshot, savedAt: row.savedAt }) })
+                this.versions = versions.sort((a, b) => b.version - a.version).map(version => { const record = version.record || {}; return { ...version, time: this.fmtTime(version.savedAt), desc: `${record.caseCount || 0} 件 · ${record.bucketCount || 0} 桶`, order: record.orderNo ? '订单 ' + record.orderNo + ' · V' + (record.orderVersion || '—') : '' } })
+            } catch (error) { if (request === this.versionRequest) this.versionError = error.message || '版本加载失败，请重试' }
+            finally { if (request === this.versionRequest) this.verLoading = false }
         },
-        // 载入：把该版本记录暂存，切到计算页回填表单
-        loadRecord(v) {
-            const rec = v.record
-            if (!rec) return
-            uni.setStorageSync(STORE_LOAD_RECORD, rec)
-            this.showVersions = false
-            uni.switchTab({ url: '/pages/materials/materials' })
-        },
-        fmtTime(iso) {
-            if (!iso) return ''
-            const d = new Date(iso)
-            if (isNaN(d.getTime())) return String(iso)
-            const p = n => String(n).padStart(2, '0')
-            return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-        }
+        loadRecord(version) { if (!version.record) return; uni.setStorageSync(STORE_LOAD_RECORD, version.record); this.closeVersions(); this.goCalculation() },
+        fmtTime(value) { if (!value) return ''; const date = new Date(value); if (isNaN(date.getTime())) return String(value); const pad = number => String(number).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}` }
     }
 }
 </script>
-
-<style scoped>
-.page { padding: 16rpx; min-height: 100vh; background: #F2F4F3; }
-.search-bar { padding: 4rpx 0 12rpx; }
-.search-inp { height: 64rpx; background: #fff; border-radius: 12rpx; padding: 0 20rpx; font-size: 26rpx; }
-.hist-item { display: flex; justify-content: space-between; padding: 24rpx 8rpx; border-bottom: 1rpx solid #F0F3F1; background: #fff; margin-bottom: 10rpx; border-radius: 12rpx; padding: 22rpx 18rpx; }
-.code { font-size: 28rpx; font-weight: 600; color: #1f2622; }
-.arrow { color: #008577; font-size: 26rpx; }
-.empty { text-align: center; color: #bbb; padding: 60rpx; font-size: 24rpx; }
-.load-more { text-align: center; color: #008577; font-size: 24rpx; padding: 20rpx 0; }
-.sheet-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: flex-end; z-index: 99; }
-.sheet { background: #fff; width: 100%; border-radius: 24rpx 24rpx 0 0; padding: 24rpx; max-height: 70vh; }
-.sheet-head { display: flex; justify-content: space-between; align-items: center; font-size: 28rpx; font-weight: 700; margin-bottom: 12rpx; }
-.sheet-body { max-height: 50vh; }
-.back { color: #008577; font-size: 28rpx; font-weight: 700; }
-.count { color: #77827D; font-size: 26rpx; }
-.ver-item { display: flex; align-items: center; justify-content: space-between; padding: 16rpx 8rpx; border-bottom: 1rpx solid #F0F3F1; }
-.ver-item:last-child { border-bottom: none; }
-.ver-info { display: flex; align-items: center; gap: 12rpx; flex: 1; min-width: 0; }
-.ver-tag { font-size: 20rpx; color: #77827D; background: #F2F4F3; padding: 2rpx 10rpx; border-radius: 999rpx; flex-shrink: 0; }
-.ver-tag.latest { background: #008577; color: #fff; }
-.ver-time { font-size: 22rpx; color: #77827D; flex-shrink: 0; }
-.ver-desc { font-size: 22rpx; color: #1f2622; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.btn { font-size: 24rpx; border-radius: 12rpx; padding: 0 18rpx; height: 64rpx; line-height: 64rpx; background: #EEF3F1; color: #1f2622; }
-.btn.mini { height: 48rpx; line-height: 48rpx; font-size: 22rpx; padding: 0 16rpx; border-radius: 10rpx; }
-.btn.mini { background: #E6F4F1; color: #008577; }
+<style lang="scss" scoped>
+@import '@/styles/field-work.scss';
+.history-caption, .history-row { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }.history-caption { font-size: .75rem; color: $muted; margin-bottom: .9rem; }.history-caption text:last-child { color: $primary; padding: .4rem 0; }.batch-code { font-weight: 700; font-size: 1rem; letter-spacing: .04rem; }.version-link { color: $primary; font-size: .8rem; flex-shrink: 0; }.record-time { display: block; color: $muted; font-size: .75rem; margin-top: .6rem; }
+.load-more { margin: .8rem 0; font-size: .85rem; line-height: 2.8rem; background: $surface; color: $primary; border-radius: .6rem; }.load-more::after { border: 0; }.end-note { text-align: center; color: $muted; font-size: .75rem; padding: 1rem; }.fw-notice .fw-button { margin-top: .5rem; }
+.sheet-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: $overlay; display: flex; align-items: flex-end; z-index: 99; }.sheet { box-sizing: border-box; background: $surface; width: 100%; border-radius: 1rem 1rem 0 0; padding: .6rem 1rem calc(1rem + env(safe-area-inset-bottom)); max-height: 80vh; }.sheet-handle { width: 2.4rem; height: .25rem; background: $line; border-radius: .2rem; margin: 0 auto .8rem; }.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }.sheet-title { font-weight: 700; font-size: 1.1rem; display: block; }.sheet-batch { font-size: .8rem; color: $muted; display: block; margin-top: .3rem; }.sheet-close { padding: 0; margin: 0; width: 2.6rem; height: 2.6rem; line-height: 2.6rem; font-size: 1.4rem; border-radius: 50%; background: $canvas; color: $muted; }.sheet-close::after { border: 0; }.sheet-body { height: 55vh; }
+.version-item { border: 1px solid $line; border-radius: .6rem; padding: .85rem; margin-bottom: .65rem; }.version-top { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }.version-top .fw-note { font-size: .7rem; }.version-bottom { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: .7rem; }.version-bottom > view { flex: 1; min-width: 0; }.version-bottom .fw-button { font-size: .8rem; min-height: 2.4rem; line-height: 2.4rem; padding: 0 .8rem; }.version-desc { display: block; font-size: .9rem; }.version-order { display: block; font-size: .75rem; color: $muted; margin-top: .4rem; }
 </style>

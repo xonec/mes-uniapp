@@ -1,7 +1,9 @@
 {
     "bsonType": "object",
-    "description": "包装指令单表：单订单单文档，_id 固定为 order:<订单号>。写走云函数 doc-ocr，客户端只读。",
-    "required": ["orderNo"],
+    "description": "按订单号保存的包装指令单。完整批号唯一关联产品、客户和方案版本，修改先保留完整历史；正式订单可以待补上托。",
+    "required": [
+        "orderNo"
+    ],
     "permission": {
         "read": false,
         "create": false,
@@ -44,7 +46,7 @@
         "sampleCount": {
             "bsonType": "string",
             "title": "取样数",
-            "description": "取样合计（成品+精密+菌检+留样），字符串以兼容不确定描述"
+            "description": "完整取样说明，最多2000字符；不推测缺失信息"
         },
         "uncertain": {
             "bsonType": "array",
@@ -53,8 +55,46 @@
         },
         "materials": {
             "bsonType": "array",
-            "title": "包装材料清单",
-            "description": "识别出的物料行（编号/名称/规格/版本/单位）"
+            "description": "仅材料档案清单；不保存标准用量或损耗系数",
+            "items": {
+                "bsonType": "object",
+                "required": [
+                    "materialCode",
+                    "unit"
+                ],
+                "properties": {
+                    "seq": {
+                        "bsonType": "number",
+                        "description": "合并跨页物料后的行序"
+                    },
+                    "materialCode": {
+                        "bsonType": "string",
+                        "description": "原样保留物料编号及 -1 后缀"
+                    },
+                    "materialName": {
+                        "bsonType": "string",
+                        "description": "物料名称"
+                    },
+                    "spec": {
+                        "bsonType": "string",
+                        "description": "完整规格型号，最多2000字符"
+                    },
+                    "materialVersion": {
+                        "description": "印刷版本号原样保存，例如01或N/A；无法识别或无记录为null，不能猜成N/A"
+                    },
+                    "unit": {
+                        "bsonType": "string",
+                        "description": "原始计量单位"
+                    },
+                    "sourcePages": {
+                        "bsonType": "array",
+                        "description": "来源原图页码1至6；跨页物料可以关联多页，未知为空数组",
+                        "items": {
+                            "bsonType": "number"
+                        }
+                    }
+                }
+            }
         },
         "savedBy": {
             "bsonType": "string",
@@ -65,6 +105,120 @@
             "bsonType": "number",
             "title": "保存时间",
             "description": "毫秒时间戳"
+        },
+        "version": {
+            "bsonType": "number",
+            "title": "版本号"
+        },
+        "enabled": {
+            "bsonType": "bool",
+            "title": "是否启用"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "更新时间"
+        },
+        "updatedBy": {
+            "bsonType": "string",
+            "title": "最近操作人"
+        },
+        "sourceDocumentId": {
+            "bsonType": "string",
+            "description": "不可变原始单据 ID"
+        },
+        "recognitionRunId": {
+            "bsonType": "string",
+            "description": "本次实际识别运行 ID"
+        },
+        "audit": {
+            "bsonType": "object",
+            "description": "服务端生成：操作人、时间、原因、前后版本及变化字段"
+        },
+        "orderStatus": {
+            "bsonType": "string",
+            "description": "draft 草稿 | confirmed 已确认；与上托确认状态独立"
+        },
+        "customerId": {
+            "bsonType": "string",
+            "description": "本单明确选定的客户"
+        },
+        "customerName": {
+            "bsonType": "string",
+            "description": "保存时客户名称快照"
+        },
+        "pallet": {
+            "bsonType": "object",
+            "description": "订单或方案的上托要求。待补充不进行自动托数计算",
+            "properties": {
+                "status": {
+                    "bsonType": "string",
+                    "description": "pending 待补充 | confirmed 已确认",
+                    "enum": [
+                        "pending",
+                        "confirmed"
+                    ]
+                },
+                "casesPerLayer": {
+                    "description": "每层箱数，正整数；未知为null"
+                },
+                "layers": {
+                    "description": "层数，正整数；未知为null"
+                },
+                "casesPerPallet": {
+                    "description": "每托箱数，正整数；同时填层数时校验每层箱数×层数，未知为null"
+                },
+                "dimensions": {
+                    "bsonType": "string",
+                    "description": "托盘尺寸；不得把大衬板尺寸当作托盘尺寸"
+                },
+                "placement": {
+                    "bsonType": "string",
+                    "description": "摆放方式说明"
+                },
+                "sourceType": {
+                    "bsonType": "string",
+                    "description": "customer 客户要求 | site 现场标准 | document 单据明示；未知为空"
+                },
+                "sourceNote": {
+                    "bsonType": "string",
+                    "description": "实际要求的来源依据，已确认状态必填"
+                }
+            }
+        },
+        "planId": {
+            "bsonType": "string",
+            "description": "可复用方案标识，可为空"
+        },
+        "planVersionId": {
+            "bsonType": "string",
+            "description": "采用的不可变方案版本，可为空"
+        },
+        "planName": {
+            "bsonType": "string",
+            "description": "方案名称快照"
+        },
+        "planVersion": {
+            "description": "方案版本，未关联为null"
+        },
+        "packagingSnapshot": {
+            "bsonType": "object",
+            "description": "本单实际采用的完整材料及上托快照；不跟随共享方案修改"
+        },
+        "rawPackSpec": {
+            "bsonType": "string",
+            "description": "原单包装规格，保留可能含箱/托的原始文本"
+        },
+        "plannedQtyRaw": {
+            "bsonType": "string",
+            "description": "计划件数原始数字格式，如1536.667"
+        },
+        "sourceType": {
+            "bsonType": "string",
+            "description": "photo照片 | text文本 | manual手工"
+        },
+        "packingBatchNo": {
+            "bsonType": "string",
+            "description": "仅在包装批号与生产批号不同时保存"
         }
     }
 }

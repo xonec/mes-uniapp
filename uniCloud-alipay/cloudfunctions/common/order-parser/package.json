@@ -1,0 +1,6 @@
+{
+    "name": "order-parser",
+    "version": "1.0.0",
+    "main": "index.js",
+    "description": "包装指令单文本解析与档案补全"
+}

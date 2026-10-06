@@ -1,0 +1,1 @@
+{"name":"mes-document-store","version":"1.0.0","main":"index.js","dependencies":{"mes-common":"file:../mes-common"}}

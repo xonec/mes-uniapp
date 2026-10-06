@@ -27,8 +27,14 @@ exports.main = async (event) => {
             const res = await db.collection(COLL).doc(auth.uid).get()
             const u = (res && res.data && res.data[0]) || null
             return ok({
+                _id: auth.uid,
                 uid: auth.uid,
+                username: (u && u.username) || '',
+                mobile: (u && u.mobile) || '',
+                email: (u && u.email) || '',
+                avatar_file: (u && u.avatar_file) || null,
                 role: auth.role || [],
+                permission: (u && u.permission) || [],
                 nickname: (u && (u.nickname || u.username)) || ''
             })
         }

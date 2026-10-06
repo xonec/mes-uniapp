@@ -7,7 +7,7 @@
 //   - 主表 production_records 存「最新版」（固定 _id = rec:<批号>，覆盖写），读最新很快。
 //   - 每次保存/回滚前，把旧版本快照归档到 production_record_versions（_id = ver:<批号>:<版本号>，追加不覆盖）。
 //   - 写入用乐观锁（按 version 条件更新）防并发丢版本，冲突自动重试。
-//   - 每批最多保留 MAX_VERSIONS 个历史版本，超出删最老。
+//   - 历史版本只新增保存，追溯记录不按数量裁剪。
 //   - 保存时「仅内容变化才升版本并归档」：与最新版内容相同（忽略 version/时间戳/账号等元数据）则幂等，
 //     不升版本、不归档，仅刷新 updatedAt/savedBy；返回 unchanged=true。回滚属主动变更，照常升版本。
 //   - 内容比对用「递归按键排序」的稳定序列化，避免云端键序变化导致去重失效。
@@ -16,11 +16,13 @@
 // 依赖公共模块 mes-common（鉴权 / 响应封装 / ClientError）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
 const { checkAuth, ok, fail, ClientError } = require('mes-common')
+const { addImmutable, duplicate } = require('mes-document-store/source-store')
+const { currentOrder, orderVersion, getOrderByBatch } = require('mes-document-store/order-trace')
+const { actorName, text } = require('mes-document-store/trace-fields')
 
 const COLL = 'production_records'
 const VER_COLL = 'production_record_versions'
 const DRAFT_COLL = 'production_drafts'
-const MAX_VERSIONS = 50 // 每批最多保留的历史版本数（超出删最老）
 
 // 延迟初始化数据库：避免顶层 uniCloud.database() 在支付宝云模块加载阶段崩溃（无法被 try/catch 捕获）
 let db = null
@@ -74,7 +76,7 @@ function updatedCount(r) {
 
 // 判断记录「内容」是否变化：忽略版本/时间戳/账号等元数据，仅对比业务字段。
 // 用「递归按键排序」的稳定序列化，避免云端回读后对象键序变化导致比对失效（去重静默不生效）。
-const META_KEYS = ['_id', 'version', 'updatedAt', 'savedAt', 'savedBy', 'createdAt', 'batchNo']
+const META_KEYS = ['_id', 'version', 'updatedAt', 'savedAt', 'savedBy', 'createdAt', 'batchNo', 'audit', 'changeReason']
 function stableKey(v) {
     if (Array.isArray(v)) return '[' + v.map(stableKey).join(',') + ']'
     if (v && typeof v === 'object') {
@@ -109,27 +111,40 @@ async function updateApplied(id, newVersion, expectedRecord, r) {
     }
 }
 
-// 归档旧版本到历史表（幂等）+ 保留策略（超出 MAX_VERSIONS 删最老）
+/** 归档失败即中止修改；固定主键只新增，历史生产记录不被重写或裁剪。 */
 async function archiveVersion(batchNo, doc) {
     const version = doc.version || 1
     const snap = Object.assign({}, doc)
     delete snap._id
-    try {
-        await db.collection(VER_COLL).doc(verId(batchNo, version)).set({
-            batchNo, version, savedAt: doc.savedAt || null, snapshot: snap
-        })
-    } catch (e) {
-        console.error('历史版本写入失败：', e && e.message)
+    const archived = await addImmutable(db, VER_COLL, { _id: verId(batchNo, version), batchNo, version, savedAt: doc.savedAt || null, snapshot: snap })
+    if (!contentEqual(archived.snapshot, snap)) throw new ClientError('历史生产记录与当前版本不一致，请联系管理员核对', 409)
+}
+
+/** 校验采用的订单版本，服务端冻结材料、客户及上托快照，客户端不能伪造关联。 */
+async function attachOrderSnapshot(record, batchNo) {
+    const requestedNo = text(record.orderNo, 12)
+    let current = requestedNo ? await currentOrder(db, requestedNo) : await getOrderByBatch(db, batchNo)
+    if (requestedNo && (!/^\d{4,12}$/.test(requestedNo) || !current)) throw new ClientError('关联订单不存在', 400)
+    if (!current) {
+        const clean = { ...record }; delete clean.orderSnapshot
+        return { ...clean, orderNo: '', orderVersion: null, planVersionId: '', customerId: '', sourceDocumentId: '', recognitionRunId: '' }
     }
-    const cleanupVer = version - MAX_VERSIONS
-    if (cleanupVer >= 1) {
-        try { await db.collection(VER_COLL).doc(verId(batchNo, cleanupVer)).remove() } catch (e) {}
-    }
+    if (requestedNo && (!Number.isInteger(record.orderVersion) || record.orderVersion < 1)) throw new ClientError('请选择已保存的订单版本', 400)
+    const order = await orderVersion(db, current, requestedNo ? record.orderVersion : null)
+    if (order.batchNo !== batchNo || order.productCode !== text(record.productCode, 10)) throw new ClientError('生产记录的产品或批号与订单版本不一致', 409)
+    if (order.orderStatus !== 'confirmed' || order.enabled === false) throw new ClientError('关联订单须先确认并启用', 409)
+    const pending = !order.pallet || order.pallet.status !== 'confirmed'
+    if (pending && record.palletPending !== true) throw new ClientError('订单上托待补充，不能保存推算托数；请刷新订单并更新客户端', 409)
+    if (!pending && Number(record.casePerPallet) !== Number(order.pallet.casesPerPallet)) throw new ClientError('每托箱数与采用的订单版本不一致，请刷新订单后核对', 409)
+    const snapshot = { orderNo: order.orderNo, version: Number(order.version) || 1, batchNo: order.batchNo, productCode: order.productCode, productName: order.productName, packSpec: order.packSpec, customerId: order.customerId, customerName: order.customerName, planVersionId: order.planVersionId, planName: order.planName, planVersion: order.planVersion, materials: order.materials, pallet: order.pallet, sourceDocumentId: order.sourceDocumentId, recognitionRunId: order.recognitionRunId, orderStatus: order.orderStatus, enabled: order.enabled }
+    return { ...record, orderNo: order.orderNo, orderVersion: snapshot.version, planVersionId: order.planVersionId || '', customerId: order.customerId, sourceDocumentId: order.sourceDocumentId || '', recognitionRunId: order.recognitionRunId || '', orderSnapshot: snapshot, palletPending: pending, ...(pending ? { casePerPallet: 0, totalPallets: null } : {}) }
 }
 
 // 乐观锁写入：读旧 → 内容未变则幂等（不归档/不升版本）→ 有变则归档旧版并以 +1 版本覆盖
 async function upsertLocked(batchNo, cleanRecord, authUid) {
     const id = docId(batchNo)
+    const label = await actorName(db, authUid)
+    const audit = (version, previousVersion) => ({ actorId: authUid, actorName: label, at: Date.now(), reason: text(cleanRecord.changeReason, 1000) || (previousVersion ? '更新生产记录' : '首次保存生产记录'), version, previousVersion })
     for (let attempt = 0; attempt < 5; attempt++) {
         const oldRes = await db.collection(COLL).doc(id).get()
         const old = (oldRes && oldRes.data && oldRes.data[0]) || null
@@ -137,22 +152,19 @@ async function upsertLocked(batchNo, cleanRecord, authUid) {
         // 首次保存：无旧记录，建 v1
         if (!old) {
             const data = Object.assign({}, cleanRecord, {
-                batchNo, version: 1, updatedAt: Date.now(), savedBy: authUid
+                batchNo, version: 1, updatedAt: Date.now(), savedBy: authUid, audit: audit(1, 0)
             })
             try {
                 await db.collection(COLL).add(Object.assign({}, data, { _id: id }))
                 return { _id: id, batchNo, version: 1, unchanged: false }
             } catch (e) {
+                if (!duplicate(e)) throw e
                 continue
             }
         }
 
-        // 内容无变化：不归档、不升版本（避免历史出现重复版本），仅刷新 updatedAt/savedBy 后返回
+        // 相同内容保持原操作人和时间，不让重复保存改写来源。
         if (contentEqual(old, cleanRecord)) {
-            try {
-                await db.collection(COLL).where({ _id: id, version: old.version })
-                    .update({ updatedAt: Date.now(), savedBy: authUid })
-            } catch (e) { /* 幂等刷新失败不影响结果 */ }
             return { _id: id, batchNo, version: old.version, unchanged: true }
         }
 
@@ -160,7 +172,7 @@ async function upsertLocked(batchNo, cleanRecord, authUid) {
         const newVersion = (old.version || 0) + 1
         await archiveVersion(batchNo, old)
         const data = Object.assign({}, cleanRecord, {
-            batchNo, version: newVersion, updatedAt: Date.now(), savedBy: authUid
+            batchNo, version: newVersion, updatedAt: Date.now(), savedBy: authUid, audit: audit(newVersion, old.version || 1)
         })
         const r = await db.collection(COLL).where({ _id: id, version: old.version }).update(data)
         if (await updateApplied(id, newVersion, cleanRecord, r)) {
@@ -182,7 +194,7 @@ exports.main = async (event) => {
             if (auth.errCode) return fail(auth.errCode, auth.message)
             const record = (event.record && typeof event.record === 'object') ? event.record : {}
             const batchNo = normalizeBatchNo(record.batchNo)
-            const clean = Object.assign({}, record)
+            const clean = await attachOrderSnapshot(record, batchNo)
             delete clean._id
             return ok(await upsertLocked(batchNo, clean, auth.uid))
         }
@@ -194,6 +206,18 @@ exports.main = async (event) => {
             const res = await db.collection(COLL).doc(docId(batchNo)).get()
             const rows = (res && res.data) || []
             return ok(rows.length ? rows[0] : null)
+        }
+
+        if (action === 'getVersion') {
+            const auth = await checkAuth(db, event.uniIdToken)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
+            const batchNo = normalizeBatchNo(event.batchNo), version = Number(event.version)
+            if (!Number.isInteger(version) || version < 1) throw new ClientError('生产记录版本非法', 400)
+            const current = ((await db.collection(COLL).doc(docId(batchNo)).get()).data || [])[0]
+            if (current && Number(current.version || 1) === version) return ok(current)
+            const item = ((await db.collection(VER_COLL).doc(verId(batchNo, version)).get()).data || [])[0]
+            if (!item || !item.snapshot) throw new ClientError('生产记录历史版本不存在', 404)
+            return ok({ ...item.snapshot, version })
         }
 
         // 游标分页：按 updatedAt 倒序，before 传上一页末尾的 updatedAt 游标（替代 skip 全表扫）
@@ -246,6 +270,7 @@ exports.main = async (event) => {
             if (!verRow || !verRow.snapshot) return fail(404, '该历史版本不存在')
             const snapshot = Object.assign({}, verRow.snapshot)
             delete snapshot._id
+            const label = await actorName(db, auth.uid)
 
             // 乐观锁：读当前 → 归档当前 → 条件覆盖为快照新版本
             const id = docId(batchNo)
@@ -256,7 +281,8 @@ exports.main = async (event) => {
                 if (cur) await archiveVersion(batchNo, cur)
 
                 const data = Object.assign({}, snapshot, {
-                    batchNo, version: newVersion, updatedAt: Date.now(), savedBy: auth.uid
+                    batchNo, version: newVersion, updatedAt: Date.now(), savedBy: auth.uid,
+                    audit: { actorId: auth.uid, actorName: label, at: Date.now(), reason: text(event.changeReason, 1000) || '回滚生产记录至V' + version, previousVersion: cur ? cur.version || 1 : 0, version: newVersion }
                 })
 
                 if (cur) {
@@ -270,6 +296,7 @@ exports.main = async (event) => {
                     await db.collection(COLL).add(Object.assign({}, data, { _id: id }))
                     return ok({ _id: id, batchNo, version: newVersion })
                 } catch (e) {
+                    if (!duplicate(e)) throw e
                     continue
                 }
             }

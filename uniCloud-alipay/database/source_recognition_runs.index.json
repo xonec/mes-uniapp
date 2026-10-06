@@ -1,0 +1,20 @@
+[
+    {
+        "IndexName": "source_created",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "sourceDocumentId",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "createdAt",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

@@ -1,7 +1,7 @@
 {
     "name" : "生产助手",
     "appid" : "__UNI__A2E52B9",
-    "description" : "现场生产助手（安卓 / 微信小程序），含包材计算页面",
+    "description" : "生产助手",
     "versionName" : "1.1.0",
     "versionCode" : "110",
     "transformPx" : false,

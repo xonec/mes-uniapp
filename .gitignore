@@ -18,6 +18,7 @@ unpackage/
 .env.*
 users-import.*
 *.local
+uniCloud-alipay/cloudfunctions/common/uni-config-center/ocr-space/config.json
 
 # 日志
 *.log

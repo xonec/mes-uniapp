@@ -1,0 +1,55 @@
+{
+    "bsonType": "object",
+    "description": "识别缓存与请求租约：完整图片/文本、识别用途和模型配置共同计算 SHA-256，避免重复请求付费；仅云函数可访问。",
+    "required": [
+        "_id",
+        "result",
+        "expireAt"
+    ],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "c:<SHA-256>，包含完整输入、用途、提示版本和模型配置"
+        },
+        "result": {
+            "bsonType": "object",
+            "title": "缓存的识别结果",
+            "description": "ready 状态下为已校验的结构化结果，命中后跳过模型调用；processing/failed 状态为空对象"
+        },
+        "expireAt": {
+            "bsonType": "number",
+            "title": "过期时间戳",
+            "description": "毫秒时间戳，超过则视为未命中；processing/failed 状态为 0"
+        },
+        "status": {
+            "bsonType": "string",
+            "title": "识别状态",
+            "description": "processing 正在识别，ready 已完成，failed 近期失败；旧缓存可缺失此字段"
+        },
+        "owner": {
+            "bsonType": "string",
+            "title": "租约所有者",
+            "description": "本次请求的随机标识，条件更新时防止覆盖其他请求"
+        },
+        "leaseUntil": {
+            "bsonType": "number",
+            "title": "租约或冷却截止时间",
+            "description": "毫秒时间戳；识别租约 210 秒，失败冷却 30 秒，ready 为 0"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "更新时间戳",
+            "description": "毫秒时间戳，记录缓存与租约的最后更新"
+        },
+        "createdAt": {
+            "bsonType": "number",
+            "title": "创建时间戳",
+            "description": "毫秒时间戳，记录写入时间，便于排查与清理"
+        }
+    }
+}

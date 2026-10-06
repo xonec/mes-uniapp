@@ -1,0 +1,20 @@
+[
+    {
+        "IndexName": "customer_version",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "customerId",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "version",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

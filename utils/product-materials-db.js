@@ -23,6 +23,6 @@ export async function listProductMaterials(opts = {}) {
 }
 
 // 幂等写入/更新一份物料清单（同产品编码始终写同一 _id）
-export async function upsertProductMaterials(record) {
-    return callFn('upsert', { record })
+export async function upsertProductMaterials(record, expectedVersion) {
+    return callFn('upsert', { record, ...(expectedVersion === undefined ? {} : { expectedVersion }) })
 }

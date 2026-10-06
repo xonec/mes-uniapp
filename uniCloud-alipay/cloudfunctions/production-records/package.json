@@ -4,6 +4,7 @@
     "description": "production_records 集合（生产记录）受控读写云函数，实现多端共享 + 版本历史 + 登录鉴权",
     "main": "index.js",
     "dependencies": {
-        "mes-common": "file:../common/mes-common"
+        "mes-common": "file:../common/mes-common",
+        "mes-document-store": "file:../common/mes-document-store"
     }
 }

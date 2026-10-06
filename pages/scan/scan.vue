@@ -112,17 +112,19 @@ export default {
                         imagePath: p,
                         success: (r) => {
                             uni.hideLoading()
-                            const codes = (r.barcodes || []).map(b => b.rawValue).filter(Boolean)
+                            const codes = Array.from(new Set(
+                                (r.barcodes || []).map(b => String(b.rawValue || '').trim()).filter(Boolean)
+                            ))
                             if (!codes.length) {
                                 uni.showModal({ title: '未识别到条码', content: '请确保照片清晰、条码占画面比例大、无反光', showCancel: false })
                                 return
                             }
                             if (codes.length > 1) {
-                                uni.showModal({
-                                    title: '识别到多个条码',
-                                    content: codes.join('\n'),
-                                    confirmText: '用第一个',
-                                    success: (m) => { if (m.confirm) this.emitResult(codes[0]) }
+                                // 多个条码：底部动作面板让用户点选哪一个
+                                uni.showActionSheet({
+                                    itemList: codes,
+                                    success: (a) => { this.emitResult(codes[a.tapIndex]) },
+                                    fail: () => { /* 用户取消选择，留在扫码页 */ }
                                 })
                                 return
                             }

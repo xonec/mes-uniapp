@@ -1,16 +1,22 @@
 <template>
     <page-meta :disable-scroll="dragMode"></page-meta>
     <view class="page" @touchmove="onDragMove" @touchend="endDrag" @touchcancel="endDrag">
-        <!-- #ifdef MP-WEIXIN -->
-        <button class="share-fab" open-type="share">分享</button>
-        <!-- #endif -->
+        <view class="work-header"><view><text class="fw-eyebrow">现场作业</text><text class="fw-title">生产计算</text><text class="fw-subtitle">先确认批号和订单，再填写每桶件数。</text></view>
+            <!-- #ifdef MP-WEIXIN -->
+            <button class="fw-button secondary share-button" open-type="share">分享</button>
+            <!-- #endif -->
+        </view>
+        <view class="work-entries"><button @tap="goOrderSheet"><text class="entry-label">指令单录入</text><text class="entry-note">拍照识别订单 ›</text></button><button @tap="goArchive"><text class="entry-label">产品档案</text><text class="entry-note">查看规格和物料 ›</text></button></view>
+        <view v-if="orderMessage" class="fw-notice" :class="{ warning: orderLookupFailed || (linkedOrder && linkedOrder.orderStatus !== 'confirmed') }">{{ orderMessage }}</view>
+        <view v-if="linkedOrder" class="order-overview"><view class="order-overview-head"><text>订单 {{ linkedOrder.orderNo }} · V{{ linkedOrder.version || 1 }}</text><text class="fw-badge" :class="{ warning: linkedOrder.orderStatus !== 'confirmed' }">{{ linkedOrder.orderStatus === 'confirmed' ? '正式订单' : '订单草稿' }}</text></view><text class="order-product">{{ linkedOrder.productName }} · {{ linkedOrder.productCode }}</text><view class="order-tags"><text>{{ linkedOrder.customerName || '未填写客户' }}</text><text :class="{ pending: palletPending }">{{ palletPending ? '上托待确认 · 暂不计算托数' : perPallet + ' 箱 / 托' }}</text></view></view>
+        <view v-if="lastSavedBatch === batchNo && saveMessage" class="fw-notice" :class="{ warning: saveFailed }">上次保存：{{ saveMessage }}</view>
         <view v-for="(c, idx) in cardList" :key="c.key" class="card" :class="{ dragging: dragMode && c.key === dragKey }">
             <view class="card-head" @tap="toggleCard(c.key)" @longpress="startDrag(c.key, idx, $event)">
                 <view class="card-head-left">
                     <text class="card-title">{{ c.title }}</text>
                     <text v-if="c.key==='buckets'" class="hint">按 A → J 顺序录入</text>
                     <text v-else-if="c.key==='prod'" class="hint">自动结果只读</text>
-                    <text v-else-if="c.key==='material'" class="chip">实用自动</text>
+                    <text v-else-if="c.key==='material'" class="chip">实用量自动</text>
                     <text v-else-if="c.key==='weight'" class="chip" :class="{active: !!weightProduct}">{{ weightProduct || '未选择产品' }}</text>
                     <text v-else-if="c.key==='pallet'" class="chip">{{ palletPage }}</text>
                 </view>
@@ -22,47 +28,51 @@
             <view v-show="!c.collapsed" class="card-body">
                 <batch-card v-if="c.key==='batch'"
                     :product-code="productCode" :batch-no="batchNo" :batch-valid="batchValid"
+                    :product-locked="!!linkedOrder" :order-loading="orderLookupPending" :disabled="savingRecord"
                     :is-android="isAndroid" :cloud-fetching="cloudFetching" :fetching="fetching"
                     :fr-msg="frMsg" :cloud-msg="cloudMsg"
                     @update:productCode="onProductInput" @update:batchNo="onBatchInput"
                     @scan="scanBatch" @smart-fill="smartFill" @choose-product="chooseProduct"
                     @fetch-cloud="fetchFromCloud" @fetch-fr="fetchFromFr" />
-                <buckets-card v-else-if="c.key==='buckets'"
+                <buckets-card :disabled="savingRecord" v-else-if="c.key==='buckets'"
                     :buckets.sync="buckets" :bucket-keys="bucketKeys"
                     :zero-count.sync="zeroCount" :per-case.sync="perCase" :per-pallet.sync="perPallet"
+                    :pallet-locked="!!linkedOrder"
                     @change="calculateMaterial" />
                 <prod-card v-else-if="c.key==='prod'"
                     :inbound-count="inboundCount" :sample-count.sync="sampleCount"
                     :inner-issued="innerIssued" :bucket-count="bucketCount"
                     :case-count-text="caseCountText" :pallet-code="palletCode"
-                    :batch-status.sync="batchStatus"
+                    :batch-status.sync="batchStatus" :hide-actions="true" :saving="savingRecord"
                     @change="calculateMaterial" @save="save" @history="goHistory" @clear="clearAll" />
-                <material-card v-else-if="c.key==='material'"
+                <material-card :disabled="savingRecord" v-else-if="c.key==='material'"
                     :label-extra.sync="labelExtra" :security-extra.sync="securityExtra"
                     :materials="materials" @change="calculateMaterial" />
-                <weight-card v-else-if="c.key==='weight'"
+                <weight-card :disabled="savingRecord" v-else-if="c.key==='weight'"
                     :box-net-weight.sync="boxNetWeight" :bottle-weight.sync="bottleWeight"
                     :weight-range="weightRange" :bottle-weight-min.sync="bottleWeightMin"
                     :box-net-weight-min.sync="boxNetWeightMin"
                     @change="updateWeightRange" />
-                <pallet-card v-else-if="c.key==='pallet'"
+                <pallet-card :disabled="savingRecord" v-else-if="c.key==='pallet'"
                     :pallet-range="palletRange" :zero-box-info="zeroBoxInfo"
                     :current-pallet="currentPallet" :total-pallets="totalPallets"
+                    :pending="palletPending"
                     @go="goPallet" />
             </view>
         </view>
+        <view v-if="!keyboardVisible" class="fw-footer"><view class="fw-footer-note">{{ orderLookupPending ? '正在查询订单，请稍候。' : orderLookupFailed ? '订单查询失败，请重试后保存。' : orderNotReady ? '请先确认并启用本次订单。' : cloudFetching || fetching ? '正在获取每桶件数，请稍候。' : palletPending ? '上托未确认，当前不计算托数。' : !batchValid ? '请输入完整批号后保存。' : '保存当前生产记录，并同步云端。' }}</view><view class="fw-actions"><button class="fw-button secondary" :disabled="savingRecord" @tap="goHistory">查看历史</button><button class="fw-button primary" :disabled="savingRecord || !batchValid || orderLookupPending || orderLookupFailed || orderNotReady || cloudFetching || fetching" @tap="save">{{ savingRecord ? '保存中…' : '保存生产记录' }}</button></view></view>
     </view>
 </template>
 
 <script>
-import { productCatalog, exactBatch, batchIsValid, resolveProduct, productMatches, parseBatchCode } from '@/utils/product-data.js'
+import { productCatalog, batchIsValid, productMatches, parseBatchCode } from '@/utils/product-data.js'
 import { isAppAndroid, fetchBatchBucketQtys } from '@/utils/fr-fetch.js'
 import { fetchBatchBucketsFromCloud, upsertBatchBuckets } from '@/utils/cloud-db.js'
-import { matchBomByBatchFromCloud } from '@/utils/bom-db.js'
 import { getDeviceId } from '@/utils/device.js'
 import { saveProductionRecord, fetchProductionRecord, saveDraftRecord, getDraftRecord } from '@/utils/production-db.js'
 import { getUser, checkLogin } from '@/utils/auth.js'
 import { computeMaterial, computeWeightRange } from '@/utils/calc.js'
+import { callCloud } from '@/utils/cloud-call.js'
 import { STORE_RESULTS, STORE_HISTORY, STORE_DRAFT, STORE_SHARE_BATCH, STORE_LOAD_RECORD, STORE_LAST_BATCH } from '@/utils/storage-keys.js'
 import CardLayoutMixin from '@/mixins/card-layout.js'
 import BatchCard from '@/components/batch-card/batch-card.vue'
@@ -81,11 +91,17 @@ export default {
         const buckets = {}
         bucketKeys.forEach(k => { buckets[k] = '' })
         return {
+            keyboardVisible: false, savingRecord: false, saveMessage: '', saveFailed: false, lastSavedBatch: '',
             isAndroid: false,
             adminChecked: false,
             isAdminVerified: false,
             bucketKeys,
             productCode: '',
+            linkedOrder: null,
+            orderMessage: '',
+            orderLookupPending: false,
+            orderLookupFailed: false,
+            orderLookupRequest: 0,
             batchNo: '',
             buckets,
             zeroCount: '',
@@ -125,6 +141,8 @@ export default {
         }
     },
     computed: {
+        orderNotReady() { return !!(this.linkedOrder && (this.linkedOrder.orderStatus !== 'confirmed' || this.linkedOrder.enabled === false)) },
+        palletPending() { return this.orderLookupPending || this.orderLookupFailed || !!(this.linkedOrder && (!this.linkedOrder.pallet || this.linkedOrder.pallet.status !== 'confirmed')); },
         batchValid() {
             return batchIsValid(this.batchNo)
         },
@@ -148,6 +166,8 @@ export default {
             uni.reLaunch({ url: '/pages/login/login' })
             return
         }
+        this.keyboardHandler = event => { this.keyboardVisible = Number(event.height) > 0 }
+        if (uni.onKeyboardHeightChange) uni.onKeyboardHeightChange(this.keyboardHandler)
         // #ifdef APP-PLUS
         this.isAndroid = isAppAndroid()
         // #endif
@@ -180,7 +200,7 @@ export default {
             uni.showToast({ title: '已恢复草稿', icon: 'none' })
             // 尝试从云端读本设备草稿（可能更新），成功后覆盖
             getDraftRecord(getDeviceId(), draft.batchNo).then(remote => {
-                if (remote) this.loadRecord(remote)
+                if (remote && this.batchNo === draft.batchNo) this.loadRecord(remote)
             }).catch(() => {})
         } else {
             this.calculateMaterial()
@@ -195,6 +215,7 @@ export default {
             uni.showToast({ title: '已载入', icon: 'none' })
         }
     },
+    onUnload() { if (uni.offKeyboardHeightChange && this.keyboardHandler) uni.offKeyboardHeightChange(this.keyboardHandler) },
     onShareAppMessage() {
         const title = this.batchValid ? `批号 ${this.batchNo} · 包材计算` : 'MES生产助手 - 包材计算'
         return {
@@ -216,54 +237,38 @@ export default {
             this.resolveProductOptions()
         },
         onProductInput(v) {
+            if (this.linkedOrder) { uni.showToast({ title: '本批产品由已关联订单确定', icon: 'none' }); return }
             v = (v || '').replace(/\D/g, '').slice(0, 10)
             this.productCode = v
             this.applyProduct(v)
         },
-        resolveProductOptions() {
-            const exact = exactBatch[this.batchNo]
-            const matches = productMatches(this.batchNo)
-            if (exact) {
-                this.productCode = exact.productCode
-                this.applyProduct(exact.productCode)
-            } else if (matches.length === 1) {
-                this.productCode = matches[0].code
-                this.applyProduct(matches[0].code)
-            }
-            // 优先云端 BOM（product_bom）：命中唯一则覆盖硬编码结果；未灌库/未部署时静默回退
-            this.resolveProductFromBom(this.batchNo)
-        },
-        async resolveProductFromBom(batchNo) {
-            if (!batchIsValid(batchNo)) return
+        async resolveProductOptions(preserveManual = false) {
+            const request = ++this.orderLookupRequest
+            const batchNo = this.batchNo
+            this.linkedOrder = null; this.orderMessage = ''; this.orderLookupFailed = false
+            if (!batchIsValid(batchNo)) { this.orderLookupPending = false; return }
+            if (!preserveManual) { this.productCode = ''; this.perCase = ''; this.perPallet = ''; this.weightProduct = '未选择产品' }
+            this.orderLookupPending = true; this.calculateMaterial()
             try {
-                const r = await matchBomByBatchFromCloud(batchNo)
-                if (r && r.bom) {
-                    const b = r.bom
-                    this.productCode = b.productCode || this.productCode
-                    const caseLv = (b.packLevels || []).find(l => l.key === 'case')
-                    const palLv = (b.packLevels || []).find(l => l.key === 'pallet')
-                    if (caseLv && caseLv.per) this.perCase = caseLv.per
-                    if (palLv && palLv.per) this.perPallet = palLv.per
-                    this.weightProduct = b.productName || this.productCode || '未选择产品'
-                    this.calculateMaterial()
+                const order = await callCloud('production-orders', 'getByBatch', { batchNo })
+                if (this.batchNo !== batchNo || this.orderLookupRequest !== request) return
+                if (order) {
+                    this.linkedOrder = order; this.productCode = order.productCode; this.weightProduct = order.productName
+                    const perCase = String(order.packSpec || '').match(/(\d+)\s*(?:瓶|罐|袋|盒|包|支|个)\s*[/／]\s*(?:箱|件)/)
+                    this.perCase = perCase ? Number(perCase[1]) : ''
+                    this.perPallet = order.pallet && order.pallet.status === 'confirmed' ? order.pallet.casesPerPallet : ''
+                    this.orderMessage = '订单 ' + order.orderNo + ' · V' + (order.version || 1) + ' · ' + (order.customerName || '客户待选择') + (order.orderStatus !== 'confirmed' ? ' · 订单尚未确认' : '') + (!order.pallet || order.pallet.status !== 'confirmed' ? ' · 上托待补充，暂不计算托数' : ' · 采用本单上托要求')
+                    return
                 }
-            } catch (e) {
-                // product_bom 尚未部署/灌库时静默，保持现有硬编码流程可用
-            }
+            } catch (error) {
+                if (this.batchNo === batchNo && this.orderLookupRequest === request) { this.orderLookupFailed = true; this.orderMessage = '订单查询失败，暂不自动匹配产品和上托：' + error.message }
+                return
+            } finally { if (this.batchNo === batchNo && this.orderLookupRequest === request) { this.orderLookupPending = false; this.calculateMaterial() } }
+            if (this.batchNo === batchNo && this.orderLookupRequest === request) this.orderMessage = '未找到本批订单。请先导入指令单，或手工选择并核对产品和上托要求。'
         },
-        smartFill() {
-            const r = resolveProduct(this.batchNo)
-            if (r) {
-                this.productCode = r.productCode || ''
-                if (r.perCase) this.perCase = r.perCase
-                if (r.perPallet) this.perPallet = r.perPallet
-                this.applyProduct(this.productCode)
-                uni.showToast({ title: '已智能填充', icon: 'none' })
-            } else {
-                uni.showToast({ title: this.batchValid ? '存在多个产品编码，请选择' : '请先输入有效批号', icon: 'none' })
-            }
-        },
+        smartFill() { this.resolveProductOptions(true) },
         chooseProduct() {
+            if (this.linkedOrder || this.orderLookupPending || this.orderLookupFailed) { uni.showToast({ title: this.linkedOrder ? '本批产品由已关联订单确定' : '请先完成订单查询', icon: 'none' }); return }
             if (!this.batchValid) {
                 uni.showToast({ title: '请先输入有效批号', icon: 'none' })
                 return
@@ -332,6 +337,7 @@ export default {
             // #endif
         },
         applyProduct(code) {
+            if (this.linkedOrder || this.orderLookupPending || this.orderLookupFailed) { this.calculateMaterial(); return }
             const p = productCatalog.find(x => x.code === code)
             this.weightProduct = code || '未选择产品'
             if (!p) { this.calculateMaterial(); return }
@@ -345,6 +351,7 @@ export default {
                 zeroCount: this.zeroCount,
                 perCase: this.perCase,
                 perPallet: this.perPallet,
+                palletPending: this.palletPending,
                 sampleCount: this.sampleCount,
                 labelExtra: this.labelExtra,
                 securityExtra: this.securityExtra,
@@ -373,6 +380,7 @@ export default {
                 zeroBottleCount: r.zeroBottleCount, bottleCount: r.bottleCount,
                 sampleCount: r.sampleCount, innerPackageIssued: r.innerPackageIssued,
                 totalPallets: r.totalPallets, markCount: r.markCount,
+                palletPending: this.palletPending,
                 labelExtra: r.labelExtra, securityExtra: r.securityExtra,
                 materials: r.materialUsed
             }
@@ -383,6 +391,7 @@ export default {
             this.weightRange = computeWeightRange(this.bottleWeight, this.boxNetWeight)
         },
         goPallet(act) {
+            if (this.palletPending) return
             if (act === 'first') this.currentPallet = 1
             else if (act === 'prev') this.currentPallet = Math.max(1, this.currentPallet - 1)
             else if (act === 'next') this.currentPallet = Math.min(this.totalPallets, this.currentPallet + 1)
@@ -473,7 +482,10 @@ export default {
         },
         // ===== 草稿持久化 =====
         async save() {
+            if (this.savingRecord || this.cloudFetching || this.fetching) return
             if (!this.batchValid) { uni.showToast({ title: '批号须为11位且含字母与数字', icon: 'none' }); return }
+            if (this.orderLookupPending || this.orderLookupFailed) { uni.showToast({ title: '请先完成订单查询后保存', icon: 'none' }); return }
+            if (this.linkedOrder && (this.linkedOrder.orderStatus !== 'confirmed' || this.linkedOrder.enabled === false)) { uni.showToast({ title: '请先在后台确认并启用本单', icon: 'none' }); return }
             this.calculateMaterial()
             const statusVal = this.batchStatus
             const materialInputs = {}
@@ -486,12 +498,14 @@ export default {
             })
             const rec = {
                 batchNo: this.batchNo, productCode: this.productCode, batchStatus: statusVal,
+                orderNo: this.linkedOrder ? this.linkedOrder.orderNo : '', orderVersion: this.linkedOrder ? Number(this.linkedOrder.version) || 1 : null,
                 bottlePerCase: Number(this.perCase) || 0, casePerPallet: Number(this.perPallet) || 0,
                 bottleWeight: Number(this.bottleWeight) || 0, bottleWeightMin: Number(this.bottleWeightMin) || 0,
                 boxNetWeight: Number(this.boxNetWeight) || 0, boxNetWeightMin: Number(this.boxNetWeightMin) || 0,
                 materialInputs,
                 ...this.lastCalculation, savedAt: new Date().toISOString()
             }
+            if (this.linkedOrder) rec.orderSnapshot = { ...this.linkedOrder, packagingSnapshot: undefined }
             const results = uni.getStorageSync(STORE_RESULTS) || {}
             results[this.batchNo] = rec
             uni.setStorageSync(STORE_RESULTS, results)
@@ -500,6 +514,7 @@ export default {
             hist = [this.batchNo, ...hist.filter(x => x !== this.batchNo)].slice(0, 20)
             uni.setStorageSync(STORE_HISTORY, hist)
             // 保存并上云（多端共享）
+            this.savingRecord = true; this.saveMessage = ''; this.lastSavedBatch = rec.batchNo
             try {
                 await saveProductionRecord(rec)
                 // 同时写草稿到云（设备私有），失败不阻断
@@ -508,20 +523,24 @@ export default {
                 } catch (de) {
                     console.warn('[draft] 草稿上云失败：', de && de.message)
                 }
+                this.saveMessage = '已保存并同步云端'; this.saveFailed = false
                 uni.showToast({ title: '已保存并同步云端', icon: 'success' })
             } catch (e) {
                 console.warn('[cloud] 生产记录同步失败：', e && e.message)
-                uni.showToast({ title: '已保存（云端同步失败）', icon: 'none' })
-            }
+                this.saveMessage = '已保存在本机，云端同步失败，请重试保存。'; this.saveFailed = true
+                uni.showToast({ title: '已存本机，云端同步失败', icon: 'none' })
+            } finally { this.savingRecord = false }
         },
         // ===== 历史记录 / 版本回滚 ===== 由 mixins/history.js 提供
         // 分享进入：按批号从云端拉取该批数据并载入
         loadSharedBatch(batchNo) {
             fetchProductionRecord(batchNo).then(rec => {
+                if (this.batchNo !== batchNo) return
                 if (rec) {
                     this.loadRecord(rec)
                     uni.showToast({ title: '已加载云端数据', icon: 'success' })
                 } else {
+                    this.resolveProductOptions()
                     uni.showToast({ title: '该批号暂无云端数据', icon: 'none' })
                 }
             }).catch(() => {
@@ -529,6 +548,10 @@ export default {
             })
         },
         loadRecord(rec) {
+            this.orderLookupRequest++
+            this.linkedOrder = rec.orderSnapshot || null
+            this.orderLookupPending = false; this.orderLookupFailed = false
+            this.orderMessage = this.linkedOrder ? '载入历史生产记录，采用订单 ' + this.linkedOrder.orderNo + ' · V' + (this.linkedOrder.version || 1) : ''
             this.batchNo = rec.batchNo
             this.productCode = rec.productCode
             this.weightProduct = rec.productCode || '未选择产品'
@@ -559,18 +582,25 @@ export default {
                     }
                 })
             }
+            if (!rec.orderSnapshot) this.resolveProductOptions(true)
         },
         clearAll() {
+            if (this.savingRecord) return
+            this.saveMessage = ''; this.lastSavedBatch = ''
+            this.orderLookupRequest++
             this.bucketKeys.forEach(k => { this.buckets[k] = '' })
             this.zeroCount = ''; this.sampleCount = ''; this.labelExtra = ''; this.securityExtra = ''
             this.bottleWeight = ''; this.bottleWeightMin = ''; this.boxNetWeight = ''; this.boxNetWeightMin = ''
             this.batchNo = ''; this.productCode = ''
+            this.linkedOrder = null; this.orderMessage = ''; this.orderLookupPending = false; this.orderLookupFailed = false
             this.perCase = ''; this.perPallet = ''; this.weightProduct = '未选择产品'
             this.batchStatus = 'incomplete'; this.currentPallet = 1
             this.calculateMaterial()
             uni.showToast({ title: '已清空', icon: 'none' })
         },
         // ===== 卡片折叠 / 排序 / 拖拽 ===== 由 mixins/card-layout.js 提供
+        goOrderSheet() { uni.navigateTo({ url: '/pages/order-sheet/order-sheet?purpose=order' }) },
+        goArchive() { uni.switchTab({ url: '/pages/archive/archive' }) },
         goHistory() {
             uni.switchTab({ url: '/pages/history/history' })
         }
@@ -578,53 +608,12 @@ export default {
 }
 </script>
 
-<style scoped>
-.page { padding: 16rpx; }
-.admin-strip { display: flex; align-items: center; gap: 10rpx; background: #E6F4F1; border-radius: 12rpx; padding: 14rpx 18rpx; margin-bottom: 14rpx; }
-.as-ico { font-size: 26rpx; color: #008577; }
-.as-txt { flex: 1; font-size: 26rpx; font-weight: 700; color: #008577; }
-.as-arrow { font-size: 30rpx; color: #008577; }
-.share-fab { position: fixed; right: 24rpx; bottom: 48rpx; z-index: 50; background: #008577; color: #fff; font-size: 26rpx; border-radius: 999rpx; padding: 0 34rpx; height: 72rpx; line-height: 72rpx; box-shadow: 0 6rpx 20rpx rgba(0,133,119,0.35); }
-.card { background: #fff; border-radius: 16rpx; padding: 0; margin-bottom: 14rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); overflow: hidden; }
-.card-head { display: flex; align-items: center; justify-content: space-between; padding: 16rpx 18rpx; background: #F4F7F6; }
-.card-head-left { display: flex; align-items: center; gap: 12rpx; flex: 1; min-width: 0; }
-.card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; }
-.card-tools { display: flex; align-items: center; gap: 6rpx; }
-.sort-btn { width: 44rpx; height: 44rpx; line-height: 44rpx; text-align: center; font-size: 26rpx; color: #008577; background: #fff; border-radius: 8rpx; }
-.drag-hint { width: 44rpx; height: 44rpx; line-height: 44rpx; text-align: center; font-size: 30rpx; color: #b6c2bd; }
-.collapse-btn { width: 44rpx; height: 44rpx; line-height: 44rpx; text-align: center; font-size: 24rpx; color: #77827D; background: #fff; border-radius: 8rpx; }
-.card-body { padding: 18rpx; }
-.card.dragging { box-shadow: 0 10rpx 30rpx rgba(0,133,119,0.28); opacity: 0.92; transform: scale(1.01); }
-.drag-overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 200; }
-.pwd-entry { margin-top: 18rpx; text-align: center; font-size: 24rpx; color: #008577; padding: 16rpx 0; }
-
-.btn { font-size: 24rpx; border-radius: 12rpx; padding: 0 18rpx; height: 64rpx; line-height: 64rpx; background: #EEF3F1; color: #1f2622; }
-
-.hint { font-size: 20rpx; color: #77827D; }
-.chip { font-size: 20rpx; color: #008577; background: #E6F4F1; padding: 2rpx 12rpx; border-radius: 999rpx; }
-.chip.active { background: #008577; color: #fff; }
-
-.sheet-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: flex-end; z-index: 99; }
-.sheet { background: #fff; width: 100%; border-radius: 24rpx 24rpx 0 0; padding: 24rpx; max-height: 70vh; }
-.sheet-head { display: flex; justify-content: space-between; font-size: 28rpx; font-weight: 700; margin-bottom: 12rpx; }
-.count { font-size: 22rpx; color: #77827D; }
-.sheet-body { max-height: 50vh; }
-.hist-item { display: flex; justify-content: space-between; padding: 20rpx 8rpx; border-bottom: 1rpx solid #F0F3F1; }
-.code { font-size: 26rpx; font-weight: 600; }
-.arrow { color: #008577; font-size: 24rpx; }
-.empty { text-align: center; color: #bbb; padding: 40rpx; font-size: 24rpx; }
-.search-bar { padding: 4rpx 0 12rpx; }
-.search-inp { height: 60rpx; background: #F2F4F3; border-radius: 12rpx; padding: 0 20rpx; font-size: 24rpx; }
-.load-more { text-align: center; color: #008577; font-size: 24rpx; padding: 20rpx 0; }
-.back { color: #008577; font-size: 28rpx; font-weight: 700; }
-.ver-item { display: flex; align-items: center; justify-content: space-between; padding: 16rpx 8rpx; border-bottom: 1rpx solid #F0F3F1; }
-.ver-item:last-child { border-bottom: none; }
-.ver-info { display: flex; align-items: center; gap: 12rpx; flex: 1; min-width: 0; }
-.ver-tag { font-size: 20rpx; color: #77827D; background: #F2F4F3; padding: 2rpx 10rpx; border-radius: 999rpx; flex-shrink: 0; }
-.ver-tag.latest { background: #008577; color: #fff; }
-.ver-time { font-size: 22rpx; color: #77827D; flex-shrink: 0; }
-.ver-desc { font-size: 22rpx; color: #1f2622; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ver-actions { display: flex; gap: 8rpx; flex-shrink: 0; }
-.btn.mini { height: 48rpx; line-height: 48rpx; font-size: 22rpx; padding: 0 16rpx; border-radius: 10rpx; }
-.btn.mini.danger { background: #FBEAE9; color: #D9534F; }
+<style lang="scss" scoped>
+@import '@/styles/field-work.scss';
+.page { box-sizing: border-box; padding: 1rem 1rem calc(7rem + env(safe-area-inset-bottom)); color: $ink; }
+.work-header { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin: .25rem 0 1.2rem; }.share-button { font-size: .75rem; padding: 0 .75rem; flex-shrink: 0; margin-top: .2rem; }
+.work-entries { display: flex; gap: .7rem; margin-bottom: 1rem; }.work-entries button { flex: 1; min-width: 0; text-align: left; padding: .9rem; margin: 0; background: $surface; border-radius: .75rem; line-height: 1.5; }.work-entries button::after { border: 0; }.entry-label { display: block; font-size: .9rem; font-weight: 600; color: $primary; }.entry-note { display: block; font-size: .72rem; color: $muted; margin-top: .4rem; }
+.order-overview { background: $surface; padding: 1rem; border-radius: .75rem; margin-bottom: 1rem; border-left: .2rem solid $primary; }.order-overview-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .85rem; font-weight: 600; }.order-product { display: block; font-size: .9rem; line-height: 1.6; margin-top: .6rem; }.order-tags { display: flex; flex-wrap: wrap; gap: .6rem; font-size: .75rem; margin-top: .6rem; color: $muted; }.order-tags .pending { color: $warning; }
+.card { background: $surface; border-radius: .85rem; margin-bottom: .85rem; overflow: hidden; }.card-head { display: flex; align-items: center; justify-content: space-between; padding: .85rem 1rem; border-bottom: 1px solid $line; }.card-head-left { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; flex: 1; min-width: 0; }.card-title { font-size: 1rem; font-weight: 700; }.card-tools { display: flex; align-items: center; gap: .35rem; margin-left: .3rem; }.drag-hint { font-size: 1.1rem; color: $muted; padding: .3rem; }.collapse-btn { min-width: 1.8rem; line-height: 1.8rem; text-align: center; font-size: .85rem; color: $primary; background: $canvas; border-radius: .35rem; }.card-body { padding: 1rem; }.card.dragging { opacity: .92; transform: scale(1.01); border: 1px solid $primary; }
+.hint { font-size: .7rem; color: $muted; }.chip { font-size: .7rem; color: $primary; background: $primary-soft; padding: .2rem .45rem; border-radius: .3rem; }.chip.active { background: $primary; color: $surface; }.fw-footer .fw-button.secondary { flex: 0 0 30%; padding: 0 .3rem; }
 </style>

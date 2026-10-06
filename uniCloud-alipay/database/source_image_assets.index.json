@@ -1,0 +1,20 @@
+[
+    {
+        "IndexName": "owner_hash",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "createdBy",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "sha256",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

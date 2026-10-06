@@ -1,0 +1,38 @@
+[
+    {
+        "IndexName": "product_customer_updated",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "productCode",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "customerId",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "updatedAt",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "updated",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "updatedAt",
+                    "Direction": "-1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]
