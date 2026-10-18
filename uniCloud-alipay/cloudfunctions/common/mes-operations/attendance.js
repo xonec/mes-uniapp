@@ -86,24 +86,51 @@ async function attendanceSummary(db, profile, input) {
     const rows = await all(db, collection('attendance'), and(db, attendanceScope(db, profile, input, input.own === true), range.condition), 100000)
     const people = new Map(), processes = new Map()
     for (const row of rows) {
-        if (!people.has(row.personId)) people.set(row.personId, { personId: row.personId, personName: row.personName, days: new Set(), workHours: 0, processCounts: {}, recordCount: 0, conflictCount: 0 })
+        if (!people.has(row.personId)) people.set(row.personId, { personId: row.personId, personName: row.personName, days: new Set(), restDates: new Set(), leaveDates: new Set(), workHours: 0, processCounts: {}, recordCount: 0, conflictCount: 0 })
         const person = people.get(row.personId); person.recordCount++; if (row.conflict) person.conflictCount++
-        if (row.kind !== 'work') continue
+        if (row.kind !== 'work') {
+            // 同一天既有出勤又有休息时按出勤日计，休息/请假只统计没有出勤的日子。
+            if (row.absenceType === 'leave') person.leaveDates.add(row.date)
+            else person.restDates.add(row.date)
+            continue
+        }
         person.days.add(row.date); person.workHours += Number(row.workHours) || 0
         for (const id of [...new Set(row.processIds || [])]) { const index = row.processIds.indexOf(id); const name = (row.processNames || [])[index] || id; person.processCounts[name] = (person.processCounts[name] || 0) + 1; if (!processes.has(id)) processes.set(id, { processId: id, name, count: 0 }); processes.get(id).count++ }
     }
-    const persons = [...people.values()].map(row => ({ personId: row.personId, personName: row.personName, attendanceDays: row.days.size, workHours: Math.round(row.workHours * 100) / 100, processCounts: row.processCounts, recordCount: row.recordCount, conflictCount: row.conflictCount }))
-    return { from: range.from, to: range.to, persons, processes: [...processes.values()].sort((a, b) => b.count - a.count), attendanceDays: persons.reduce((sum, row) => sum + row.attendanceDays, 0), workHours: Math.round(persons.reduce((sum, row) => sum + row.workHours, 0) * 100) / 100, conflictCount: persons.reduce((sum, row) => sum + row.conflictCount, 0) }
+    const persons = [...people.values()].map(row => ({
+        personId: row.personId, personName: row.personName,
+        attendanceDays: row.days.size,
+        restDays: [...row.restDates].filter(date => !row.days.has(date)).length,
+        leaveDays: [...row.leaveDates].filter(date => !row.days.has(date)).length,
+        workHours: Math.round(row.workHours * 100) / 100, processCounts: row.processCounts,
+        recordCount: row.recordCount, conflictCount: row.conflictCount
+    }))
+    return {
+        from: range.from, to: range.to, persons,
+        processes: [...processes.values()].sort((a, b) => b.count - a.count),
+        attendanceDays: persons.reduce((sum, row) => sum + row.attendanceDays, 0),
+        restDays: persons.reduce((sum, row) => sum + row.restDays, 0),
+        leaveDays: persons.reduce((sum, row) => sum + row.leaveDays, 0),
+        workHours: Math.round(persons.reduce((sum, row) => sum + row.workHours, 0) * 100) / 100,
+        conflictCount: persons.reduce((sum, row) => sum + row.conflictCount, 0)
+    }
 }
 /** 主管及管理员按周期分页查看权限范围内的考勤。 */
 async function listAttendance(db, profile, input) {
     const range = attendanceRange(db, input)
     return list(db, 'attendance', input, attendanceScope(db, profile, input), ['personName', 'shiftName', 'processNames'], and(db, range.condition, input.conflictOnly ? { conflict: db.command.neq(null) } : {}))
 }
-/** 员工本人按月份或年份查看记录，包含未来预排。 */
+/** 员工本人按月份或年份查看记录：生产日倒序，同一天按开始时间倒序；分页规则保持不变。 */
 async function myAttendance(db, profile, input) {
     const range = attendanceRange(db, input)
-    return list(db, 'attendance', input, attendanceScope(db, profile, input, true), [], range.condition)
+    const page = Math.max(1, Math.floor(Number(input.page) || 1))
+    const pageSize = Math.min(50, Math.max(1, Math.floor(Number(input.pageSize) || 20)))
+    const where = and(db, attendanceScope(db, profile, input, true), range.condition)
+    const counted = await db.collection(collection('attendance')).where(where).count()
+    const rows = (await db.collection(collection('attendance')).where(where)
+        .orderBy('date', 'desc').orderBy('startTime', 'desc').orderBy('_id', 'asc')
+        .skip((page - 1) * pageSize).limit(pageSize).get()).data || []
+    return { list: rows, total: counted.total || 0, page, pageSize }
 }
 /** 允许本人修改及管理员代改；用户原因可选，管理员变更必须留原因。 */
 async function saveAttendance(db, profile, input) {
@@ -146,14 +173,17 @@ async function checkOverlap(db, record, id) {
 /** 冲突只由本人整条选择；新排班及保留的修改都进入历史。 */
 async function resolveAttendanceConflict(db, profile, input) {
     const old = await get(db, 'attendance', identifier(input.id))
-    if (old.personId !== profile.personId) throw new ClientError('请由该员工本人选择保留哪份考勤', 403)
+    const isSelf = old.personId === profile.personId
+    // 本人可处理自己的冲突；管理员可处理权限范围内的他人冲突（后台处理入口），其他人仍 403。
+    if (!isSelf) admin(profile)
     const request = requestId(input.requestId), signature = digest({ id: input.id, choice: input.choice, actorId: profile.uid })
     const accepted = await priorRequest(db, 'attendance', old, request, signature); if (accepted) return accepted
     if (!old.conflict) throw new ClientError('此冲突已处理，请刷新', 409)
     if (!['schedule', 'retained'].includes(input.choice)) throw new ClientError('请选择新排班或原修改', 400)
     const chosen = input.choice === 'schedule' ? old.conflict.incoming : old.conflict.retained
     const record = { ...old, ...chosen, edited: input.choice === 'retained', conflict: null, event: event(profile, 'resolve_attendance', request, signature, { choice: input.choice }) }
-    return withScheduleLock(db, old.personId, async () => { await checkOverlap(db, record, old._id); return save(db, 'attendance', old._id, record, profile, expectedVersion(input.expectedVersion), '员工选择' + (input.choice === 'schedule' ? '新排班' : '保留原修改')) })
+    const reason = (isSelf ? '员工选择' : '管理员处理冲突：') + (input.choice === 'schedule' ? '新排班' : '保留原修改')
+    return withScheduleLock(db, old.personId, async () => { await checkOverlap(db, record, old._id); return save(db, 'attendance', old._id, record, profile, expectedVersion(input.expectedVersion), reason) })
 }
 /** 原排班、人工修改和冲突处理均通过版本历史追溯。 */
 async function attendanceHistory(db, profile, input) { const record = await get(db, 'attendance', identifier(input.id)); if (record.personId !== profile.personId) visible(profile, 'attendance', record); return { versions: await history(db, 'attendance', record) } }

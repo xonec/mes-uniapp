@@ -1,90 +1,270 @@
 <template>
-    <view class="fw-page op-page">
-        <view class="fw-header"><text class="fw-subtitle">排班自动形成考勤记录，可按实际情况修改并保存；八小时夜班归属前一天的生产日。</text></view>
-        <view class="op-chips"><button v-for="type in periodTypes" :key="type.value" class="op-chip" :class="{ selected: periodType === type.value }" :disabled="busy" @tap="changePeriodType(type.value)">{{ type.name }}</button></view>
-        <view class="op-toolbar"><picker mode="date" :fields="periodType" :value="calendarValue" :disabled="busy" @change="changePeriod"><view class="fw-button secondary">{{ period }} ▾</view></picker><button class="fw-button" :disabled="busy" @tap="refresh">刷新</button><button class="fw-button primary" :disabled="busy || !profile.personId" @tap="edit()">新增记录</button></view>
-        <view v-if="error" class="fw-notice error">{{ error }}</view><view v-if="notice" class="fw-notice">{{ notice }}</view>
-        <view v-if="summary" class="fw-card"><text class="op-name">{{ personName }} · {{ period }}</text><view class="op-grid"><view><text class="op-number">{{ summary.attendanceDays || 0 }}</text><text class="op-meta">出勤天数</text></view><view><text class="op-number">{{ summary.workHours || 0 }}</text><text class="op-meta">总工时（小时）</text></view><view><text class="op-number">{{ participationCount }}</text><text class="op-meta">工序参与次数</text></view></view><text v-for="item in summary.processes" :key="item.processId" class="op-meta">{{ item.name }} · {{ item.count }} 次</text><text class="fw-note">按完整自然月／年统计，含未来排班；多道工序共用一段时间，工时只计一次。</text><text v-if="summary.conflictCount" class="fw-note">有 {{ summary.conflictCount }} 条排班更新待选择保留内容。</text></view>
-        <view v-if="editing" class="fw-card">
-            <view class="fw-heading"><text class="fw-heading-title">{{ editing._id ? '修改考勤记录' : '新增考勤记录' }}</text></view>
-            <picker mode="date" :value="form.date" :disabled="busy || editing.source === 'schedule'" @change="form.date = $event.detail.value"><view class="fw-input">生产日：{{ form.date }}{{ editing.source === 'schedule' ? '（来自排班）' : ' ▾' }}</view></picker>
-            <view class="op-chips"><button v-for="kind in kinds" :key="kind.value" class="op-chip" :class="{ selected: form.kind === kind.value }" :disabled="busy" @tap="form.kind = kind.value">{{ kind.name }}</button></view>
-            <view v-if="form.kind === 'rest'" class="op-chips"><button class="op-chip" :class="{ selected: form.absenceType !== 'leave' }" :disabled="busy" @tap="form.absenceType = 'rest'">休息</button><button class="op-chip" :class="{ selected: form.absenceType === 'leave' }" :disabled="busy" @tap="form.absenceType = 'leave'">请假</button></view>
-            <template v-if="form.kind === 'work'">
-                <ops-select :value="form.shiftId" label="实际班次 *" :items="catalogs.shifts || []" :disabled="busy" @input="changeShift" />
-                <text class="fw-label">参与工序（可多选）*</text><view class="op-chips"><button v-for="item in processes" :key="item._id" class="op-chip" :class="{ selected: form.processIds.includes(item._id) }" :disabled="busy" @tap="toggleProcess(item._id)">{{ form.processIds.includes(item._id) ? '✓ ' : '' }}{{ item.name }}</button></view><text v-if="!processes.length" class="fw-note">所在车间暂无启用工序，请联系管理员维护。</text>
-                <view v-for="item in timeFields" :key="item.time" class="fw-field"><text class="fw-label">{{ item.label }} *</text><view class="op-toolbar"><picker :range="dayNames" :value="form[item.day]" :disabled="busy" @change="setOffset(item.day, $event)"><view class="fw-input">{{ dayNames[form[item.day]] }} ▾</view></picker><picker mode="time" :value="form[item.time]" :disabled="busy" @change="setTime(item.time, $event)"><view class="fw-input">{{ form[item.time] || '选择时间' }} ▾</view></picker></view></view>
-            </template>
-            <text class="op-meta">本条工时：{{ form.kind === 'rest' ? 0 : selectedHours }} 小时，不扣休息时间。</text>
-            <view class="fw-field"><text class="fw-label">{{ profile.isAdmin && editing._id ? '管理员修改原因 *' : '修改原因（可选）' }}</text><textarea v-model="form.changeReason" class="fw-textarea" :disabled="busy" maxlength="1000" /></view>
-            <view class="fw-field"><text class="fw-label">备注（可选）</text><textarea v-model="form.note" class="fw-textarea" :disabled="busy" maxlength="1000" /></view>
-            <view class="op-toolbar"><button class="fw-button secondary" :disabled="busy" @tap="editing = null">取消</button><button class="fw-button primary" :disabled="busy" @tap="save">{{ saving ? '保存中…' : '保存记录' }}</button></view>
+    <view class="fw-page op-page att-page">
+        <view class="att-head">
+            <view class="att-period">
+                <button class="att-arrow" :disabled="busy" @tap="prevPeriod" aria-label="上一周期">‹</button>
+                <picker mode="date" :fields="periodType" :value="calendarValue" :disabled="busy" @change="changePeriod">
+                    <view class="att-period-value">{{ periodLabel }} ▾</view>
+                </picker>
+                <button class="att-arrow" :disabled="busy" @tap="nextPeriod" aria-label="下一周期">›</button>
+            </view>
+            <view class="att-head-right">
+                <view class="att-seg">
+                    <button class="att-seg-item" :class="{ active: periodType === 'month' }" :disabled="busy" @tap="setPeriodType('month')">月</button>
+                    <button class="att-seg-item" :class="{ active: periodType === 'year' }" :disabled="busy" @tap="setPeriodType('year')">年</button>
+                </view>
+                <button class="att-help" @tap="helpOpen = !helpOpen" aria-label="考勤口径">?</button>
+            </view>
         </view>
-        <view v-if="loading" class="fw-card fw-empty">正在读取考勤记录…</view>
-        <view v-for="row in rows" :key="row._id" class="fw-card">
-            <view class="fw-heading"><text class="fw-heading-title">{{ row.date }}</text><text class="fw-badge">{{ row.kind === 'rest' ? absenceLabel(row) : '出勤' }}</text></view>
-            <text class="op-name">{{ recordLabel(row) }}</text><text class="op-meta">{{ row.workHours || 0 }} 小时 · {{ row.source === 'schedule' ? '排班预设' : '自行记录' }}{{ row.edited ? ' · 已修改' : '' }}</text><text v-if="row.note" class="op-pre">{{ row.note }}</text>
-            <view v-if="row.conflict" class="fw-notice"><text class="op-name">排班已更新，请选择保留内容</text><text class="op-meta">新排班：{{ recordLabel(row.conflict.incoming) }}</text><text class="op-meta">我的修改：{{ recordLabel(row.conflict.retained) }}</text><view class="op-toolbar"><button class="fw-button secondary" :disabled="busy" @tap="resolveConflict(row, 'retained')">保留我的修改</button><button class="fw-button primary" :disabled="busy" @tap="resolveConflict(row, 'schedule')">采用新排班</button></view></view>
-            <text v-if="row.scheduleRemoved && !row.conflict" class="fw-note">新排班已移除此班次，记为休息，历史修改仍可查看。</text>
-            <view class="op-toolbar"><button class="fw-button secondary" :disabled="busy || !!row.conflict" @tap="edit(row)">修改记录</button><button class="fw-button secondary" :disabled="busy" @tap="showHistory(row)">修改历史</button></view>
+        <view v-if="helpOpen" class="att-help-card">
+            <text class="att-help-text">按生产日统计：八小时夜班归属前一天；多道工序共用一段时间时，工时只计一次。</text>
         </view>
-        <view v-if="!rows.length && !loading && !error" class="fw-card fw-empty"><text class="fw-empty-title">该周期暂无考勤记录</text><text class="fw-note">导入排班后自动生成，也可以自行新增记录。账号需先绑定人员档案。</text></view>
-        <view v-if="total > pageSize" class="op-toolbar"><button class="fw-button secondary" :disabled="busy || page <= 1" @tap="changePage(-1)">上一页</button><text>{{ page }} / {{ Math.ceil(total / pageSize) }}</text><button class="fw-button secondary" :disabled="busy || page * pageSize >= total" @tap="changePage(1)">下一页</button></view>
-        <view v-if="historyRows.length" class="fw-card"><view class="fw-heading"><text class="fw-heading-title">修改历史</text><text class="fw-link" @tap="historyRows = []">收起</text></view><view v-for="record in historyRows" :key="record.version" class="op-row"><view><text class="op-name">V{{ record.version }} · {{ recordLabel(record) }}</text><text class="op-meta">{{ record.workHours || 0 }} 小时 · {{ record.audit && record.audit.actorName }} · {{ stamp(record.audit && record.audit.at) }}</text><text class="op-pre">{{ record.audit && record.audit.reason }}{{ record.note ? '\n备注：' + record.note : '' }}</text></view></view></view>
+
+        <view v-if="error" class="fw-notice error">{{ error }}</view>
+
+        <view class="fw-card att-overview">
+            <view class="att-metrics">
+                <view class="att-metric"><text class="att-metric-value">{{ overview.attendanceDays }}</text><text class="att-metric-label">出勤天数</text></view>
+                <view class="att-metric"><text class="att-metric-value">{{ overview.hours }}</text><text class="att-metric-label">总工时</text></view>
+                <view class="att-metric"><text class="att-metric-value">{{ overview.restDays }}</text><text class="att-metric-label">休息天数</text></view>
+                <view class="att-metric"><text class="att-metric-value">{{ overview.leaveDays }}</text><text class="att-metric-label">请假天数</text></view>
+            </view>
+            <view class="att-rate"><view class="att-rate-head"><text>出勤率</text><text class="att-rate-value">{{ overview.rate }}%</text></view><view class="att-rate-track"><view class="att-rate-bar" :style="{ width: overview.rate + '%' }" /></view></view>
+            <view v-if="overview.processes.length" class="att-processes">
+                <view v-for="item in overview.processes" :key="item.name" class="att-process">
+                    <text class="att-process-name">{{ item.name }}</text>
+                    <view class="att-process-track"><view class="att-process-bar" :style="{ width: item.width + '%' }" /></view>
+                    <text class="att-process-count">{{ item.count }}</text>
+                </view>
+            </view>
+        </view>
+
+        <view v-if="conflicts.length" class="att-conflicts">
+            <view v-for="row in conflicts" :key="'conflict:' + row._id" class="fw-card att-conflict">
+                <view class="att-conflict-head"><text class="att-conflict-title">{{ row.date }} · 排班已更新</text><text class="att-tag warn">待核对</text></view>
+                <text class="att-conflict-line">新排班：{{ summaryLabel(row.conflict.incoming) }}</text>
+                <text class="att-conflict-line">本人记录：{{ summaryLabel(row.conflict.retained) }}</text>
+                <text class="att-conflict-note">排班已更新，与我的记录不一致，请联系管理员处理。</text>
+            </view>
+        </view>
+
+        <view v-if="loading && !rows.length" class="fw-card fw-empty"><text class="fw-empty-title">正在读取考勤…</text></view>
+        <view v-for="group in dayGroups" :key="group.date" class="fw-card att-day">
+            <view class="att-day-head">
+                <text class="att-day-date">{{ group.date }}</text>
+                <text class="att-day-week">周{{ group.weekday }}</text>
+                <view class="att-day-badges"><text v-for="status in group.statuses" :key="status" class="att-tag" :class="status">{{ statusLabel(status) }}</text></view>
+            </view>
+            <view v-for="row in group.rows" :key="row._id" class="att-row">
+                <view class="att-row-main">
+                    <view class="att-row-line">
+                        <text class="att-title">{{ row.kind === 'rest' ? statusLabel(row.absenceType === 'leave' ? 'leave' : 'rest') : shiftLabel(row.shiftName) + (row.processNames && row.processNames.length ? ' · ' + row.processNames.join('、') : '') }}</text>
+                        <text v-if="row.kind !== 'rest'" class="att-hours">{{ hoursLabel(row.workHours) }}</text>
+                    </view>
+                    <view v-if="row.kind !== 'rest'" class="att-row-meta"><text>{{ timeRange(row) }}</text></view>
+                    <view class="att-row-badges">
+                        <text class="att-tag light">{{ row.source === 'schedule' ? '排班' : '手填' }}</text>
+                        <text v-if="row.edited" class="att-tag light">已改</text>
+                        <text v-if="row.conflict" class="att-tag warn">待核对</text>
+                    </view>
+                    <text v-if="noteText(row)" class="att-note">{{ noteText(row) }}</text>
+                </view>
+            </view>
+        </view>
+        <view v-if="!rows.length && !loading && !error" class="fw-card fw-empty"><text class="fw-empty-title">该周期暂无考勤记录</text></view>
+        <view v-if="total > pageSize" class="att-pager">
+            <button class="att-pager-btn" :disabled="busy || page <= 1" @tap="changePage(-1)">上一页</button>
+            <text class="att-pager-text">{{ page }} / {{ Math.ceil(total / pageSize) }}</text>
+            <button class="att-pager-btn" :disabled="busy || page * pageSize >= total" @tap="changePage(1)">下一页</button>
+        </view>
     </view>
 </template>
 <script>
-import OpsSelect from '@/components/operations/OpsSelect.vue'
-import { callOperations, operationsPage, loadOperations, operationDate, operationRequest } from '@/utils/operations-api.js'
-/** 一段实际时间对应多道工序，不拆分或重复计算工时。 */
-function blank() { return { date: operationDate(), kind: 'work', shiftId: '', processIds: [], startTime: '', endTime: '', startDayOffset: 0, endDayOffset: 0, note: '', changeReason: '' } }
+import { callOperations, operationsPage, loadOperations, operationDate } from '@/utils/operations-api.js'
+
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
+const STATUS_LABELS = { work: '出勤', rest: '休息', leave: '请假' }
+/** 班次档案名自带「（8小时）」后缀，时长已在右侧单独显示，标题里去掉避免重复。 */
+const SHIFT_HOURS = /\s*[（(]\s*\d+(?:\.\d+)?\s*(?:小时|h|H)\s*[）)]\s*$/
+/** 后台导入完整日表时写进 schedule.note 的系统文案，不是员工备注，不展示。 */
+const SYSTEM_NOTES = ['完整日表未列出，默认休息', '完整日表自动补齐休息', '当天未列出，默认休息']
+function isSystemNote(line) { return SYSTEM_NOTES.includes(line) || /完整日表.*默认休息/.test(line) }
+
+function pad(value) { return String(value).padStart(2, '0') }
+function parseDate(date) { const [year, month, day] = String(date || '').split('-').map(Number); return new Date(year, (month || 1) - 1, day || 1) }
+function monthOf(period) { return String(period || operationDate()).slice(0, 7) }
+function shiftMonth(period, delta) {
+    const [year, month] = monthOf(period).split('-').map(Number)
+    const target = new Date(year, month - 1 + delta, 1)
+    return target.getFullYear() + '-' + pad(target.getMonth() + 1)
+}
+
 export default {
-    components: { OpsSelect }, mixins: [operationsPage],
-    data() { return { periodType: 'month', period: operationDate().slice(0, 7), lastMonth: operationDate().slice(5, 7), periodTypes: [{ value: 'month', name: '按月' }, { value: 'year', name: '按年' }], kinds: [{ value: 'work', name: '出勤' }, { value: 'rest', name: '休息' }], dayNames: ['当天', '次日'], timeFields: [{ time: 'startTime', day: 'startDayOffset', label: '实际上班时间' }, { time: 'endTime', day: 'endDayOffset', label: '实际下班时间' }], page: 1, pageSize: 20, total: 0, rows: [], summary: null, personName: '', catalogs: {}, profile: {}, editing: null, form: blank(), notice: '', historyRows: [], historyLoading: false } },
-    computed: {
-        busy() { return this.loading || this.saving || this.historyLoading },
-        calendarValue() { return this.periodType === 'year' ? this.period + '-01-01' : this.period + '-01' },
-        processes() { return (this.catalogs.processes || []).filter(row => row.enabled !== false && row.workshopId === this.profile.workshopId) },
-        participationCount() { return (this.summary && this.summary.processes || []).reduce((sum, row) => sum + row.count, 0) },
-        selectedHours() { if (![this.form.startTime, this.form.endTime].every(value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value || ''))) return '请核对时间'; const minutes = value => Number(value.slice(0, 2)) * 60 + Number(value.slice(3)); const hours = (this.form.endDayOffset * 1440 + minutes(this.form.endTime) - this.form.startDayOffset * 1440 - minutes(this.form.startTime)) / 60; return hours > 0 && hours <= 24 ? Math.round(hours * 100) / 100 : '请核对时间' }
+    mixins: [operationsPage],
+    data() {
+        return {
+            periodType: 'month',
+            period: operationDate().slice(0, 7),
+            lastMonth: operationDate().slice(5, 7),
+            page: 1,
+            pageSize: 20,
+            total: 0,
+            rows: [],
+            summary: null,
+            helpOpen: false
+        }
     },
-    onShow() { if (!this.saving) this.load() },
-    methods: {
-        /** 本人列表和本人统计分别读取；主管登录个人页面也只显示本人。 */
-        async load() { this.editing = null; this.historyRows = []; const query = { periodType: this.periodType, period: this.period }; return loadOperations(this, () => Promise.all([callOperations('bootstrap'), callOperations('myAttendance', { ...query, page: this.page, pageSize: this.pageSize }), callOperations('attendanceSummary', { ...query, own: true })]), ([base, result, summary]) => { this.catalogs = base.catalogs; this.profile = base.profile; this.rows = result.list || []; this.total = result.total || 0; this.summary = summary; this.personName = ((base.catalogs.personnel || []).find(row => row._id === base.profile.personId) || {}).name || '本人' }) },
-        clearLoaded() { this.rows = []; this.summary = null; this.total = 0; this.profile = {}; this.catalogs = {} },
-        refresh() { if (!this.busy) { this.page = 1; this.load() } },
-        changePeriodType(type) { if (this.busy || type === this.periodType) return; if (type === 'year') { this.lastMonth = this.period.slice(5, 7); this.period = this.period.slice(0, 4) } else this.period += '-' + this.lastMonth; this.periodType = type; this.page = 1; this.notice = ''; this.load() },
-        changePeriod(event) { if (this.busy) return; this.period = event.detail.value.slice(0, this.periodType === 'year' ? 4 : 7); this.page = 1; this.notice = ''; this.load() },
-        changePage(step) { if (!this.busy) { this.page += step; this.load() } },
-        name(type, id) { return ((this.catalogs[type] || []).find(row => row._id === id) || {}).name || '—' },
-        absenceLabel(row) { return row && row.absenceType === 'leave' ? '请假' : '休息' },
-        recordLabel(row) { if (!row) return '无记录'; if (row.kind === 'rest') return this.absenceLabel(row) + ' · 0 小时'; const names = row.processNames || (row.processIds || []).map(id => this.name('processes', id)); return (row.shiftName || this.name('shifts', row.shiftId)) + ' / ' + names.join('、') + ' · ' + this.timeLabel(row) },
-        timeLabel(row) { if (!row.startTime) return '时间未记录'; return (row.startDayOffset ? '次日 ' : '当天 ') + row.startTime + '—' + (row.endDayOffset ? '次日 ' : '当天 ') + row.endTime },
-        stamp(value) { if (!value) return '—'; const date = new Date(value); return operationDate(date) + ' ' + String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0') },
-        edit(row) { if (this.busy) return; this.editing = row || {}; this.form = { ...blank(), ...(row ? JSON.parse(JSON.stringify(row)) : {}), changeReason: '' }; this.form.processIds = [...(this.form.processIds || [])]; this.error = ''; this.notice = ''; uni.pageScrollTo({ scrollTop: 0, duration: 200 }) },
-        changeShift(id) { if (this.busy) return; this.form.shiftId = id; const shift = (this.catalogs.shifts || []).find(row => row._id === id); if (shift) Object.assign(this.form, { startTime: shift.startTime, endTime: shift.endTime, startDayOffset: Number(shift.startDayOffset) || 0, endDayOffset: shift.endDayOffset == null ? (shift.endTime <= shift.startTime ? 1 : 0) : Number(shift.endDayOffset) }) },
-        toggleProcess(id) { if (this.busy) return; const selected = this.form.processIds; const index = selected.indexOf(id); if (index < 0) selected.push(id); else selected.splice(index, 1) },
-        setOffset(key, event) { if (!this.busy) this.form[key] = Number(event.detail.value) },
-        setTime(key, event) { if (!this.busy) this.form[key] = event.detail.value },
-        /** 直接保存记录，沿用版本和同一请求编号防止重复写入。 */
-        async save() {
-            if (this.busy || !this.editing) return;
-            if (this.form.kind === 'work' && (!this.form.shiftId || !this.form.processIds.length || typeof this.selectedHours !== 'number')) { this.error = '请选择实际班次、参与工序并核对实际时间'; return }
-            if (this.profile.isAdmin && this.editing._id && !this.form.changeReason.trim()) { this.error = '管理员修改请填写原因'; return }
-            const record = { date: this.form.date, kind: this.form.kind, absenceType: this.form.kind === 'rest' ? this.form.absenceType || 'rest' : '', shiftId: this.form.kind === 'rest' ? '' : this.form.shiftId, processIds: this.form.kind === 'rest' ? [] : [...this.form.processIds], startTime: this.form.startTime, endTime: this.form.endTime, startDayOffset: this.form.startDayOffset, endDayOffset: this.form.endDayOffset, note: this.form.note, changeReason: this.form.changeReason };
-            if (this.editing._id) record._id = this.editing._id;
-            const payload = { record, expectedVersion: this.editing.version || 0 };
-            const requestId = operationRequest(this, 'saveAttendance', payload);
-            this.saving = true; this.error = ''; this.notice = '';
-            try { await callOperations('saveAttendance', { ...payload, requestId }); this.notice = '考勤记录已保存。'; this.page = 1; await this.load() }
-            catch (error) { this.error = error.message + (error.code === 409 ? ' 请刷新后查看最新记录。' : '') }
-            finally { this.saving = false }
+    computed: {
+        busy() { return this.loading },
+        calendarValue() { return this.periodType === 'year' ? this.period + '-01-01' : monthOf(this.period) + '-01' },
+        periodLabel() { return this.periodType === 'year' ? this.period + '年' : this.period.slice(0, 4) + '年' + Number(this.period.slice(5, 7)) + '月' },
+        dayGroups() {
+            const groups = new Map()
+            for (const row of this.rows) {
+                if (!groups.has(row.date)) groups.set(row.date, { date: row.date, weekday: WEEKDAYS[parseDate(row.date).getDay()], rows: [] })
+                groups.get(row.date).rows.push(row)
+            }
+            return [...groups.values()].map(group => ({ ...group, statuses: [...new Set(group.rows.map(row => this.statusOf(row)))] }))
         },
-        /** 仅在新排班与已有修改冲突时选择整条内容，不设出勤审批。 */
-        async resolveConflict(row, choice) { if (this.busy) return; const payload = { id: row._id, choice, expectedVersion: row.version }; const requestId = operationRequest(this, 'resolveAttendanceConflict', payload); this.saving = true; this.error = ''; this.notice = ''; try { await callOperations('resolveAttendanceConflict', { ...payload, requestId }); this.notice = choice === 'schedule' ? '已采用新排班。' : '已保留我的修改。'; await this.load() } catch (error) { this.error = error.message + (error.code === 409 ? ' 请刷新后查看最新记录。' : '') } finally { this.saving = false } },
-        async showHistory(record) { if (this.busy) return; this.historyRows = []; this.historyLoading = true; this.error = ''; try { const result = await callOperations('attendanceHistory', { id: record._id }); this.historyRows = (result.versions || []).slice().sort((a, b) => b.version - a.version) } catch (error) { this.error = error.message } finally { this.historyLoading = false } }
+        overview() {
+            const attendanceDays = Number((this.summary && this.summary.attendanceDays) || 0)
+            const hours = Math.round(Number((this.summary && this.summary.workHours) || 0) * 100) / 100
+            const restDays = Number((this.summary && this.summary.restDays) || 0)
+            const leaveDays = Number((this.summary && this.summary.leaveDays) || 0)
+            const total = attendanceDays + restDays + leaveDays
+            const processRows = (this.summary && this.summary.processes) || []
+            const max = processRows.reduce((value, item) => Math.max(value, Number(item.count) || 0), 0) || 1
+            return {
+                attendanceDays,
+                hours,
+                restDays,
+                leaveDays,
+                rate: total ? Math.round(attendanceDays / total * 100) : 0,
+                processes: processRows.map(item => ({ name: item.name, count: item.count, width: Math.round((Number(item.count) || 0) / max * 100) }))
+            }
+        },
+        conflicts() { return this.rows.filter(row => row.conflict) }
+    },
+    onShow() { this.load() },
+    methods: {
+        /** 只读页面：列表与概览都只取数，不提供任何写操作。 */
+        load() {
+            const query = { periodType: this.periodType, period: this.period }
+            return loadOperations(this, () => Promise.all([
+                callOperations('myAttendance', { ...query, page: this.page, pageSize: this.pageSize }),
+                callOperations('attendanceSummary', { ...query, own: true })
+            ]), ([result, summary]) => {
+                this.rows = result.list || []
+                this.total = result.total || 0
+                this.summary = summary || null
+            })
+        },
+        clearLoaded() { this.rows = []; this.summary = null; this.total = 0 },
+        changePeriod(event) { if (this.busy) return; this.period = event.detail.value.slice(0, this.periodType === 'year' ? 4 : 7); this.page = 1; this.load() },
+        setPeriodType(type) {
+            if (this.busy || type === this.periodType) return
+            if (type === 'year') { this.lastMonth = monthOf(this.period).slice(5, 7); this.period = this.period.slice(0, 4) }
+            else this.period = this.period.slice(0, 4) + '-' + this.lastMonth
+            this.periodType = type; this.page = 1; this.load()
+        },
+        prevPeriod() { this.shiftPeriod(-1) },
+        nextPeriod() { this.shiftPeriod(1) },
+        shiftPeriod(delta) {
+            if (this.busy) return
+            const step = Number(delta)
+            if (!Number.isFinite(step) || !step) return
+            if (this.periodType === 'year') this.period = String(Number(this.period) + step)
+            else this.period = shiftMonth(this.period, step)
+            this.page = 1; this.load()
+        },
+        changePage(step) { if (!this.busy) { this.page += step; this.load() } },
+        statusOf(row) { return row.kind === 'rest' ? (row.absenceType === 'leave' ? 'leave' : 'rest') : 'work' },
+        statusLabel(status) { return STATUS_LABELS[status] || '出勤' },
+        hoursLabel(hours) { return (Math.round(Number(hours || 0) * 100) / 100) + 'h' },
+        shiftLabel(name) { return String(name || '').replace(SHIFT_HOURS, '').trim() || '未填班次' },
+        noteText(row) {
+            // 只展示手填备注；排班同步来的 note 是导入端的人员安排文本，既重复又可能串人。
+            if (!row || row.source !== 'manual') return ''
+            return String(row.note || '').split('\n').map(line => line.trim()).filter(line => line && !isSystemNote(line)).join('\n')
+        },
+        timeRange(row) {
+            if (!row.startTime) return '时间未记录'
+            const start = (Number(row.startDayOffset) ? '次日 ' : '') + row.startTime
+            const end = (Number(row.endDayOffset) > Number(row.startDayOffset) ? '次日 ' : '') + row.endTime
+            return start + '–' + end
+        },
+        summaryLabel(record) {
+            if (!record) return '无记录'
+            if ((record.kind || 'work') === 'rest') return (record.absenceType === 'leave' ? '请假' : '休息')
+            const names = record.processNames || []
+            return this.shiftLabel(record.shiftName) + (names.length ? ' · ' + names.join('、') : '') + ' · ' + this.timeRange(record)
+        }
     }
 }
 </script>
-<style lang="scss" scoped>@import '@/styles/operations.scss';</style>
+<style lang="scss" scoped>
+@import '@/styles/operations.scss';
+
+.att-page { padding-bottom: calc(32rpx + env(safe-area-inset-bottom)); }
+.att-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; margin-bottom: 20rpx; }
+.att-period { display: flex; align-items: center; gap: 6rpx; min-width: 0; }
+.att-arrow { margin: 0; padding: 0; width: 56rpx; height: 56rpx; line-height: 56rpx; text-align: center; border-radius: 12rpx; background: $canvas; color: $primary; font-size: 32rpx; }
+.att-arrow::after { border: 0; }
+.att-period-value { font-size: 30rpx; font-weight: 700; padding: 0 6rpx; }
+.att-head-right { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; }
+.att-seg { display: flex; padding: 4rpx; border-radius: 12rpx; background: $canvas; }
+.att-seg-item { margin: 0; padding: 0 12rpx; min-height: 48rpx; line-height: 48rpx; font-size: 24rpx; border-radius: 8rpx; background: transparent; color: $muted; }
+.att-seg-item::after { border: 0; }
+.att-seg-item.active { background: $surface; color: $primary; font-weight: 600; }
+.att-help { margin: 0; padding: 0; width: 48rpx; height: 48rpx; line-height: 48rpx; text-align: center; border-radius: 50%; background: $canvas; color: $muted; font-size: 26rpx; }
+.att-help::after { border: 0; }
+.att-help-card { padding: 20rpx 16rpx; margin-bottom: 20rpx; border-radius: 16rpx; background: $primary-soft; }
+.att-help-text { font-size: 24rpx; color: $ink; line-height: 1.6; }
+.att-overview { padding: 16rpx; }
+.att-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12rpx; }
+.att-metric { display: flex; flex-direction: column; align-items: center; gap: 4rpx; }
+.att-metric-value { font-size: 36rpx; font-weight: 700; }
+.att-metric-label { font-size: 22rpx; color: $muted; }
+.att-rate { margin-top: 20rpx; }
+.att-rate-head { display: flex; align-items: center; justify-content: space-between; font-size: 24rpx; color: $muted; margin-bottom: 6rpx; }
+.att-rate-value { color: $primary; font-weight: 700; }
+.att-rate-track { height: 12rpx; border-radius: 999rpx; background: $canvas; overflow: hidden; }
+.att-rate-bar { height: 100%; border-radius: 999rpx; background: $primary; }
+.att-processes { margin-top: 12rpx; display: flex; flex-direction: column; gap: 6rpx; }
+.att-process { display: flex; align-items: center; gap: 12rpx; }
+.att-process-name { width: 160rpx; font-size: 22rpx; color: $muted; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.att-process-track { flex: 1; height: 10rpx; border-radius: 999rpx; background: $canvas; overflow: hidden; }
+.att-process-bar { height: 100%; border-radius: 999rpx; background: $primary; opacity: .7; }
+.att-process-count { width: 48rpx; text-align: right; font-size: 22rpx; color: $muted; }
+.att-conflicts { display: flex; flex-direction: column; gap: 12rpx; margin-bottom: 12rpx; }
+.att-conflict { padding: 20rpx; border-left: 6rpx solid $warning; }
+.att-conflict-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6rpx; }
+.att-conflict-title { font-size: 28rpx; font-weight: 700; }
+.att-conflict-line { display: block; font-size: 24rpx; color: $muted; line-height: 1.5; }
+.att-conflict-note { display: block; font-size: 22rpx; color: $warning; margin-top: 6rpx; }
+.att-day { padding: 20rpx 16rpx; }
+.att-day-head { display: flex; align-items: center; gap: 12rpx; padding-bottom: 12rpx; border-bottom: 1rpx solid $line; }
+.att-day-date { font-size: 30rpx; font-weight: 700; }
+.att-day-week { font-size: 22rpx; color: $muted; }
+.att-day-badges { margin-left: auto; display: flex; gap: 6rpx; }
+.att-row { padding: 12rpx 0; border-bottom: 1rpx solid $line; }
+.att-row:last-child { border-bottom: 0; }
+.att-row-main { min-width: 0; }
+.att-row-line { display: flex; align-items: baseline; justify-content: space-between; gap: 12rpx; }
+.att-title { font-size: 28rpx; font-weight: 600; }
+.att-hours { flex-shrink: 0; font-size: 26rpx; font-weight: 700; color: $primary; }
+.att-row-meta { display: block; font-size: 22rpx; color: $muted; margin-top: 4rpx; }
+.att-row-badges { display: flex; flex-wrap: wrap; gap: 6rpx; margin-top: 6rpx; }
+.att-note { display: block; font-size: 20rpx; color: $muted; line-height: 1.5; margin-top: 6rpx; opacity: .85; }
+.att-tag { display: inline-block; padding: 2rpx 12rpx; border-radius: 8rpx; font-size: 20rpx; background: $canvas; color: $muted; }
+.att-tag.work { background: $primary-soft; color: $primary; }
+.att-tag.leave { background: mix($warning, $surface, 15%); color: $warning; }
+.att-tag.rest { background: $canvas; color: $muted; }
+.att-tag.warn { background: mix($warning, $surface, 15%); color: $warning; }
+.att-tag.light { background: $canvas; color: $muted; }
+.att-pager { display: flex; align-items: center; justify-content: center; gap: 16rpx; padding: 20rpx 0 6rpx; }
+.att-pager-btn { margin: 0; min-height: 64rpx; line-height: 64rpx; padding: 0 16rpx; font-size: 24rpx; border-radius: 12rpx; background: $canvas; color: $primary; }
+.att-pager-btn::after { border: 0; }
+.att-pager-btn[disabled] { color: $muted; opacity: .5; }
+.att-pager-text { font-size: 24rpx; color: $muted; }
+</style>

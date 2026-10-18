@@ -4,7 +4,7 @@
     "private": true,
     "description": "MES 生产助手（uni-app + uniCloud 支付宝云）：包材计算、生产记录、版本追溯",
     "scripts": {
-        "test": "node --experimental-detect-module tests/calc.test.mjs && node --experimental-detect-module tests/mixins.test.mjs && node --experimental-detect-module tests/bom.test.mjs && node --experimental-detect-module tests/batch-parse.test.mjs && node --experimental-detect-module tests/fr-fetch.test.mjs && node --experimental-detect-module tests/order-parser.test.mjs && node --experimental-detect-module tests/ocr-config.test.mjs && node tests/mes-common.test.cjs && node tests/product-bom.test.cjs && node tests/product-materials.test.cjs && node tests/production-records.test.cjs && node tests/mes-management.test.cjs && node tests/production-orders.test.cjs && node tests/order-bom-sync.test.cjs && node tests/doc-ocr.test.cjs && node --experimental-detect-module tests/employee-no.test.mjs && node tests/personnel-import.test.cjs && node tests/operations-scope.test.cjs && node tests/schedule-calendar.test.cjs && node tests/ocr-own-key.test.cjs && node tests/ocr-screen-parse.test.cjs && node --experimental-detect-module tests/cloud-call.test.mjs",
+        "test": "node --experimental-detect-module tests/calc.test.mjs && node --experimental-detect-module tests/mixins.test.mjs && node --experimental-detect-module tests/bom.test.mjs && node --experimental-detect-module tests/batch-parse.test.mjs && node --experimental-detect-module tests/fr-fetch.test.mjs && node --experimental-detect-module tests/order-parser.test.mjs && node --experimental-detect-module tests/ocr-config.test.mjs && node tests/mes-common.test.cjs && node tests/product-bom.test.cjs && node tests/product-materials.test.cjs && node tests/production-records.test.cjs && node tests/mes-management.test.cjs && node tests/production-orders.test.cjs && node tests/order-bom-sync.test.cjs && node tests/doc-ocr.test.cjs && node --experimental-detect-module tests/employee-no.test.mjs && node tests/personnel-import.test.cjs && node tests/operations-scope.test.cjs && node tests/schedule-calendar.test.cjs && node tests/bind-personnel-accounts.test.cjs && node tests/attendance-conflict.test.cjs && node tests/ocr-own-key.test.cjs && node tests/ocr-screen-parse.test.cjs && node --experimental-detect-module tests/cloud-call.test.mjs",
         "test:batch": "node --experimental-detect-module tests/batch-parse.test.mjs",
         "test:fr": "node --experimental-detect-module tests/fr-fetch.test.mjs",
         "test:calc": "node --experimental-detect-module tests/calc.test.mjs",
@@ -23,7 +23,9 @@
         "test:orders": "node tests/production-orders.test.cjs",
         "test:bom-sync": "node tests/order-bom-sync.test.cjs",
         "test:ops-scope": "node tests/operations-scope.test.cjs",
-        "test:ops-calendar": "node tests/schedule-calendar.test.cjs"
+        "test:ops-calendar": "node tests/schedule-calendar.test.cjs",
+        "test:ops-bind": "node tests/bind-personnel-accounts.test.cjs",
+        "test:attendance-conflict": "node tests/attendance-conflict.test.cjs"
     },
     "engines": {
         "node": ">=18"

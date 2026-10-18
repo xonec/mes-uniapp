@@ -10,8 +10,8 @@
                 </view>
                 <view class="cal-actions">
                     <button class="cal-none" :disabled="loading" @tap="goCurrent">{{ mode === 'week' ? '本周' : '本月' }}</button>
-                    <button class="cal-nav" :disabled="loading" @tap="shiftPeriod(-1)" aria-label="上一周期">‹</button>
-                    <button class="cal-nav" :disabled="loading" @tap="shiftPeriod(1)" aria-label="下一周期">›</button>
+                    <button class="cal-nav" :disabled="loading" @tap.stop="prevPeriod" aria-label="上一周期">‹</button>
+                    <button class="cal-nav" :disabled="loading" @tap.stop="nextPeriod" aria-label="下一周期">›</button>
                 </view>
             </view>
             <text class="cal-title">{{ periodTitle }}</text>
@@ -265,8 +265,12 @@ export default {
             this.mode = mode; this.marks = []; this.marksReady = false; this.list = []; this.detailTotal = 0
             this.load()
         },
+        prevPeriod() { this.shiftPeriod(-1) },
+        nextPeriod() { this.shiftPeriod(1) },
         shiftPeriod(delta) {
-            this.selectedDate = this.mode === 'week' ? addDays(this.selectedDate, delta * 7) : shiftMonthKey(this.selectedDate, delta)
+            const step = Number(delta)
+            if (!Number.isFinite(step) || !step) return
+            this.selectedDate = this.mode === 'week' ? addDays(this.selectedDate, step * 7) : shiftMonthKey(this.selectedDate, step)
             this.marks = []; this.marksReady = false; this.list = []; this.detailTotal = 0; this.processIndex = 0; this.shiftIndex = 0
             this.load()
         },
@@ -298,19 +302,19 @@ export default {
 <style lang="scss" scoped>
 @import '@/styles/operations.scss';
 
-.cal-card { padding: 24rpx 20rpx; }
-.cal-top { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; flex-wrap: wrap; }
+.cal-card { padding: 16rpx 20rpx; }
+.cal-top { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; flex-wrap: wrap; }
 .cal-segmented { display: flex; padding: 4rpx; border-radius: 16rpx; background: $canvas; }
-.cal-seg { margin: 0; padding: 0 24rpx; min-height: 56rpx; line-height: 56rpx; font-size: 26rpx; border-radius: 12rpx; background: transparent; color: $muted; }
+.cal-seg { margin: 0; padding: 0 16rpx; min-height: 56rpx; line-height: 56rpx; font-size: 26rpx; border-radius: 12rpx; background: transparent; color: $muted; }
 .cal-seg::after { border: 0; }
 .cal-seg.active { background: $surface; color: $primary; font-weight: 600; }
-.cal-actions { display: flex; align-items: center; gap: 8rpx; }
-.cal-none { margin: 0; padding: 0 18rpx; min-height: 56rpx; line-height: 56rpx; font-size: 24rpx; border-radius: 12rpx; background: $canvas; color: $primary; }
+.cal-actions { display: flex; align-items: center; gap: 6rpx; }
+.cal-none { margin: 0; padding: 0 12rpx; min-height: 56rpx; line-height: 56rpx; font-size: 24rpx; border-radius: 12rpx; background: $canvas; color: $primary; }
 .cal-none::after { border: 0; }
 .cal-nav { margin: 0; padding: 0; width: 56rpx; height: 56rpx; line-height: 56rpx; text-align: center; border-radius: 12rpx; background: $canvas; color: $primary; font-size: 32rpx; }
 .cal-nav::after { border: 0; }
-.cal-title { display: block; font-size: 30rpx; font-weight: 700; margin: 16rpx 0 12rpx; }
-.cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; margin-bottom: 8rpx; }
+.cal-title { display: block; font-size: 30rpx; font-weight: 700; margin: 12rpx 0 12rpx; }
+.cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; margin-bottom: 6rpx; }
 .cal-weekday { text-align: center; color: $muted; font-size: 22rpx; }
 .week-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; }
 .week-cell { position: relative; box-sizing: border-box; min-height: 108rpx; padding: 10rpx 4rpx; border-radius: 12rpx; border: 1rpx solid $line; background: $surface; display: flex; flex-direction: column; align-items: center; }
@@ -321,7 +325,7 @@ export default {
 .week-rest { margin-top: 4rpx; font-size: 18rpx; color: $warning; line-height: 1.3; }
 .week-leave { margin-top: 4rpx; font-size: 18rpx; color: $muted; line-height: 1.3; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; }
-.cal-cell { position: relative; box-sizing: border-box; min-height: 92rpx; padding: 8rpx 4rpx; border-radius: 12rpx; background: $surface; border: 1rpx solid $line; display: flex; flex-direction: column; align-items: center; }
+.cal-cell { position: relative; box-sizing: border-box; min-height: 92rpx; padding: 6rpx 4rpx; border-radius: 12rpx; background: $surface; border: 1rpx solid $line; display: flex; flex-direction: column; align-items: center; }
 .cal-cell.outside { opacity: .35; }
 .cal-cell.today { border-color: $primary; }
 .cal-cell.selected { background: $primary-soft; border-color: $primary; }
@@ -331,20 +335,20 @@ export default {
 .cal-rest { font-size: 18rpx; color: $warning; line-height: 1.4; margin-top: 2rpx; }
 .cal-leave { font-size: 18rpx; color: $muted; line-height: 1.4; margin-top: 2rpx; }
 .cal-mine-dot { position: absolute; left: 50%; bottom: 6rpx; margin-left: -4rpx; width: 8rpx; height: 8rpx; border-radius: 50%; background: $primary; }
-.cal-empty { display: block; padding: 16rpx 0 0; text-align: center; }
-.cal-skeleton { padding: 8rpx 0; }
+.cal-empty { display: block; padding: 12rpx 0 0; text-align: center; }
+.cal-skeleton { padding: 6rpx 0; }
 .cal-skeleton-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; margin-bottom: 6rpx; }
 .cal-skeleton-cell { height: 92rpx; border-radius: 12rpx; background: $canvas; }
 .cal-skeleton-note { display: block; text-align: center; padding-top: 12rpx; }
-.plan-card { margin-top: 24rpx; }
-.filter-row { display: flex; flex-wrap: wrap; gap: 16rpx; margin: 16rpx 0; }
+.plan-card { margin-top: 16rpx; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 12rpx; margin: 12rpx 0; }
 .filter-button { margin: 0; padding: 0 20rpx; min-height: 64rpx; line-height: 64rpx; font-size: 24rpx; }
-.chips { display: flex; flex-wrap: wrap; gap: 16rpx; margin-bottom: 16rpx; }
-.chip { display: inline-block; font-size: 22rpx; color: $primary; background: $primary-soft; padding: 8rpx 18rpx; border-radius: 12rpx; }
+.chips { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 12rpx; }
+.chip { display: inline-block; font-size: 22rpx; color: $primary; background: $primary-soft; padding: 6rpx 12rpx; border-radius: 12rpx; }
 .plan-columns { display: flex; flex-wrap: wrap; gap: 20rpx; }
 .plan-col { flex: 1 1 300rpx; min-width: 0; }
 .plan-title { display: flex; align-items: center; justify-content: space-between; font-size: 28rpx; font-weight: 700; padding: 12rpx 0; border-bottom: 1rpx solid $line; }
-.plan-row { display: flex; flex-direction: column; gap: 4rpx; padding: 16rpx 0; border-bottom: 1rpx solid $line; }
+.plan-row { display: flex; flex-direction: column; gap: 4rpx; padding: 12rpx 0; border-bottom: 1rpx solid $line; }
 .plan-row:last-child { border-bottom: 0; }
 .plan-code { font-family: monospace; font-size: 26rpx; color: $primary; }
 .plan-person { font-size: 28rpx; font-weight: 600; }
