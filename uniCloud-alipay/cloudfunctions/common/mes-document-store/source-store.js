@@ -143,7 +143,7 @@ async function recordRecognition(db, options) {
         _id: id, sourceDocumentId: source._id, createdBy: uid, createdAt: Date.now(), purpose,
         source: result.recognitionSource || 'ocrspace', provider: result.recognitionProvider || '', model: result.recognitionModel || '',
         processedHashes, output, rawText: String(result.recognitionRaw && result.recognitionRaw.raw_text || result.recognitionDocument && result.recognitionDocument.raw_text || result.rawText || text || '').slice(0, 100000),
-        prompt: safeOutput(prompt.contentPrompt ? { ...prompt, usedForOutput: true } : { usedForOutput: false, note: '此结果来自OCR初筛或产品档案，没有使用大模型Prompt' }),
+        prompt: safeOutput(prompt.contentPrompt ? { ...prompt, usedForOutput: true } : { usedForOutput: false, note: '此结果来自免费 OCR 或产品档案，没有使用大模型 Prompt' }),
         modelUsed: result.modelUsed === true
     })
     return { ...result, sourceDocumentId: source._id, recognitionRunId: id }

@@ -1,5 +1,5 @@
 'use strict'
-const { ClientError } = require('mes-common')
+const { ClientError, batchIsValid } = require('mes-common')
 const { addImmutable } = require('./source-store')
 const { sourcePages } = require('./trace-fields')
 
@@ -66,18 +66,38 @@ function authorizeEnabledChange(old, record, isAdmin, label) {
 }
 
 /** 分页查询管理列表；关键字使用字面量，避免输入影响正则规则。 */
-async function listDocuments(db, collection, event, searchFields, fields) {
+async function listDocuments(db, collection, event, searchFields, fields, options = {}) {
     const page = Math.max(1, Math.floor(Number(event.page) || 1))
-    const pageSize = Math.min(50, Math.max(1, Math.floor(Number(event.pageSize) || 20)))
+    const maxPageSize = Math.max(1, Math.floor(Number(options.maxPageSize) || 50))
+    const requestedPageSize = Math.max(1, Math.floor(Number(event.pageSize) || 20))
+    if (options.rejectOverMax && requestedPageSize > maxPageSize) throw new ClientError('每页数量须在 1～' + maxPageSize + ' 之间', 400)
+    const pageSize = Math.min(maxPageSize, requestedPageSize)
     const keyword = String(event.keyword || '').trim().slice(0, 80)
     const conditions = []
     if (event.status === 'disabled') conditions.push({ enabled: false })
     else if (event.status !== 'all') conditions.push({ enabled: db.command.neq(false) })
-    const status = conditions[0] || {}
-    let where = status
+    // 订单状态筛选：不传或 all = 全部，非法值返回可读错误。
+    if (event.orderStatus !== undefined && event.orderStatus !== null && String(event.orderStatus).trim() !== '') {
+        const orderStatus = String(event.orderStatus).trim()
+        if (!['draft', 'confirmed', 'all'].includes(orderStatus)) throw new ClientError('订单状态筛选须为 draft、confirmed 或 all', 400)
+        if (orderStatus !== 'all') conditions.push({ orderStatus })
+    }
+    const timeValue = (value, label) => {
+        if (value === undefined || value === null || String(value).trim() === '') return null
+        const n = Number(value)
+        if (!Number.isFinite(n) || !Number.isInteger(n)) throw new ClientError(label + '须为毫秒时间戳', 400)
+        return n
+    }
+    const updatedFrom = timeValue(event.updatedFrom, '更新时间起点')
+    const updatedTo = timeValue(event.updatedTo, '更新时间终点')
+    if (updatedFrom !== null && updatedTo !== null && updatedFrom > updatedTo) throw new ClientError('更新时间起点不能晚于终点', 400)
+    if (updatedFrom !== null) conditions.push({ updatedAt: db.command.gte(updatedFrom) })
+    if (updatedTo !== null) conditions.push({ updatedAt: db.command.lte(updatedTo) })
+    let where = conditions.length === 1 ? conditions[0] : conditions.length ? db.command.and(conditions) : {}
     if (keyword) {
         const regexp = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        where = db.command.or(searchFields.map(field => ({ ...status, [field]: db.RegExp({ regexp, options: 'i' }) })))
+        const keywordWhere = db.command.or(searchFields.map(field => ({ [field]: db.RegExp({ regexp, options: 'i' }) })))
+        where = conditions.length ? db.command.and([...conditions, keywordWhere]) : keywordWhere
     }
     const coll = db.collection(collection)
     const count = await coll.where(where).count()
@@ -113,7 +133,7 @@ function normalizeOrder(input) {
     const batchNo = String(input.batchNo || '').trim().toUpperCase()
     if (!/^\d{4,12}$/.test(orderNo)) throw new ClientError('订单号须为 4～12 位数字', 400)
     if (!/^\d{10}$/.test(productCode)) throw new ClientError('产品编码须为 10 位数字', 400)
-    if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(batchNo)) throw new ClientError('批号须为 11 位且含字母和数字', 400)
+    if (!batchIsValid(batchNo)) throw new ClientError('批号须为 11 位且含字母和数字，可追加 B 单后缀', 400)
     const plannedQty = Number(input.plannedQty)
     if (input.plannedQty === '' || input.plannedQty == null || !Number.isFinite(plannedQty) || plannedQty < 0) throw new ClientError('计划产量须为非负数', 400)
     return {
@@ -127,9 +147,22 @@ function normalizeOrder(input) {
     }
 }
 
-/** App 导入与后台订单编辑使用同一归一化和版本写入规则。 */
-async function saveOrder(db, input, uid, expectedVersion, isAdmin = false) {
-    return require('./order-trace').saveTracedOrder(db, input, uid, expectedVersion, isAdmin, { normalizeOrder, normalizeMaterials, saveVersioned, stableKey, authorizeEnabledChange })
+// 甘特计划时间：2020-01-01 ~ 2035-12-31（UTC 边界），可空。
+const PLAN_START_MIN = Date.UTC(2020, 0, 1)
+const PLAN_START_MAX = Date.UTC(2036, 0, 1) - 1
+
+/** null/undefined/空串视为清空；其余必须是范围内的毫秒时间戳。 */
+function normalizePlanTime(value, label) {
+    if (value === undefined || value === null || String(value).trim() === '') return null
+    const n = Number(value)
+    if (!Number.isInteger(n)) throw new ClientError((label || '计划时间') + '须为毫秒时间戳', 400)
+    if (n < PLAN_START_MIN || n > PLAN_START_MAX) throw new ClientError((label || '计划时间') + '须在 2020-01-01 至 2035-12-31 之间', 400)
+    return n
 }
 
-module.exports = { saveVersioned, listDocuments, normalizeMaterials, normalizeOrder, saveOrder, stableKey, updatedCount, authorizeEnabledChange }
+/** App 导入与后台订单编辑使用同一归一化和版本写入规则。 */
+async function saveOrder(db, input, uid, expectedVersion, isAdmin = false) {
+    return require('./order-trace').saveTracedOrder(db, input, uid, expectedVersion, isAdmin, { normalizeOrder, normalizeMaterials, normalizePlanTime, saveVersioned, stableKey, authorizeEnabledChange })
+}
+
+module.exports = { saveVersioned, listDocuments, normalizeMaterials, normalizeOrder, normalizePlanTime, saveOrder, stableKey, updatedCount, authorizeEnabledChange }

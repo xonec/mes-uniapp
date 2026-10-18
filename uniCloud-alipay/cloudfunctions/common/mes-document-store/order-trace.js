@@ -1,7 +1,8 @@
 'use strict'
-const { ClientError } = require('mes-common')
+const { ClientError, batchIsValid } = require('mes-common')
 const { addImmutable, validateSourceReference, sourceDetail } = require('./source-store')
 const { text, basePackSpec, normalizePallet, actorName, changes } = require('./trace-fields')
+const { syncOrderBom } = require('./bom-store')
 
 /** 获取订单当前记录，固定订单号主键。 */
 async function currentOrder(db, orderNo) { return ((await db.collection('production_orders').doc('order:' + orderNo).get()).data || [])[0] || null }
@@ -19,6 +20,10 @@ async function saveTracedOrder(db, input, uid, expectedVersion, isAdmin, store) 
     if (old && expectedVersion === undefined) throw new ClientError('更新订单须带当前版本，请重新加载后保存', 409)
     if (expectedVersion !== undefined && expectedVersion !== (old ? Number(old.version) || 1 : 0)) throw new ClientError('订单已被修改，请重新加载后核对', 409)
     const preserve = field => Object.prototype.hasOwnProperty.call(input, field) ? input[field] : old && old[field]
+    // 计划起止时间：App 不传时保留旧值（或 null），显式传 null 才清空。
+    record.planStartAt = store.normalizePlanTime(preserve('planStartAt'), '计划开始时间')
+    record.planEndAt = store.normalizePlanTime(preserve('planEndAt'), '计划结束时间')
+    if (record.planStartAt !== null && record.planEndAt !== null && record.planEndAt <= record.planStartAt) throw new ClientError('计划结束时间须晚于计划开始时间', 400)
     record.rawPackSpec = text(input.rawPackSpec || input.packSpec, 500)
     record.packSpec = basePackSpec(input.packSpec)
     const product = ((await db.collection('product_materials').doc('mat:' + record.productCode).get()).data || [])[0]
@@ -27,7 +32,7 @@ async function saveTracedOrder(db, input, uid, expectedVersion, isAdmin, store) 
     record.plannedQtyRaw = text(input.plannedQtyRaw !== undefined && Number(input.plannedQtyRaw) === record.plannedQty ? input.plannedQtyRaw : input.plannedQty, 50)
     record.sampleCount = text(input.sampleCount, 2000)
     record.packingBatchNo = text(preserve('packingBatchNo'), 40).toUpperCase()
-    if (record.packingBatchNo && !/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(record.packingBatchNo)) throw new ClientError('包装批号须为完整11位字母数字', 400)
+    if (record.packingBatchNo && !batchIsValid(record.packingBatchNo)) throw new ClientError('包装批号须为11 位字母数字或其后的 B 单后缀', 400)
     if (record.packingBatchNo === record.batchNo) record.packingBatchNo = ''
     record.orderStatus = ['draft', 'confirmed'].includes(preserve('orderStatus')) ? preserve('orderStatus') : 'draft'
     record.customerId = text(preserve('customerId'), 80)
@@ -68,7 +73,14 @@ async function saveTracedOrder(db, input, uid, expectedVersion, isAdmin, store) 
         authorizeChange: previous => store.authorizeEnabledChange(previous, record, isAdmin, '订单'),
         audit: (previous, version) => ({ actorId: uid, actorName: name, at: Date.now(), reason: reason || '首次录入', action: previous ? 'update' : 'create', previousVersion: previous ? Number(previous.version) || 1 : 0, version, changedFields: changes(previous, record, store.stableKey).map(item => item.field) })
     })
-    return { ...result, orderNo: record.orderNo }
+    // 订单保存成功后自动同步 BOM；BOM 失败不阻塞订单保存，只在返回里标记原因。
+    let bom
+    try { bom = await syncOrderBom(db, record, uid) }
+    catch (error) {
+        console.warn('[order-trace] BOM 自动同步失败：' + String((error && (error.message || error.errMsg)) || error).slice(0, 160))
+        bom = { action: 'failed', error: String((error && (error.message || error.errMsg)) || 'BOM 同步失败').slice(0, 200) }
+    }
+    return { ...result, orderNo: record.orderNo, bom }
 }
 /** 获取指定订单版本，历史版本只读。 */
 async function orderVersion(db, current, version) {
@@ -83,7 +95,7 @@ async function orderVersion(db, current, version) {
 async function traceOrder(db, event, uid) {
     let orderNo = text(event.orderNo, 12), batchNo = text(event.batchNo, 40).toUpperCase()
     if (!orderNo) {
-        if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(batchNo)) throw new ClientError('请输入完整11位生产批号', 400)
+        if (!batchIsValid(batchNo)) throw new ClientError('请输入完整生产批号（含 B 单后缀）', 400)
         const linked = ((await db.collection('production_batch_orders').doc('batch:' + batchNo).get()).data || [])[0]
         if (linked) orderNo = linked.orderNo
         else {
@@ -126,7 +138,7 @@ module.exports = { saveTracedOrder, traceOrder, currentOrder }
 /** 生产计算按完整批号查当前订单，不使用批号前缀猜产品或方案。 */
 async function getOrderByBatch(db, batchNo) {
     const code = text(batchNo, 40).toUpperCase()
-    if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(code)) throw new ClientError('批号须为完整11位字母数字', 400)
+    if (!batchIsValid(code)) throw new ClientError('批号须为11 位字母数字或其后的 B 单后缀', 400)
     const rows = (await db.collection('production_orders').where({ batchNo: code }).limit(2).get()).data || []
     if (rows.length > 1) throw new ClientError('此批号关联多个早期订单，请管理员先核对', 409)
     return rows[0] || null

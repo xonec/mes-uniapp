@@ -3,8 +3,9 @@ const clone = value => JSON.parse(JSON.stringify(value))
 
 function createMemoryDb() {
     const store = new Map()
-    const command = Object.fromEntries(['lt', 'neq', 'exists', 'inc'].map(op => [op, value => ({ op, value })]))
+    const command = Object.fromEntries(['lt', 'lte', 'gte', 'neq', 'exists', 'inc'].map(op => [op, value => ({ op, value })]))
     command.or = (...items) => ({ op: 'or', value: items.flat() })
+    command.and = (...items) => ({ op: 'and', value: items.flat() })
     const ensure = name => {
         if (!store.has(name)) store.set(name, new Map())
         return store.get(name)
@@ -12,9 +13,12 @@ function createMemoryDb() {
     const match = (doc, where) => {
         if (!where) return true
         if (where.op === 'or') return where.value.some(item => match(doc, item))
+        if (where.op === 'and') return where.value.every(item => match(doc, item))
         return Object.entries(where).every(([key, value]) => {
             if (value instanceof RegExp) return value.test(String(doc[key] || ''))
             if (value && value.op === 'lt') return doc[key] < value.value
+            if (value && value.op === 'lte') return doc[key] <= value.value
+            if (value && value.op === 'gte') return doc[key] >= value.value
             if (value && value.op === 'neq') return doc[key] !== value.value
             if (value && value.op === 'exists') return (doc[key] !== undefined) === value.value
             return doc[key] === value
@@ -66,6 +70,7 @@ function createMemoryDb() {
                     },
                     doc(id) {
                         return {
+                            field(value) { return query({ _id: id }).field(value) },
                             async get() { const doc = ensure(name).get(id); return { data: doc ? [clone(doc)] : [] } },
                             async set(data) {
                                 if (db.failWrite === name) throw new Error('write failed')

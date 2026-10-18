@@ -22,7 +22,7 @@
         "batchNo": {
             "bsonType": "string",
             "title": "生产批号",
-            "description": "11 位、同时含字母与数字"
+            "description": "11 位、同时含字母与数字；B 单追加末尾 B，完整保存并精确关联"
         },
         "productCode": {
             "bsonType": "string",
@@ -113,6 +113,16 @@
         "enabled": {
             "bsonType": "bool",
             "title": "是否启用"
+        },
+        "planStartAt": {
+            "bsonType": "number",
+            "title": "计划开始时间",
+            "description": "毫秒时间戳，可空；甘特图按有值处理，范围 2020-01-01 至 2035-12-31"
+        },
+        "planEndAt": {
+            "bsonType": "number",
+            "title": "计划结束时间",
+            "description": "毫秒时间戳，可空；与开始时间同时填写时必须晚于开始时间"
         },
         "updatedAt": {
             "bsonType": "number",

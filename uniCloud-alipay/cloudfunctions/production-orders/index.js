@@ -28,8 +28,8 @@ exports.main = async event => {
         if (action === 'list') return ok(await listDocuments(db, COLL, event, ['orderNo', 'batchNo', 'productCode', 'productName'], {
             orderNo: true, batchNo: true, productCode: true, productName: true, packSpec: true,
             plannedQty: true, sampleCount: true, updatedAt: true, savedAt: true, version: true, enabled: true,
-            orderStatus: true, customerName: true, 'pallet.status': true, planName: true
-        }))
+            orderStatus: true, customerName: true, planName: true, planStartAt: true, planEndAt: true, 'pallet.status': true
+        }, { maxPageSize: 200, rejectOverMax: true }))
         if (action === 'get' || action === 'setEnabled') {
             const orderNo = String(event.orderNo || '').trim()
             if (!/^\d{4,12}$/.test(orderNo)) return fail(400, '订单号非法')

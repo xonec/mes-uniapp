@@ -1,0 +1,21 @@
+[
+    {
+        "IndexName": "bom_version_uniq",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "productCode", "Direction": "1", "Type": "string" },
+                { "Name": "bomVersion", "Direction": "-1", "Type": "long" }
+            ],
+            "MgoIsUnique": true
+        }
+    },
+    {
+        "IndexName": "savedAt_idx",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                { "Name": "savedAt", "Direction": "-1", "Type": "long" }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

@@ -8,13 +8,16 @@
 //   action = 'list'         ：列出 BOM（默认只列 enabled!==false，可按 batchPrefix 过滤，投影精简字段）
 //   action = 'matchByBatch' ：按批号前 4 位（batchPrefix）匹配；命中唯一一份才返回，多份视为歧义
 //   action = 'upsert'       ：幂等写入/更新一份 BOM（同产品编码始终同一 _id）
+//   action = 'setEnabled'   ：管理员启用/停用 BOM；只改 enabled 与 updatedAt/updatedBy，不动版本与来源元数据
+//   action = 'listVersions' ：管理员按产品编码读取 product_bom_versions 历史快照（按版本倒序）
 //
-// 读取需登录；写入按 batch-buckets 同样口径需登录（如需收紧为管理员，把 checkAuth 换成 checkAdmin 即可）。
+// 读取需登录；写入按 batch-buckets 同样口径需登录；setEnabled / listVersions 需管理员。
 // 依赖公共模块 mes-common（token 校验 / 鉴权 / 响应封装 / ClientError）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
-const { checkAuth, ok, fail, ClientError } = require('mes-common')
+const { checkAuth, checkAdmin, ok, fail, ClientError } = require('mes-common')
 
 const COLL = 'product_bom'
+const VERSIONS_COLL = 'product_bom_versions'
 const BASIS = ['inner', 'bottle', 'mid', 'case', 'pallet', 'manual']
 const LEVEL_KEYS = ['mid', 'case', 'pallet']
 const ROUND_MODES = ['ceil', 'floor', 'round', 'none']
@@ -233,6 +236,30 @@ exports.main = async (event) => {
             const hit = (((res || {}).data) || []).filter(b => b && b.enabled !== false)
             if (hit.length === 1) return ok({ bom: hit[0], ambiguous: false, count: 1 })
             return ok({ bom: null, ambiguous: hit.length > 1, count: hit.length })
+        }
+
+        // 只改启用状态：用 update 而不是 set，保留 bomVersion/source/sourceOrderNo 等元数据。
+        if (action === 'setEnabled') {
+            const auth = await checkAdmin(db, event.uniIdToken)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
+            const code = normalizeProductCode(event.productCode)
+            if (typeof event.enabled !== 'boolean') return fail(400, '启用状态非法')
+            const id = docId(code)
+            const rows = ((await db.collection(COLL).doc(id).get()) || {}).data || []
+            if (!rows.length) return fail(404, 'BOM 不存在')
+            const updatedAt = Date.now()
+            await db.collection(COLL).doc(id).update({ enabled: event.enabled, updatedAt, updatedBy: auth.uid })
+            return ok({ _id: id, productCode: code, enabled: event.enabled, bomVersion: rows[0].bomVersion, updatedAt })
+        }
+
+        // 管理员读取历史快照：订单自动同步或手工修改升版本时归档的旧 BOM。
+        if (action === 'listVersions') {
+            const auth = await checkAdmin(db, event.uniIdToken)
+            if (auth.errCode) return fail(auth.errCode, auth.message)
+            const code = normalizeProductCode(event.productCode)
+            const limit = Math.min(100, Math.max(1, num(event.limit, 50)))
+            const rows = (((await db.collection(VERSIONS_COLL).where({ productCode: code }).limit(limit).get()) || {}).data) || []
+            return ok(rows.slice().sort((a, b) => (Number(b.bomVersion) || 0) - (Number(a.bomVersion) || 0)))
         }
 
         if (action === 'upsert') {

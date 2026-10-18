@@ -209,7 +209,12 @@
         "source": {
             "bsonType": "string",
             "title": "数据来源",
-            "description": "manual 手工录入 | import 批量导入 | photo 由人工或其他端从纸质指令单转录（⚠ 当前模型不能读图，不能由本助手转录；转录后需双人核对物料编号）"
+            "description": "manual 手工录入 | import 批量导入 | photo 由人工从纸质指令单转录 | order 由订单保存自动同步（订单只提供描述字段，计算参数保留原值）"
+        },
+        "sourceOrderNo": {
+            "bsonType": "string",
+            "title": "来源订单号",
+            "description": "最近一次由订单自动同步时的订单号；BOM 手工维护时可为空"
         },
         "updatedAt": {
             "bsonType": "number",

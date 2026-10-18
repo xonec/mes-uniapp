@@ -1,0 +1,46 @@
+{
+    "bsonType": "object",
+    "description": "产品 BOM 历史版本快照；订单自动同步或手工修改导致 BOM 升版本时写入旧快照，只读，读写走云函数。",
+    "required": ["productCode", "bomVersion", "materials"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "ver:<产品编码>:<旧 bomVersion>"
+        },
+        "productCode": {
+            "bsonType": "string",
+            "title": "产品编码"
+        },
+        "bomVersion": {
+            "bsonType": "number",
+            "title": "旧 BOM 版本",
+            "description": "被归档的那一版 bomVersion"
+        },
+        "materials": {
+            "bsonType": "array",
+            "title": "旧物料清单快照",
+            "items": { "bsonType": "object" }
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "该版本最后更新时间"
+        },
+        "updatedBy": {
+            "bsonType": "string",
+            "title": "该版本最后操作人"
+        },
+        "sourceOrderNo": {
+            "bsonType": "string",
+            "title": "该版本来源订单号"
+        },
+        "savedAt": {
+            "bsonType": "number",
+            "title": "归档时间（毫秒时间戳）"
+        }
+    }
+}
