@@ -12,6 +12,7 @@
 import { getToken, logout } from './auth.js'
 
 const CALL_TIMEOUT = 60000
+const OCR_RECOGNIZE_TIMEOUT = 100000   // 服务端识别预算 75s + 网络/收尾余量
 const LONG_CALL_TIMEOUT = 210000
 
 function isTransportFailure(raw) {
@@ -42,9 +43,9 @@ export async function callCloud(name, action, payload = {}) {
     if (typeof uniCloud === 'undefined' || !uniCloud.callFunction) {
         throw new Error('uniCloud 未初始化（检查 manifest 的云服务空间配置）')
     }
-    const timeout = (name === 'doc-ocr' && action === 'recognize') || (name === 'production-orders' && action === 'commitSourceImages')
-        ? LONG_CALL_TIMEOUT
-        : CALL_TIMEOUT
+    const timeout = name === 'doc-ocr' && action === 'recognize'
+        ? OCR_RECOGNIZE_TIMEOUT
+        : (name === 'production-orders' && action === 'commitSourceImages' ? LONG_CALL_TIMEOUT : CALL_TIMEOUT)
     const startedAt = Date.now()
     let res
     try {

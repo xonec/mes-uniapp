@@ -30,7 +30,7 @@
 
         <block v-else>
             <view class="card">
-                <view class="card-title">OCR.space 产品编码初筛</view>
+                <view class="card-title">OCR.space 免费识别（兜底）</view>
                 <view class="tip">照片预处理后先提取产品编码：已有档案跳过大模型，新产品自动识别。当前 OCR.space Key：{{ ocrSpaceMaskedKey || '未配置' }}。留空保存保留原 Key。</view>
                 <view class="field"><text class="lbl">OCR.space Key</text><input class="inp" v-model="form.ocrSpaceApiKey" password :disabled="saving || loading" placeholder="首次填入，之后留空保留" /></view>
                 <view class="field"><text class="lbl">免费识别引擎</text><input class="inp" v-model="form.ocrSpaceEngine" type="number" :disabled="saving || loading" placeholder="2（推荐），也可填 1 或 3" /></view>

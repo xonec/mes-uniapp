@@ -1,6 +1,6 @@
 {
     "bsonType": "object",
-    "description": "共用 OCR 配置：独立供应商 Key、初筛引擎顺序、模型顺序、Prompt 模板、请求预算和缓存；仅通过管理员云函数读写",
+    "description": "共用 OCR 配置：独立供应商 Key、免费识别引擎顺序、模型顺序、Prompt 模板、请求预算和缓存；仅通过管理员云函数读写",
     "required": [
         "apiUrl",
         "model",
@@ -82,6 +82,12 @@
             "minimum": 0,
             "description": "相同图片/文本结果复用分钟，独立配置（默认 10080=7 天；0 表示不长期复用）"
         },
+        "flowMode": {
+            "bsonType": "string",
+            "title": "识别流程",
+            "description": "model-first（默认，大模型优先、OCR.space 兜底）或 screen-first（先 OCR.space 免费识别）",
+            "enum": ["model-first", "screen-first"]
+        },
         "providers": {
             "bsonType": "array",
             "title": "独立供应商配置",
@@ -100,7 +106,7 @@
         },
         "screenEngines": {
             "bsonType": "array",
-            "title": "OCR.space 初筛引擎顺序",
+            "title": "OCR.space 免费识别引擎顺序",
             "items": {
                 "bsonType": "number",
                 "enum": [

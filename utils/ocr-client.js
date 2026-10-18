@@ -3,6 +3,11 @@ const SERVICE_CHECK_TTL = 60000
 let serviceCheckedAt = 0
 let serviceCapabilities = null
 
+/** 当前缓存的识别流程；未取到能力前按旧流程（screen-first）处理。 */
+export function ocrFlowMode() {
+    return serviceCapabilities && serviceCapabilities.flowMode === 'model-first' ? 'model-first' : 'screen-first'
+}
+
 /** 校验云端授予的上传状态，仅在持有有效状态时发送图片。 */
 function uploadStateFor(result) {
     if (!/^[a-f0-9]{32}$/.test(String(result.uploadOwner || '')) || !/^upload:c:[a-f0-9]{64}$/.test(String(result.uploadKey || ''))) throw new Error('图片上传信息异常，请重新识别')
@@ -57,33 +62,51 @@ export function buildOcrRequest(images, purpose, options = {}) {
     return { ...options, protocolVersion: OCR_PROTOCOL_VERSION, images: data, originalHashes, processedHashes, purpose: purpose === 'bom' ? 'bom' : 'order' }
 }
 
-/** 先确认同一空间中的云函数已支持初筛查库流程，再发送照片；旧接口不进入识别。 */
+/** 读取并缓存云端识别能力（含 flowMode）；旧接口不进入识别。 */
+async function ensureCapabilities(call, force = false) {
+    if (!force && serviceCheckedAt && Date.now() - serviceCheckedAt <= SERVICE_CHECK_TTL && serviceCapabilities) return serviceCapabilities
+    let capability
+    try { capability = await call('doc-ocr', 'getCapabilities') }
+    catch (error) {
+        if (error.code === 401) throw error
+        const failure = new Error('识别服务版本检查失败。请确认已将新版 doc-ocr 上传到当前使用的云空间，再重新识别。' + (error.message ? '（' + String(error.message).slice(0, 160) + '）' : ''))
+        failure.code = error.code
+        throw failure
+    }
+    if (!capability || capability.protocolVersion !== OCR_PROTOCOL_VERSION || capability.flow !== 'archive-first' || capability.multiImage !== true || capability.originalImages !== true || capability.hashPreflight !== true || capability.sourceTrace !== true) {
+        throw new Error('云端尚未支持原图追溯，请上传新版 doc-ocr、production-orders 及公共模块后重试')
+    }
+    serviceCapabilities = capability
+    serviceCheckedAt = Date.now()
+    return capability
+}
+
+/** 页面进入时预设识别流程；取不到能力时返回 screen-first（旧流程安全默认）。 */
+export async function loadOcrFlowMode(call) {
+    try { await ensureCapabilities(call); return ocrFlowMode() }
+    catch (error) {
+        console.warn('读取识别流程失败，暂按旧流程处理：' + (error.message || error.errMsg || ''))
+        return 'screen-first'
+    }
+}
+
+/** 先确认同一空间中的云函数已支持免费识别查库流程，再发送照片；旧接口不进入识别。 */
 export async function recognizeOcr(call, images, purpose, options = {}) {
     const payload = buildOcrRequest(images, purpose, options)
-    if (!serviceCheckedAt || Date.now() - serviceCheckedAt > SERVICE_CHECK_TTL || (payload.useModel === true && (!serviceCapabilities || serviceCapabilities.modelFallback !== true))) {
-        let capability
-        try { capability = await call('doc-ocr', 'getCapabilities') }
-        catch (error) {
-            if (error.code === 401) throw error
-            const failure = new Error('识别服务版本检查失败。请确认已将新版 doc-ocr 上传到当前使用的云空间，再重新识别。' + (error.message ? '（' + String(error.message).slice(0, 160) + '）' : ''))
-            failure.code = error.code
-            throw failure
-        }
-        if (!capability || capability.protocolVersion !== OCR_PROTOCOL_VERSION || capability.flow !== 'archive-first' || capability.multiImage !== true || capability.originalImages !== true || capability.hashPreflight !== true || capability.sourceTrace !== true) {
-            throw new Error('云端尚未支持原图追溯，请上传新版 doc-ocr、production-orders 及公共模块后重试')
-        }
-        serviceCapabilities = capability
-        serviceCheckedAt = Date.now()
-    }
+    const needsCapabilityRefresh = !serviceCheckedAt || Date.now() - serviceCheckedAt > SERVICE_CHECK_TTL || (payload.useModel === true && (!serviceCapabilities || serviceCapabilities.modelFallback !== true))
+    if (needsCapabilityRefresh) await ensureCapabilities(call, true)
     if (payload.useModel === true && serviceCapabilities.modelFallback !== true) {
         throw new Error('云端尚未支持“使用大模型识别”，请上传本次更新的 doc-ocr 后重试')
     }
+    const modelFirst = serviceCapabilities.flowMode === 'model-first'
     try {
         const { images: processedImages, ...metadata } = payload
+        // model-first：模型失败时服务端用这批预处理图跑 OCR.space 兜底，避免再让用户等一轮上传。
+        const fallbackPayload = modelFirst ? { fallbackImages: processedImages } : {}
         let result = await call('doc-ocr', 'checkRecognition', metadata)
         if (result.needsProcessedImages) {
             const processedState = uploadStateFor(result)
-            try { result = await call('doc-ocr', 'recognize', { ...metadata, ...processedState, images: processedImages }) }
+            try { result = await call('doc-ocr', 'recognize', { ...metadata, ...processedState, ...fallbackPayload, images: processedImages }) }
             catch (error) { await cleanupUpload(call, processedState); throw error }
         }
         if (!result.needsOriginalImages) return result
@@ -91,8 +114,8 @@ export async function recognizeOcr(call, images, purpose, options = {}) {
         if (result.archiveOriginals === true) {
             try {
                 await archiveOcrSource(call, images, result)
-                const recognized = await call('doc-ocr', 'recognize', { ...metadata, ...uploadState, sourceDocumentId: result.sourceDocumentId })
-                if (recognized.needsOriginalImages || recognized.needsProcessedImages) throw new Error('原图或初筛状态已过期，请重试；已归档的同哈希照片会复用')
+                const recognized = await call('doc-ocr', 'recognize', { ...metadata, ...uploadState, ...fallbackPayload, sourceDocumentId: result.sourceDocumentId })
+                if (recognized.needsOriginalImages || recognized.needsProcessedImages) throw new Error('原图或识别状态已过期，请重试；已归档的同哈希照片会复用')
                 return recognized
             } catch (error) { await cleanupUpload(call, uploadState); throw error }
         }
@@ -109,7 +132,7 @@ export async function recognizeOcr(call, images, purpose, options = {}) {
                 if (!uploaded || typeof uploaded.fileID !== 'string' || !uploaded.fileID) throw new Error('原图上传失败，请重新识别')
                 originalFileIds.push(uploaded.fileID)
             }
-            const recognized = await call('doc-ocr', 'recognize', { ...metadata, ...uploadState, originalFileIds })
+            const recognized = await call('doc-ocr', 'recognize', { ...metadata, ...uploadState, ...fallbackPayload, originalFileIds })
             if (recognized.needsOriginalImages) throw new Error('云端未收到完整原图，请重新识别')
             return recognized
         } catch (error) {

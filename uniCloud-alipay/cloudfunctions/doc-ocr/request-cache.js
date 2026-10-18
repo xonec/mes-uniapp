@@ -27,7 +27,7 @@ function previousField(db, record, field) {
     return record[field] === undefined ? db.command.exists(false) : record[field]
 }
 
-/** 只读取已完成缓存，供主动大模型识别复用初筛，不重新调用免费 OCR 或占用初筛租约。 */
+/** 只读取已完成缓存，供主动大模型识别复用免费识别结果，不重新调用免费 OCR 或占用识别租约。 */
 async function readRecognition(db, key, cacheMinutes, checkPending = false) {
     const response = await db.collection(CACHE_COLL).doc(key).get()
     if (!response || !Array.isArray(response.data)) throw new ClientError('识别缓存暂时无法读取，已停止识别，请稍后重试', 503)

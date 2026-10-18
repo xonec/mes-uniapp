@@ -2,12 +2,8 @@
     <view class="fw-page entry-page">
         <view class="fw-header">
             <text class="fw-eyebrow">包装指令单录入</text>
-            <text class="fw-title">{{ recordKey ? '核对产品档案' : purpose === 'bom' ? '建立产品物料档案' : '录入生产订单' }}</text>
-            <text class="fw-subtitle">{{ purpose === 'bom' ? '以产品编码建档，保留固定规格和材料清单。' : '按本单核对客户、材料和上托要求。' }}</text>
-        </view>
-        <view v-if="!recordKey" class="purpose-tabs">
-            <button :class="{ active: purpose === 'bom' }" :disabled="busy" @tap="switchPurpose('bom')">产品物料</button>
-            <button :class="{ active: purpose === 'order' }" :disabled="busy" @tap="switchPurpose('order')">生产订单</button>
+            <text class="fw-title">{{ recordKey ? '核对产品档案' : purpose === 'bom' ? '建立产品物料档案' : '指令单录入' }}</text>
+            <text class="fw-subtitle">{{ purpose === 'bom' ? '以产品编码建档，保留固定规格和材料清单。' : '同一份指令单解析后录入生产订单；产品尚未建档时可一并建立产品资料。' }}</text>
         </view>
         <view class="steps">
             <view v-for="(label, index) in ['选照片', '识别', '核对保存']" :key="label" class="step" :class="{ active: stageIndex === index, complete: stageIndex > index }">
@@ -26,7 +22,7 @@
                 <text class="fw-note">同一份指令单可选多页，产品编码要清晰。</text>
             </view>
             <view v-else class="photos">
-                <view v-for="(photo, index) in images" :key="photo.originalHash || photo.path" class="photo-item">
+                <view v-for="(photo, index) in imageItems" :key="photo.key" class="photo-item">
                     <image :src="photo.path" mode="aspectFill" @tap="preview(index)" />
                     <text class="photo-page">{{ index === 0 ? '首页' : '第 ' + (index + 1) + ' 页' }}</text>
                     <button class="photo-remove" :disabled="busy" @tap="removePhoto(index)" :aria-label="'删除第' + (index + 1) + '张照片'">×</button>
@@ -38,16 +34,16 @@
                 <button class="fw-button" :disabled="busy || images.length >= 6" @tap="choose(['album'])">相册选图</button>
                 <text v-if="images.length" class="fw-link" @tap="clearPhotos">清空</text>
             </view>
-            <view class="fw-note">重复照片自动去重。初筛使用处理后的图片，完整识别使用原图。</view>
+            <view class="fw-note">重复照片自动去重。优先大模型识别，失败时自动用免费 OCR 兜底。</view>
             <button v-if="!form && !recordKey" class="manual-entry" :disabled="busy" @tap="startManual">没有照片？手动录入或载入档案 ›</button>
         </view>
         <view v-if="uiStage !== 'review' && images.length" class="fw-card">
-            <view class="fw-heading"><text class="fw-heading-title">选择识别方式</text><text class="fw-badge">优先省额度</text></view>
-            <text class="fw-note">先提取编码查询档案，新产品再使用大模型。订单材料仍需按本单核对。</text>
-            <button class="model-action" :disabled="busy" @tap="recognize('', true)"><text>用原图完整识别</text><text class="model-cost">使用模型额度 ›</text></button>
+            <view class="fw-heading"><text class="fw-heading-title">选择识别方式</text><text class="fw-badge">{{ flowMode === 'model-first' ? '大模型优先' : 'OCR 优先' }}</text></view>
+            <text class="fw-note">{{ flowMode === 'model-first' ? '大模型优先识别；失败或额度不足时自动用免费 OCR 兜底，结果需人工核对。订单材料仍需按本单核对。' : '先提取编码查询档案，新产品再使用大模型。订单材料仍需按本单核对。' }}</text>
+            <button v-if="flowMode !== 'model-first'" class="model-action" :disabled="busy" @tap="recognize('', true)"><text>用原图完整识别</text><text class="model-cost">使用模型额度 ›</text></button>
             <view v-if="recognitionMessage" class="recognition-note">{{ recognitionMessage }}</view>
             <view v-if="needsProductCodeConfirmation" class="code-confirmation">
-                <view class="fw-heading-title">初筛未确认产品编码</view>
+                <view class="fw-heading-title">未能确认产品编码</view>
                 <text class="fw-note">可完整识别原图，也可核对首页后填写编码继续。</text>
                 <view class="fw-field"><text class="fw-label">确认产品编码</text><input class="fw-input" v-model="confirmedProductCode" :disabled="busy || !!recordKey" type="number" maxlength="10" placeholder="10 位数字" /></view>
                 <button class="fw-button" :disabled="busy" @tap="confirmProductCode">确认编码并继续</button>
@@ -59,13 +55,22 @@
                 <button class="fw-button secondary" :disabled="busy" @tap="uiStage = 'photos'">{{ images.length ? '查看照片' : '使用照片' }}</button>
             </view>
             <view v-if="recognitionMessage" class="fw-notice">{{ recognitionMessage }}</view>
+            <view v-if="fallbackInfo" class="fw-card fallback-card">
+                <view class="fw-heading"><text class="fw-heading-title">免费 OCR 兜底结果</text><text class="fw-badge muted">未自动保存</text></view>
+                <text class="fw-note">大模型未成功；已用免费 OCR（引擎 {{ fallbackInfo.engine }}）提取文本，请核对或手动录入。解析出的编码/批号已预填。</text>
+                <view class="fallback-text" :class="{ expanded: fallbackExpanded }">{{ fallbackExpanded ? fallbackInfo.text : fallbackTextPreview }}</view>
+                <view class="fw-actions">
+                    <button class="fw-button secondary" :disabled="busy" @tap="fallbackExpanded = !fallbackExpanded">{{ fallbackExpanded ? '收起全文' : '展开全文' }}</button>
+                    <button class="fw-button secondary" :disabled="busy" @tap="startManual">改为手动录入</button>
+                </view>
+            </view>
             <view v-if="uncertainText" class="fw-notice warning">待核对：{{ uncertainText }}</view>
             <view v-if="form.enabled === false" class="fw-notice warning">此记录已停用。修改后仍保留停用状态，启用请联系管理员。</view>
             <view v-if="purpose === 'order'" class="fw-card">
                 <view class="fw-heading"><text class="fw-heading-title">01 · 订单信息</text><text class="fw-badge muted">本次生产</text></view>
                 <view class="fw-field-grid">
                     <view class="fw-field" :class="{ warn: isUncertain('orderNo') }"><text class="fw-label">订单号 *</text><input class="fw-input" v-model="form.orderNo" :disabled="busy" type="number" maxlength="12" placeholder="4～12 位数字" /></view>
-                    <view class="fw-field" :class="{ warn: isUncertain('batchNo') }"><text class="fw-label">生产批号 *</text><input class="fw-input" v-model="form.batchNo" :disabled="busy" maxlength="11" placeholder="如 APDD26X1006" /></view>
+                    <view class="fw-field" :class="{ warn: isUncertain('batchNo') }"><text class="fw-label">生产批号 *</text><input class="fw-input" v-model="form.batchNo" :disabled="busy" maxlength="12" placeholder="如 APDD26X1006" /></view>
                 </view>
                 <view class="fw-field" :class="{ warn: isUncertain('plannedQty') }"><text class="fw-label">计划产量（件 / 箱）*</text><input class="fw-input" v-model="form.plannedQty" :disabled="busy" type="digit" placeholder="保留单据上的数量" /></view>
                 <view class="fw-field"><text class="fw-label">取样说明</text><textarea class="fw-textarea" v-model="form.sampleCount" :disabled="busy" maxlength="2000" auto-height placeholder="保留完整取样要求" /></view>
@@ -74,15 +79,15 @@
                 <view class="fw-heading"><text class="fw-heading-title">{{ purpose === 'order' ? '02' : '01' }} · 产品信息</text><text v-if="productArchiveExists" class="fw-badge">已有档案</text></view>
                 <view class="code-row">
                     <view class="fw-field" :class="{ warn: isUncertain('productCode') }"><text class="fw-label">产品编码 *</text><input class="fw-input" v-model="form.productCode" :disabled="busy || !!recordKey" type="number" maxlength="10" placeholder="10 位数字" /></view>
-                    <button class="fw-button secondary" :disabled="busy || !/^\d{10}$/.test(String(form.productCode || '').trim())" @tap="loadArchive">查档</button>
+                    <button class="fw-button secondary" :disabled="busy || !/^\d{10}$/.test(String(form.productCode || '').trim())" @tap="loadArchive">载入档案</button>
                 </view>
                 <view class="fw-field" :class="{ warn: isUncertain('productName') }"><text class="fw-label">产品名称 *</text><textarea class="fw-textarea" v-model="form.productName" :disabled="busy" maxlength="120" auto-height placeholder="含口味等完整名称" /></view>
                 <view class="fw-field" :class="{ warn: isUncertain('packSpec') }"><text class="fw-label">固定包装规格 *</text><textarea class="fw-textarea" v-model="form.packSpec" :disabled="busy" maxlength="500" auto-height placeholder="如 1.8kg/瓶 × 4瓶/箱" /></view>
-                <text class="fw-note">{{ purpose === 'order' ? '查档仅载入名称和固定规格，客户材料在下方选择。' : '查档载入已保存的产品和材料清单。' }}</text>
+                <text class="fw-note">{{ purpose === 'order' ? '载入档案仅载入名称和固定规格，客户材料在下方选择。' : '载入档案会载入已保存的产品和材料清单。' }}</text>
             </view>
             <view v-if="purpose === 'order'" class="fw-card"><PackagingSelection :value="form" :record-key="formEpoch" :call="callCloud" :disabled="busy" @loading="selectionLoading = $event" @input="form = $event" /></view>
             <view class="fw-card"><MaterialListEditor :value="form.materials" :disabled="busy" @input="form.materials = $event" /></view>
-            <view v-if="purpose === 'order'" class="fw-card"><PalletEditor :value="form.pallet || {}" :disabled="busy" @input="form.pallet = $event" /></view>
+            <view v-if="purpose === 'order'" class="fw-card"><PalletEditor :value="form.pallet" :disabled="busy" @input="form.pallet = $event" /></view>
             <view class="fw-card">
                 <view class="fw-heading"><text class="fw-heading-title">保存设置</text><text v-if="observedVersion > 0" class="fw-badge muted">当前 V{{ observedVersion }}</text></view>
                 <view v-if="purpose === 'order'" class="status-options">
@@ -103,7 +108,7 @@
             <view class="fw-actions">
                 <button v-if="form && uiStage !== 'review' && !needsProductCodeConfirmation" class="fw-button secondary" :disabled="busy" @tap="uiStage = 'review'">返回核对</button>
                 <button v-if="uiStage === 'review'" class="fw-button primary" :disabled="busy || needsProductCodeConfirmation" @tap="save">{{ saving ? '保存中…' : purpose === 'order' ? form.orderStatus === 'confirmed' ? '确认并保存订单' : '保存订单草稿' : '核对完成，保存档案' }}</button>
-                <button v-else class="fw-button primary" :disabled="busy || !images.length || needsProductCodeConfirmation || photosRecognized" @tap="recognize()">{{ recognizing ? '正在识别…' : needsProductCodeConfirmation ? '请确认编码或完整识别' : photosRecognized ? '识别完成' : '识别并查档' }}</button>
+                <button v-else class="fw-button primary" :disabled="busy || !images.length || needsProductCodeConfirmation || photosRecognized" @tap="recognize()">{{ recognizing ? '正在识别…' : needsProductCodeConfirmation ? '请确认编码或完整识别' : photosRecognized ? '识别完成' : flowMode === 'model-first' ? '识别并核对' : '识别并载入档案' }}</button>
             </view>
         </view>
     </view>
@@ -111,8 +116,9 @@
 <script>
 import { callCloud } from '@/utils/cloud-call.js'
 import { chooseOcrImages, ocrImageIdentity } from '@/utils/ocr-image.js'
-import { recognizeOcr, archiveOcrSource } from '@/utils/ocr-client.js'
+import { recognizeOcr, archiveOcrSource, loadOcrFlowMode } from '@/utils/ocr-client.js'
 import { fetchMaterialsByCode, upsertProductMaterials } from '@/utils/product-materials-db.js'
+import { batchIsValid } from '@/utils/shared/batch.js'
 import MaterialListEditor from '@/components/material-list-editor/MaterialListEditor.vue'
 import PackagingSelection from '@/components/traceability/PackagingSelection.vue'
 import PalletEditor from '@/components/traceability/PalletEditor.vue'
@@ -120,14 +126,20 @@ import { getUser } from '@/utils/auth.js'
 const FIELD_NAMES = { orderNo: '订单号', batchNo: '批号', productCode: '产品编码', productName: '产品名称', packSpec: '包装规格', plannedQty: '计划产量', sampleCount: '取样数', materials: '包装材料清单' }
 export default {
     components: { MaterialListEditor, PackagingSelection, PalletEditor },
-    data() { return { uiStage: 'photos', keyboardVisible: false, selectionLoading: false, formEpoch: 0, purpose: 'bom', recordKey: '', choosing: false, recognizing: false, saving: false, conflicted: false, images: [], lastRecognizedImages: [], needsProductCodeConfirmation: false, canUseModelFallback: false, confirmedProductCode: '', recognitionMessage: '', formSource: 'manual', form: null, error: '', savedMessage: '', observedKey: '', observedVersion: null, archivedProductCode: '', productArchiveMessage: '' } },
+    data() { return { uiStage: 'photos', keyboardVisible: false, selectionLoading: false, formEpoch: 0, purpose: 'bom', recordKey: '', choosing: false, recognizing: false, saving: false, conflicted: false, images: [], lastRecognizedImages: [], needsProductCodeConfirmation: false, canUseModelFallback: false, confirmedProductCode: '', recognitionMessage: '', formSource: 'manual', flowMode: '', fallbackInfo: null, fallbackExpanded: false, form: null, error: '', savedMessage: '', observedKey: '', observedVersion: null, archivedProductCode: '', productArchiveMessage: '' } },
     computed: {
+        /** 非 H5 平台的 :key 不支持表达式，这里给每张照片预计算稳定 key。 */
+        imageItems() { return (this.images || []).map((photo, index) => ({ ...photo, key: photo.originalHash || photo.path || ('photo-' + index) })) },
+        fallbackTextPreview() {
+            const text = String((this.fallbackInfo && this.fallbackInfo.text) || '')
+            return text.length > 160 ? text.slice(0, 160) + '…' : text
+        },
         busy() { return this.choosing || this.recognizing || this.saving || this.selectionLoading },
         stageIndex() { return this.uiStage === 'review' ? 2 : this.recognizing || this.needsProductCodeConfirmation ? 1 : 0 },
         footerNote() {
             if (this.selectionLoading) return '正在载入客户方案，请稍候。'
             if (this.recognizing) return '识别完成后请逐项核对，再保存。'
-            if (this.uiStage !== 'review') return '先查档节省额度，也可选择完整识别原图。'
+            if (this.uiStage !== 'review') return this.flowMode === 'model-first' ? '照片会先上传原图并调用大模型识别；失败时自动用免费 OCR 兜底。' : '先免费识别产品编码再载入档案，也可选择用原图完整识别。'
             if (this.purpose === 'order' && (!this.form.pallet || this.form.pallet.status !== 'confirmed')) return '上托要求待补充；保存后暂不计算托数。'
             return '请核对产品编码、包装规格和每一项材料。'
         },
@@ -140,7 +152,10 @@ export default {
         if (!getUser()) { uni.reLaunch({ url: '/pages/login/login' }); return }
         this.keyboardHandler = event => { this.keyboardVisible = Number(event.height) > 0 }
         if (uni.onKeyboardHeightChange) uni.onKeyboardHeightChange(this.keyboardHandler)
-        this.purpose = options.purpose === 'order' ? 'order' : 'bom'
+        // 默认走完整的指令单流程；只有档案页「从照片录入产品」才显式传 purpose=bom
+        this.purpose = options.purpose === 'bom' ? 'bom' : 'order'
+        // 识别流程由云端能力决定；取不到时按旧流程（screen-first）处理。
+        loadOcrFlowMode(callCloud).then(mode => { this.flowMode = mode }).catch(() => {})
         if (options.productCode) {
             this.recordKey = options.productCode
             this.choosing = true
@@ -159,7 +174,7 @@ export default {
     methods: {
         callCloud,
         isUncertain(key) { return ((this.form && this.form.uncertain) || []).includes(key) },
-        resetRecognition() { this.lastRecognizedImages = []; this.needsProductCodeConfirmation = false; this.canUseModelFallback = false; this.confirmedProductCode = ''; this.recognitionMessage = '' },
+        resetRecognition() { this.lastRecognizedImages = []; this.needsProductCodeConfirmation = false; this.canUseModelFallback = false; this.confirmedProductCode = ''; this.recognitionMessage = ''; this.fallbackInfo = null; this.fallbackExpanded = false },
         /** 照片改变后整组清除旧表单及来源，防止新照片与旧识别结果混用。 */
         async replacePhotos(next) {
             if (this.form) {
@@ -174,11 +189,6 @@ export default {
         clearPhotos() { if (!this.busy) return this.replacePhotos([]) },
         removePhoto(index) { if (!this.busy) return this.replacePhotos(this.images.filter((photo, i) => i !== index)) },
         makeFirst(index) { if (!this.busy && index > 0) return this.replacePhotos([this.images[index], ...this.images.filter((photo, i) => i !== index)]) },
-        async switchPurpose(purpose) {
-            if (this.busy || purpose === this.purpose || this.recordKey) return
-            if (!await this.replacePhotos([])) return
-            this.purpose = purpose
-        },
         startManual() {
             if (this.busy) return
             this.images = []; this.resetRecognition()
@@ -190,7 +200,7 @@ export default {
             this.saving = true; this.error = ''; this.savedMessage = ''
             try {
                 const record = await fetchMaterialsByCode(String(this.form.productCode || '').trim())
-                if (!record) throw new Error('未找到产品档案，可手动录入或从新照片初筛并识别')
+                if (!record) throw new Error('未找到产品档案，可手动录入或重新拍照识别')
                 this.form = { ...this.form, productCode: record.productCode, productName: record.productName, packSpec: record.packSpec, ...(this.purpose === 'bom' ? { materials: (record.materials || []).map(row => ({ ...row })), sourceDocumentId: record.sourceDocumentId || '', recognitionRunId: record.recognitionRunId || '' } : {}), uncertain: (this.form.uncertain || []).filter(key => !['productCode', 'productName', 'packSpec'].includes(key)) }
                 if (this.purpose === 'bom') {
                     this.images = []; this.resetRecognition(); this.formEpoch++
@@ -224,13 +234,16 @@ export default {
             if (this.recordKey && code !== this.recordKey) { this.error = '确认的产品编码与当前产品不一致，请在新增入口导入'; return }
             await this.recognize(code)
         },
-        /** 初筛未确认编码时，主动用大模型识别；不要求用户先手填编码。 */
+        /** 未能确认编码时，主动用大模型识别；不要求用户先手填编码。 */
         async recognizeWithModel() {
             if (this.busy || !this.canUseModelFallback || !this.needsProductCodeConfirmation) return
             await this.recognize('', true)
         },
         async recognize(confirmedProductCode = '', useModel = false) {
             const code = String(confirmedProductCode || '').trim()
+            // model-first：用户不需要先确认编码，直接走「原图上传 → 模型 → 免费 OCR 兜底」。
+            const modelFirst = this.flowMode === 'model-first'
+            if (modelFirst && !code) useModel = true
             if (this.busy || (this.photosRecognized && !useModel) || !this.images.length || (this.needsProductCodeConfirmation && !code && !useModel)) return
             if (code && !/^\d{10}$/.test(code)) { this.error = '请确认 10 位纯数字产品编码'; return }
             if (useModel && this.form && !this.needsProductCodeConfirmation) {
@@ -238,9 +251,16 @@ export default {
                 if (!yes) return
             }
             this.recognizing = true; this.error = ''; this.savedMessage = ''
+            this.fallbackInfo = null; this.fallbackExpanded = false
             try {
                 const result = await recognizeOcr(callCloud, this.images, this.purpose, { ...(useModel ? { useModel: true } : {}), ...(code ? { confirmedProductCode: code } : {}), ...(this.purpose === 'bom' && this.recordKey ? { expectedProductCode: this.recordKey } : {}) })
                 this.recognitionMessage = typeof result.message === 'string' ? result.message : ''
+                this.fallbackInfo = result.fallback ? {
+                    engine: result.fallback.engine,
+                    text: String(result.fallback.text || ''),
+                    textLength: Number(result.fallback.textLength) || 0,
+                    parsed: result.fallback.parsed || {}
+                } : null
                 this.needsProductCodeConfirmation = result.needsProductCodeConfirmation === true
                 this.canUseModelFallback = result.canUseModelFallback === true || (this.needsProductCodeConfirmation && ['ocrspace', 'local'].includes(result.recognitionSource))
                 this.confirmedProductCode = this.recordKey || String(result.productCode || code || '').trim()
@@ -262,7 +282,7 @@ export default {
                 this.conflicted = false
                 this.formSource = this.purpose === 'bom' && result.archiveMatched ? result.source || (existing && existing.source) || 'manual' : 'photo'
                 this.lastRecognizedImages = !this.needsProductCodeConfirmation && (result.archiveMatched || result.modelUsed || result.recognitionSource === 'cache') ? this.images.map(ocrImageIdentity) : []
-                const title = this.needsProductCodeConfirmation ? (this.canUseModelFallback ? '可使用大模型或确认编码' : '请确认产品编码后继续') : result.archiveMatched ? (result.modelUsed ? '本单完整识别完成' : '已载入产品信息，未调用大模型') : result.recognitionSource === 'cache' ? '已复用识别结果，请核对' : result.modelUsed ? '识别完成，请核对' : '初筛完成，请核对'
+                const title = result.fallback ? '大模型未成功，已用免费 OCR 提取文本' : this.needsProductCodeConfirmation ? (this.canUseModelFallback ? '可使用大模型或确认编码' : '请确认产品编码后继续') : result.archiveMatched ? (result.modelUsed ? '本单完整识别完成' : '已载入产品信息，未调用大模型') : result.recognitionSource === 'cache' ? '已复用识别结果，请核对' : result.modelUsed ? '识别完成，请核对' : '识别完成，请核对'
                 uni.showToast({ title, icon: 'none' })
             } catch (error) { this.error = error.message || '识别失败，请重试' }
             finally { this.recognizing = false }
@@ -322,7 +342,7 @@ export default {
             const form = this.form
             if (!form || !/^\d{10}$/.test(String(form.productCode || '').trim()) || !String(form.productName || '').trim() || !String(form.packSpec || '').trim()) { this.error = '请填写 10 位产品编码、产品名称和包装规格'; return }
             if (!form.materials.length || form.materials.some(row => !String(row.materialCode || '').trim() || !String(row.unit || '').trim())) { this.error = '请核对材料清单，每行须有物料编号和计量单位'; return }
-            if (this.purpose === 'order' && (!/^\d{4,12}$/.test(String(form.orderNo || '').trim()) || !/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(String(form.batchNo || '').trim().toUpperCase()))) { this.error = '请填写正确的订单号和 11 位批号'; return }
+            if (this.purpose === 'order' && (!/^\d{4,12}$/.test(String(form.orderNo || '').trim()) || !batchIsValid(String(form.batchNo || '').trim().toUpperCase()))) { this.error = '请填写正确的订单号和批号（支持 B 单后缀）'; return }
             this.saving = true
             try {
                 const key = String(form[this.purpose === 'bom' ? 'productCode' : 'orderNo']).trim()
@@ -346,10 +366,10 @@ export default {
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
 .entry-page { padding-bottom: calc(7rem + env(safe-area-inset-bottom)); }
-.purpose-tabs, .status-options { display: flex; padding: .25rem; gap: .3rem; border-radius: .7rem; background: $line; margin-bottom: 1rem; }
-.purpose-tabs button, .status-options button { flex: 1; margin: 0; padding: .6rem .3rem; font-size: .9rem; line-height: 1.5; background: transparent; color: $muted; border-radius: .5rem; }
-.purpose-tabs button::after, .status-options button::after { border: 0; }
-.purpose-tabs button.active, .status-options button.active { background: $surface; color: $primary; font-weight: 600; }
+.status-options { display: flex; padding: .25rem; gap: .3rem; border-radius: .7rem; background: $line; margin-bottom: 1rem; }
+.status-options button { flex: 1; margin: 0; padding: .6rem .3rem; font-size: .9rem; line-height: 1.5; background: transparent; color: $muted; border-radius: .5rem; }
+.status-options button::after { border: 0; }
+.status-options button.active { background: $surface; color: $primary; font-weight: 600; }
 .steps { display: flex; justify-content: space-between; gap: .3rem; padding: .1rem 0 1.1rem; }
 .step { display: flex; align-items: center; gap: .35rem; font-size: .8rem; color: $muted; }
 .step-number { width: 1.55rem; height: 1.55rem; line-height: 1.55rem; text-align: center; background: $line; border-radius: 50%; }
@@ -369,4 +389,7 @@ export default {
 .code-row { display: flex; align-items: flex-end; gap: .6rem; margin-bottom: .9rem; }.code-row .fw-field { flex: 1; min-width: 0; margin-bottom: 0; }.code-row .fw-button { min-height: 2.9rem; line-height: 2.9rem; }
 .status-help { display: block; font-size: .72rem; font-weight: normal; margin-top: .25rem; }.status-options { background: $canvas; }
 .archive-option { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid $line; }.archive-option .fw-button { margin-top: .7rem; width: 100%; }
+.fallback-card { border-left: .2rem solid #d08700; }
+.fallback-text { margin-top: .6rem; padding: .6rem; background: #f7f7f2; border-radius: .3rem; font-size: .8rem; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 6rem; overflow: hidden; }
+.fallback-text.expanded { max-height: none; }
 </style>

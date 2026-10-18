@@ -6,7 +6,7 @@
 //   action = 'getConfig'：读取识别服务配置（admin 专用，Key 脱敏返回）
 //   action = 'setConfig'：写入识别服务配置（admin 专用，无需重传云函数即可切换供应商/限额）
 //
-// 图片先由 OCR.space 初筛编码，再实时查档案；已有产品跳过模型，新产品才完整识别。
+// 图片先由 OCR.space 免费识别编码，再实时载入产品档案；已有产品跳过模型，新产品才完整识别。
 // 配置优先级：DB 集合 config(_id=ocr) > 环境变量 > 默认值 / OCR.space 配置中心。
 //   - 环境变量（控制台配置，冷启动生效，无需重传）：
 //       DEEPSEEK_API_KEY  识别服务 Key（也可用兼容旧名 SF_API_KEY）
@@ -38,10 +38,14 @@ const CONFIG_ID = 'ocr'
 const QUOTA_COLL = 'ocr_quota'
 const USER_KEY_COLL = 'ocr_user_keys'
 const OCR_PROTOCOL_VERSION = 4
-// 初筛预算：OCR.space 正常 2~6 秒/页；20 秒内拿不到编码就返回可读提示，避免把函数窗口耗死。
+// 免费识别预算：OCR.space 正常 2~6 秒/页；20 秒内拿不到编码就返回可读提示，避免把函数窗口耗死。
 // 可用环境变量 OCR_SCREEN_BUDGET_MS / OCR_SCREEN_PAGE_TIMEOUT_MS 覆盖。
-const SCREEN_BUDGET_MS = Number(process.env.OCR_SCREEN_BUDGET_MS) || 20000
-const SCREEN_PAGE_TIMEOUT_MS = Number(process.env.OCR_SCREEN_PAGE_TIMEOUT_MS) || 12000
+const SCREEN_BUDGET_MS = Number(process.env.OCR_SCREEN_BUDGET_MS) || 15000
+const SCREEN_PAGE_TIMEOUT_MS = Number(process.env.OCR_SCREEN_PAGE_TIMEOUT_MS) || 10000
+// 整次识别预算与模型阶段预算：按 180 秒平台窗口取默认值（165s 识别 + 15s 收尾，模型阶段 155s）。
+// 若实际窗口更小，用环境变量一键收敛，不必改代码；免费识别仍保持 15s/单页 10s。
+const RECOGNITION_DEADLINE_MS = Number(process.env.OCR_RECOGNITION_DEADLINE_MS) || 165000
+const MODEL_TOTAL_BUDGET_MS = Number(process.env.OCR_MODEL_TOTAL_BUDGET_MS) || 155000
 
 // 环境变量解析的兜底默认（DB 配置空白时回落到这里）
 const FALLBACK = {
@@ -177,13 +181,20 @@ async function callSF(messages, mode, cfg, uid, deadline, budget) {
     const PER_CALL_TIMEOUT = Number(cfg.timeout) || DEFAULT_OCR_CONFIG.timeout   // 单次调用上限；留足函数总超时余量
     const BACKOFF = [4000, 6000]            // 失败后退避间隔（指数退避）
     const startedAt = Date.now()
-    const TOTAL_BUDGET = 155000 // 为支付宝云 180 秒函数上限留出鉴权和数据库操作时间
+    const TOTAL_BUDGET = MODEL_TOTAL_BUDGET_MS // 由环境变量控制；需小于实际平台调用窗口并留出收尾时间
     let lastErr = '识别服务调用失败'
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         if (budget && budget.used >= budget.limit) { const error = new ClientError('已达到本次模型请求上限', 429); error.kind = 'budget'; throw error }
         if (attempt > 0) await new Promise(r => setTimeout(r, BACKOFF[attempt - 1] || 4000))
         const remaining = Math.min(TOTAL_BUDGET - (Date.now() - startedAt), deadline ? deadline - Date.now() : Infinity)
         if (remaining < 1000) break
+        // 按剩余尝试次数均分剩余时间，并预留退避；单次 timeout 随预算自适应收缩，避免把函数窗口耗死。
+        const attemptsLeft = MAX_ATTEMPTS - attempt
+        const backoffReserve = attemptsLeft > 1 ? (BACKOFF[attempt] || 4000) : 0
+        const fairShare = Math.floor((remaining - backoffReserve) / attemptsLeft)
+        const callTimeout = Math.max(1000, Math.min(PER_CALL_TIMEOUT, fairShare))
+        console.log('[doc-ocr] 模型请求 model=' + model + ' attempt=' + (attempt + 1) + '/' + MAX_ATTEMPTS
+            + ' timeout=' + callTimeout + '（配置上限 ' + PER_CALL_TIMEOUT + '） remaining=' + Math.round(remaining) + ' budget=' + (budget ? budget.used + '/' + budget.limit : '-'))
         // 每一次实际 HTTP 尝试都占额度，防止重试次数与供应商计费次数不一致。
         try { await assertWithinQuota(cfg, uid) }
         catch (error) { if (error instanceof ClientError) error.kind = 'quota'; throw error }
@@ -194,7 +205,7 @@ async function callSF(messages, mode, cfg, uid, deadline, budget) {
                 contentType: 'json',
                 dataType: 'json',
                 followRedirect: false,
-                timeout: Math.min(PER_CALL_TIMEOUT, remaining),
+                timeout: callTimeout,
                 headers: { Authorization: 'Bearer ' + cfg.apiKey },
                 data: body
             })
@@ -226,7 +237,7 @@ async function callSF(messages, mode, cfg, uid, deadline, budget) {
     throw new ClientError(lastErr, 502)
 }
 
-/** OCR.space 初筛：正常 2~6 秒/页；预算内拿不到编码就立即返回可读原因，不干等函数窗口。 */
+/** OCR.space 免费识别：正常 2~6 秒/页；预算内拿不到编码就立即返回可读原因，不干等函数窗口。 */
 async function recognizeScreen(images, config, purpose, deadline) {
     const startedAt = Date.now()
     const screenDeadline = Math.min(deadline, startedAt + SCREEN_BUDGET_MS)
@@ -234,7 +245,7 @@ async function recognizeScreen(images, config, purpose, deadline) {
     const errors = []
     for (const engine of config.screenEngines) {
         if (screenDeadline - Date.now() < 1500) {
-            errors.push({ engine, code: 'skipped', message: '初筛时间预算不足，未执行', ms: Date.now() - startedAt })
+            errors.push({ engine, code: 'skipped', message: '免费识别时间预算不足，未执行', ms: Date.now() - startedAt })
             break
         }
         const engineStarted = Date.now()
@@ -242,32 +253,32 @@ async function recognizeScreen(images, config, purpose, deadline) {
             const found = await recognizeFree(images, { ...config, ocrSpaceEngine: engine }, purpose, { screenOnly: true, budgetMs: screenDeadline - Date.now(), deadline: screenDeadline, pageTimeoutMs: SCREEN_PAGE_TIMEOUT_MS })
             result = found
             const codes = found.detectedProductCodes || []
-            console.log('[doc-ocr] 初筛 engine=' + engine + ' ms=' + (Date.now() - engineStarted) + ' codes=' + JSON.stringify(codes))
+            console.log('[doc-ocr] 免费识别 engine=' + engine + ' ms=' + (Date.now() - engineStarted) + ' codes=' + JSON.stringify(codes))
             if (codes.length > 1 || /^\d{10}$/.test(String(found.productCode || ''))) {
-                console.log('[doc-ocr] 初筛结束 totalMs=' + (Date.now() - startedAt) + ' codes=' + JSON.stringify(codes) + ' errors=0')
+                console.log('[doc-ocr] 免费识别结束 totalMs=' + (Date.now() - startedAt) + ' codes=' + JSON.stringify(codes) + ' errors=0')
                 return found
             }
         } catch (error) {
             if (!(error instanceof ClientError)) throw error
             if (error.code === 400) throw error
             // 免费 OCR 的 Key/额度/超时错误不能静默降级成"没找到编码"；立即中止并给出可读原因。
-            const failure = { engine, code: Number(error.code) || 0, message: String(error.message || '初筛失败').slice(0, 160), ms: Date.now() - engineStarted }
+            const failure = { engine, code: Number(error.code) || 0, message: String(error.message || '免费识别失败').slice(0, 160), ms: Date.now() - engineStarted }
             errors.push(failure)
-            console.warn('[doc-ocr] 初筛失败 engine=' + engine + ' code=' + failure.code + ' ms=' + failure.ms + ' ' + failure.message)
+            console.warn('[doc-ocr] 免费识别失败 engine=' + engine + ' code=' + failure.code + ' ms=' + failure.ms + ' ' + failure.message)
             break
         }
     }
     const screened = result || parseFreePages([{ ParsedText: '' }], purpose)
-    console.log('[doc-ocr] 初筛结束 totalMs=' + (Date.now() - startedAt) + ' codes=' + JSON.stringify(screened.detectedProductCodes || []) + ' errors=' + errors.length)
+    console.log('[doc-ocr] 免费识别结束 totalMs=' + (Date.now() - startedAt) + ' codes=' + JSON.stringify(screened.detectedProductCodes || []) + ' errors=' + errors.length)
     if (errors.length) {
         const first = errors[0]
         const seconds = Math.max(1, Math.round((Number(first.ms) || 0) / 1000))
         const timeoutLike = /超时|timed?\s*out|ResponseTimeout|暂时不可用/i.test(String(first.message || ''))
-        const screenSummary = (timeoutLike ? '免费初筛超时' : '免费初筛失败') + '（引擎' + first.engine + '，' + seconds + ' 秒），已跳过'
+        const screenSummary = (timeoutLike ? '免费识别超时' : '免费识别失败') + '（引擎' + first.engine + '，' + seconds + ' 秒），已跳过'
         return { ...screened, screenErrors: errors, screenSummary,
-            warnings: [...(screened.warnings || []), '初筛未取得可信编码：' + errors.map(item => '引擎' + item.engine + ' ' + item.message).join('；')] }
+            warnings: [...(screened.warnings || []), '免费识别未取得可信编码：' + errors.map(item => '引擎' + item.engine + ' ' + item.message).join('；')] }
     }
-    if (!/^\d{10}$/.test(String(screened.productCode || ''))) return { ...screened, screenSummary: '免费初筛已返回文本但未匹配到 10 位产品编码' }
+    if (!/^\d{10}$/.test(String(screened.productCode || ''))) return { ...screened, screenSummary: '免费识别已返回文本但未匹配到 10 位产品编码' }
     return screened
 }
 
@@ -329,7 +340,7 @@ async function fetchArchive(productCode) {
     return response.data[0] || null
 }
 
-/** 返回最新档案的四项 BOM 内容；订单字段继续使用本次初筛，不写入产品主档案。 */
+/** 返回最新档案的四项 BOM 内容；订单字段继续使用本次免费识别，不写入产品主档案。 */
 function archiveResult(screened, archive, purpose) {
     const bom = validateBomFields({ ...archive, materials: buildMaterialsFromArchive(archive), uncertain: [] })
     const fields = purpose === 'bom' ? bom : validateFields({ ...screened, rawPackSpec: screened.rawPackSpec || screened.packSpec || '', productCode: bom.productCode, productName: bom.productName, packSpec: bom.packSpec,
@@ -346,7 +357,7 @@ function archiveResult(screened, archive, purpose) {
     }
 }
 
-/** 初筛与模型编码不一致时要求人工确认，重复确认优先复用同一模型结果。 */
+/** 免费识别与模型编码不一致时要求人工确认，重复确认优先复用同一模型结果。 */
 function modelResult(fields, productCode, confirmedCode, cached, purpose) {
     const mismatch = !/^\d{10}$/.test(fields.productCode) || fields.productCode !== productCode
     if (mismatch && confirmedCode) {
@@ -355,7 +366,7 @@ function modelResult(fields, productCode, confirmedCode, cached, purpose) {
     return {
         ...fields, source: 'photo', archiveMatched: false, modelUsed: !cached, recognitionSource: cached ? 'cache' : 'model',
         needsProductCodeConfirmation: mismatch && !confirmedCode,
-        message: (mismatch ? (confirmedCode ? '已使用你确认的产品编码；它与模型结果有差异，请核对名称、规格和材料是否属于该产品。' : '初筛与模型的产品编码不一致或编码不清楚，请核对并确认编码后继续；已有模型结果会复用。') : cached ? '已复用大模型识别结果，本次未请求大模型；请核对后保存。' : '已调用大模型完整识别本次单据；请核对后保存。') + (purpose === 'order' ? '请选择客户，核对本单材料和上托要求。' : '产品档案确认入库后，后续导入可复用档案。')
+        message: (mismatch ? (confirmedCode ? '已使用你确认的产品编码；它与模型结果有差异，请核对名称、规格和材料是否属于该产品。' : '本次识别与模型的产品编码不一致或编码不清楚，请核对并确认编码后继续；已有模型结果会复用。') : cached ? '已复用大模型识别结果，本次未请求大模型；请核对后保存。' : '已调用大模型完整识别本次单据；请核对后保存。') + (purpose === 'order' ? '请选择客户，核对本单材料和上托要求。' : '产品档案确认入库后，后续导入可复用档案。')
     }
 }
 
@@ -398,7 +409,7 @@ async function readDbConfig() {
 
 exports.main = async (event) => {
     event = event || {}
-    const recognitionDeadline = Date.now() + 165000
+    const recognitionDeadline = Date.now() + RECOGNITION_DEADLINE_MS
     const functionStartedAt = Date.now()
     let recognitionKey = '', recognitionOwner = '', productRecognitionKey = '', productRecognitionOwner = ''
     let originalIdsToCleanup = []
@@ -475,6 +486,7 @@ exports.main = async (event) => {
                         dailyLimit: eff.dailyLimit,
                         userDailyLimit: eff.userDailyLimit,
                         dedupMinutes: eff.dedupMinutes,
+                        flowMode: eff.flowMode === 'screen-first' ? 'screen-first' : 'model-first',
                         ocrSpaceEngine: eff.ocrSpaceEngine
                     },
                     presets: PROVIDER_PRESETS, providerCatalog: PROVIDERS, promptDefaults: PROMPT_DEFAULTS
@@ -489,6 +501,7 @@ exports.main = async (event) => {
             if (!String(merged.model || '').trim() || !String(merged.textModel || '').trim()) {
                 return fail(400, '图片模型与文本模型均不能为空')
             }
+            if (!['model-first', 'screen-first'].includes(merged.flowMode)) return fail(400, '识别流程须为 model-first 或 screen-first')
             if (!Number.isInteger(merged.maxAttempts) || merged.maxAttempts < 1 || merged.maxAttempts > 3 || merged.timeout < 5000 || merged.timeout > 60000) return fail(400, '超时须为 5000～60000 毫秒，最多尝试次数须为 1～3（含首次）')
             if (![1, 2, 3].includes(merged.ocrSpaceEngine)) return fail(400, 'OCR.space 引擎须为 1、2 或 3')
             if (!hasReadyModels(merged) && !String(merged.ocrSpaceApiKey || '').trim()) {
@@ -528,7 +541,10 @@ exports.main = async (event) => {
             return ok(await myKeyState(auth.uid))
         }
 
-        if (event.action === 'getCapabilities') return ok({ ownKey: true, protocolVersion: OCR_PROTOCOL_VERSION, flow: 'archive-first', multiImage: true, maxImages: 6, modelFallback: true, originalImages: true, hashPreflight: true, sourceTrace: true })
+        if (event.action === 'getCapabilities') {
+            const capabilityConfig = await resolveOcrConfig()
+            return ok({ ownKey: true, protocolVersion: OCR_PROTOCOL_VERSION, flow: 'archive-first', flowMode: capabilityConfig.flowMode === 'screen-first' ? 'screen-first' : 'model-first', multiImage: true, maxImages: 6, modelFallback: true, originalImages: true, hashPreflight: true, sourceTrace: true })
+        }
 
         if (event.action === 'cleanupOriginals') {
             await assertRecognitionOwner(db, event.uploadKey, event.uploadOwner)
@@ -540,7 +556,8 @@ exports.main = async (event) => {
         // 识别：图片 base64（小程序）或本地 OCR 文本（App）→ 结构化字段
         if (event.action === 'recognize' || event.action === 'checkRecognition') {
             const preflight = event.action === 'checkRecognition'
-            console.log('[doc-ocr] ' + (preflight ? 'checkRecognition' : 'recognize') + ' start images=' + (Array.isArray(event.images) ? event.images.length : 0) + ' textLen=' + String(event.text || '').length + ' useModel=' + (event.useModel === true) + ' purpose=' + (event.purpose === 'bom' ? 'bom' : 'order'))
+            console.log('[doc-ocr] ' + (preflight ? 'checkRecognition' : 'recognize') + ' start images=' + (Array.isArray(event.images) ? event.images.length : 0) + ' textLen=' + String(event.text || '').length + ' useModel=' + (event.useModel === true) + ' purpose=' + (event.purpose === 'bom' ? 'bom' : 'order')
+                + ' 预算 deadline=' + RECOGNITION_DEADLINE_MS + ' model=' + MODEL_TOTAL_BUDGET_MS + ' screen=' + SCREEN_BUDGET_MS + ' page=' + SCREEN_PAGE_TIMEOUT_MS)
             if (event.protocolVersion !== undefined && event.protocolVersion !== OCR_PROTOCOL_VERSION) return fail(426, '图片识别参数版本不匹配，请更新前端并重新上传 doc-ocr')
             if (event.useModel !== undefined && typeof event.useModel !== 'boolean') return fail(400, '识别方式非法')
             const modelFallback = event.useModel === true
@@ -572,6 +589,17 @@ exports.main = async (event) => {
                 const bytes = Buffer.from(submittedImages[index].slice(submittedImages[index].indexOf(',') + 1), 'base64')
                 if (createHash('sha256').update(bytes).digest('hex') !== processedHashes[index]) return fail(400, '预处理图片内容校验失败，请重新选图；尚未调用 OCR')
             }
+            // 模型优先流程：模型失败后要用预处理图跑 OCR.space 兜底；该字段可随原图回调一起提交，且必须与 processedHashes 一致。
+            const fallbackImages = Array.isArray(event.fallbackImages) ? Array.from(new Set(event.fallbackImages)) : []
+            if (fallbackImages.length > 6 || fallbackImages.some(image => typeof image !== 'string' || !/^data:image\/(jpeg|jpg|png|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(image))) return fail(400, '兜底图片参数非法')
+            if (fallbackImages.reduce((total, image) => total + image.length, 0) > 6 * 1024 * 1024) return fail(400, '兜底图片总大小过大')
+            if (fallbackImages.length) {
+                if (fallbackImages.length !== processedHashes.length) return fail(400, '兜底图片数量与内容校验信息不一致')
+                for (let index = 0; index < fallbackImages.length; index++) {
+                    const bytes = Buffer.from(fallbackImages[index].slice(fallbackImages[index].indexOf(',') + 1), 'base64')
+                    if (createHash('sha256').update(bytes).digest('hex') !== processedHashes[index]) return fail(400, '兜底图片内容校验失败，请重新选图')
+                }
+            }
             if (preflight && (images.length || event.originalFileIds !== undefined)) return fail(400, '上传前校验只接受图片哈希')
             if (images.length && event.originalFileIds !== undefined) return fail(400, '预处理图和原图须分阶段上传')
             if (event.originalFileIds !== undefined) {
@@ -593,18 +621,155 @@ exports.main = async (event) => {
             const retainedMinutes = Math.max(30, dedupMinutes)
             const reuseMinutes = confirmedCode || modelFallback || originalIdsToCleanup.length || suppliedArchive ? retainedMinutes : dedupMinutes
             const input = { imageHashes: processedHashes, text }
+            const flowMode = cfg.flowMode === 'screen-first' ? 'screen-first' : 'model-first'
+            console.log('[doc-ocr] 生效配置 flowMode=' + flowMode
+                + ' timeout=' + Number(cfg.timeout || 0) + ' maxAttempts=' + Number(cfg.maxAttempts || 0)
+                + ' maxModelCalls=' + Number(cfg.maxModelCalls || 0)
+                + ' modelChain=' + cfg.modelChain.filter(step => step.enabled).map(step => step.providerId + '/' + step.model).join(','))
+            if (flowMode === 'model-first') {
+                const fallbackImageList = fallbackImages.length ? fallbackImages : images
+                // 供应商 + 模型 + 错误码/原因（各截断）：既写云日志，也拼进用户可见 message，便于下次直接定位是哪个通道失败。
+                const attemptSummary = attempts => (Array.isArray(attempts) ? attempts : []).slice(0, 4).map(item => {
+                    const who = [item.provider, item.model].filter(Boolean).join(' / ') || '未知通道'
+                    const detail = item.status === 'skipped'
+                        ? '未尝试（' + String(item.error || '预算不足').replace(/\s+/g, ' ').slice(0, 40) + '）'
+                        : String(item.error || item.status || '失败').replace(/\s+/g, ' ').slice(0, 60)
+                    const cost = Number(item.ms) > 0 ? '（' + (Number(item.ms) / 1000).toFixed(1) + 's）' : ''
+                    return who + '：' + detail + cost
+                }).join('；')
+                const buildModelFailure = error => {
+                    const trace = Array.isArray(error && error.trace) ? error.trace : []
+                    let attempts = trace.filter(item => item && ['failed', 'unconfigured', 'unsupported-image', 'skipped'].includes(item.status)).map(item => ({
+                        provider: item.provider || '', model: item.model || '', status: item.status,
+                        error: String(item.detail || item.status || '').slice(0, 200), ms: Number(item.ms) || 0
+                    }))
+                    // trace 仍为空（例如预算守卫在首个请求前就抛错）：按模型链拼一条可读摘要，保证 message 里有明细。
+                    if (!attempts.length) {
+                        const steps = (cfg.modelChain || []).filter(step => step.enabled)
+                        const budgetInfo = error && error.budget
+                        const limit = Number(budgetInfo && budgetInfo.limit) || 0
+                        const used = Number(budgetInfo && budgetInfo.used) || 0
+                        const budgetText = limit
+                            ? '预算耗尽（maxModelCalls=' + limit + '，已用 ' + used + '），未返回可用结果'
+                            : String((error && error.message) || '未返回可用结果').slice(0, 120)
+                        attempts = steps.map(step => {
+                            const provider = (cfg.providers || []).find(item => item.id === step.providerId)
+                            return { provider: (provider && provider.name) || '', model: step.model || '', status: 'failed', error: budgetText, ms: 0 }
+                        })
+                        if (!attempts.length) attempts = [{ provider: '', model: '', status: 'failed', error: budgetText, ms: 0 }]
+                    }
+                    const summary = attemptSummary(attempts)
+                    console.warn('[doc-ocr] 模型失败 reason=' + String((error && error.message) || '').slice(0, 200) + ' attempts=' + (summary || '无'))
+                    return { reason: String((error && error.message) || '大模型未返回可用结果').slice(0, 400), attempts, ...(summary ? { summary } : {}) }
+                }
+                const runOcrFallback = async () => {
+                    if (!fallbackImageList.length) return { ok: false, reason: '本次请求未带预处理图，无法用免费 OCR 兜底' }
+                    const fallbackStarted = Date.now()
+                    try {
+                        const parsed = await recognizeFree(fallbackImageList, cfg, purpose, { screenOnly: false, budgetMs: SCREEN_BUDGET_MS, deadline: Date.now() + SCREEN_BUDGET_MS, pageTimeoutMs: SCREEN_PAGE_TIMEOUT_MS })
+                        const fields = { ...parsed, ...(purpose === 'bom' ? validateBomFields(parsed) : validateFields(parsed)) }
+                        return { ok: true, fields, ms: Date.now() - fallbackStarted }
+                    } catch (error) {
+                        if (!(error instanceof ClientError)) throw error
+                        console.warn('[doc-ocr] 免费 OCR 兜底失败 ms=' + (Date.now() - fallbackStarted) + ' code=' + (error.code || '') + ' ' + String(error.message || '').slice(0, 160))
+                        return { ok: false, reason: String(error.message || '免费 OCR 兜底失败').slice(0, 200), ms: Date.now() - fallbackStarted }
+                    }
+                }
+                const publishModelFailure = async (modelFailure, fallback) => {
+                    const base = fallback && fallback.ok ? fallback.fields : parseFreePages([{ ParsedText: '' }], purpose)
+                    const rawText = String((base.recognitionDocument && base.recognitionDocument.raw_text) || '')
+                    const fallbackInfo = fallback && fallback.ok ? {
+                        engine: Number(cfg.screenEngines[0]) || 2,
+                        ms: Number(fallback.ms) || 0,
+                        text: rawText.slice(0, 20000),
+                        textLength: rawText.length,
+                        parsed: { productCode: base.productCode || '', batchNo: base.batchNo || '', orderNo: base.orderNo || '', plannedQty: base.plannedQty || '', sampleCount: base.sampleCount || '' }
+                    } : null
+                    const reason = modelFailure && modelFailure.reason ? modelFailure.reason : '大模型未返回可用结果'
+                    const attemptDetail = modelFailure && modelFailure.summary ? '；通道明细：' + modelFailure.summary : ''
+                    const reasonWithDetail = (reason + attemptDetail).slice(0, 700)
+                    return await publish({ ...base, flowMode, modelUsed: false, archiveMatched: false,
+                        recognitionSource: fallbackInfo ? 'ocrspace-fallback' : 'model-failed',
+                        needsProductCodeConfirmation: false, needsManualEntry: true,
+                        modelFailure, ...(fallbackInfo ? { fallback: fallbackInfo } : {}),
+                        message: fallbackInfo
+                            ? '大模型未成功（' + reasonWithDetail + '），已用免费 OCR 提取文本，请核对或手动录入'
+                            : '大模型未成功（' + reasonWithDetail + '），免费 OCR 兜底也失败（' + String((fallback && fallback.reason) || '未执行') + '），请手动录入' })
+                }
+                if (text) {
+                    try {
+                        const parsedText = await recognizeModels({ config: cfg, images: [], text, purpose, uid: auth.uid, deadline: recognitionDeadline, callModel: callSF })
+                        const outText = purpose === 'bom' ? validateBomFields(parsedText) : validateFields(parsedText)
+                        return await publish({ flowMode, ...(await finishModelResult(outText, '', confirmedCode, expectedCode, false, purpose)) })
+                    } catch (error) {
+                        if (!(error instanceof ClientError)) throw error
+                        return await publishModelFailure(buildModelFailure(error), { ok: false, reason: '文本模式无图片可兜底' })
+                    }
+                }
+                recognitionKey = await dedupKey({ imageHashes: originalHashes, text }, purpose, cfg, 'model')
+                if (preflight) {
+                    const cachedPreflight = await readRecognition(db, recognitionKey, reuseMinutes, true)
+                    if (cachedPreflight) return await publish({ flowMode, ...(await finishModelResult(cachedPreflight, '', confirmedCode, expectedCode, true, purpose)) })
+                    const lease = await acquireRecognition(db, 'upload:' + recognitionKey, 0, '相同照片', 600000)
+                    uploadLeaseKey = 'upload:' + recognitionKey; uploadLeaseOwner = lease.owner
+                    retainUploadLease = true
+                    const source = await ensureSource(db, auth.uid, originalHashes)
+                    return ok({ needsOriginalImages: true, archiveOriginals: true, sourceDocumentId: source._id, originalUploadPrefix: originalUploadPrefix(auth.uid, uploadLeaseOwner), uploadKey: uploadLeaseKey, uploadOwner: uploadLeaseOwner, flowMode, modelUsed: false })
+                }
+                const cachedModel = await readRecognition(db, recognitionKey, reuseMinutes, true)
+                if (cachedModel) return await publish({ flowMode, ...(await finishModelResult(cachedModel, '', confirmedCode, expectedCode, true, purpose)) })
+                if (!hasReadyModels(cfg, 'image')) {
+                    const fallback = await runOcrFallback()
+                    return await publishModelFailure({ reason: '未启用可用模型步骤或未配置供应商 Key', attempts: [] }, fallback)
+                }
+                let modelFirstArchived = null
+                if (!originalIdsToCleanup.length) {
+                    modelFirstArchived = await readArchivedImages(db, auth.uid, originalHashes, recognitionDeadline)
+                    if (!modelFirstArchived) {
+                        if (uploadLeaseKey !== 'upload:' + recognitionKey) {
+                            const lease = await acquireRecognition(db, 'upload:' + recognitionKey, 0, '相同原图', 600000)
+                            uploadLeaseKey = 'upload:' + recognitionKey; uploadLeaseOwner = lease.owner
+                        }
+                        retainUploadLease = true
+                        const source = await ensureSource(db, auth.uid, originalHashes)
+                        return ok({ needsOriginalImages: true, archiveOriginals: true, sourceDocumentId: source._id, originalUploadPrefix: originalUploadPrefix(auth.uid, uploadLeaseOwner), uploadKey: uploadLeaseKey, uploadOwner: uploadLeaseOwner, flowMode, modelUsed: false })
+                    }
+                }
+                const modelFirstLease = await acquireRecognition(db, recognitionKey, reuseMinutes)
+                if (modelFirstLease.cached) return await publish({ flowMode, ...(await finishModelResult(modelFirstLease.cached, '', confirmedCode, expectedCode, true, purpose)) })
+                recognitionOwner = modelFirstLease.owner
+                let modelFirstImages = []
+                let modelFirstOutput = null
+                try {
+                    modelFirstImages = modelFirstArchived || await loadOriginalImages(originalIdsToCleanup, recognitionDeadline, originalHashes)
+                    const parsedModelFirst = await recognizeModels({ config: cfg, images: modelFirstImages, text: '', purpose, uid: auth.uid, deadline: recognitionDeadline, callModel: callSF })
+                    modelFirstOutput = purpose === 'bom' ? validateBomFields(parsedModelFirst) : validateFields(parsedModelFirst)
+                    await completeRecognition(db, recognitionKey, recognitionOwner, modelFirstOutput, retainedMinutes)
+                    recognitionOwner = ''
+                } catch (error) {
+                    if (!(error instanceof ClientError)) throw error
+                    if (error.code === 400) throw error
+                    if (recognitionOwner) {
+                        try { await failRecognition(db, recognitionKey, recognitionOwner) } catch (releaseError) { /* 等待过期 */ }
+                        recognitionOwner = ''
+                    }
+                    const fallback = await runOcrFallback()
+                    return await publishModelFailure(buildModelFailure(error), fallback)
+                }
+                return await publish({ flowMode, ...(await finishModelResult(modelFirstOutput, '', confirmedCode, expectedCode, false, purpose)) }, modelFirstImages)
+            }
             let screened
-            // 初筛单独缓存，不随大模型配置变化而重新消耗免费 OCR 额度。
+            // 免费识别单独缓存，不随大模型配置变化而重新消耗免费 OCR 额度。
             if (!text) {
                 recognitionKey = await dedupKey(input, purpose, cfg, 'screen')
                 if (images.length && uploadLeaseKey !== 'upload:' + recognitionKey) throw new ClientError('OCR 配置已变化，请重新识别；尚未调用 OCR', 409)
                 if (modelFallback) {
-                    // 用户主动选择后直接进入模型；复用可用初筛编码查库，不再等待 OCR.space。
+                    // 用户主动选择后直接进入模型；复用可用免费识别编码查库，不再等待 OCR.space。
                     screened = await readRecognition(db, recognitionKey, retainedMinutes) || parseFreePages([{ ParsedText: '' }], purpose)
                 } else if (preflight || !images.length) {
                     screened = await readRecognition(db, recognitionKey, reuseMinutes, true)
                     if (!screened) {
-                        if (originalIdsToCleanup.length) throw new ClientError('初筛结果已过期，请重新识别；尚未调用大模型', 409)
+                        if (originalIdsToCleanup.length) throw new ClientError('识别结果已过期，请重新识别；尚未调用大模型', 409)
                         const lease = await acquireRecognition(db, 'upload:' + recognitionKey, 0, '相同照片', 600000)
                         uploadLeaseKey = 'upload:' + recognitionKey; uploadLeaseOwner = lease.owner
                         retainUploadLease = true
@@ -639,7 +804,7 @@ exports.main = async (event) => {
                 const summary = String(screened.screenSummary || '').trim()
                 const screenNote = summary ? '：' + summary : (screenNotes.length ? '（' + screenNotes.slice(0, 2).join('；') + '）' : '')
                 return await publish({ ...screened, archiveMatched: false, modelUsed: false, needsProductCodeConfirmation: true, canUseModelFallback: true, recognitionSource: text ? 'local' : 'ocrspace',
-                    message: '初筛未能确认 10 位产品编码' + screenNote + '，尚未调用大模型。可点击“使用大模型识别”自动提取，或确认编码后先查库。' })
+                    message: '未能确认 10 位产品编码' + screenNote + '，尚未调用大模型。可点击“使用大模型识别”自动提取，或确认编码后先查库。' })
             }
             if (expectedCode && productCode && productCode !== expectedCode) return fail(409, '照片中的产品编码与当前产品不一致，请在新增入口导入；未调用大模型')
             if (productCode) screened = { ...screened, productCode, uncertain: (screened.uncertain || []).filter(field => field !== 'productCode') }
@@ -651,8 +816,8 @@ exports.main = async (event) => {
             if (!text && !originalIdsToCleanup.length) {
                 const cached = await readRecognition(db, recognitionKey, reuseMinutes, true)
                 if (cached) return await publish(await finishModelResult(cached, productCode, confirmedCode, expectedCode, true, purpose))
-                if (!hasReadyModels(cfg)) throw new ClientError((productCode ? '初筛编码 ' + productCode + ' 在库中不存在。' : '') + '请管理员启用模型步骤并配置对应供应商 Key 后重试，或手动录入；尚未上传原图或调用大模型', 503)
-                // 原图按需直传云存储，不随免费初筛上传，也不受云函数 base64 请求大小限制。
+                if (!hasReadyModels(cfg)) throw new ClientError((productCode ? '识别到的编码 ' + productCode + ' 在库中不存在。' : '') + '请管理员启用模型步骤并配置对应供应商 Key 后重试，或手动录入；尚未上传原图或调用大模型', 503)
+                // 原图按需直传云存储，不随免费识别上传，也不受云函数 base64 请求大小限制。
                 archivedImages = await readArchivedImages(db, auth.uid, originalHashes, recognitionDeadline)
                 if (!archivedImages) {
                     const lease = await acquireRecognition(db, 'upload:' + recognitionKey, 0, '相同原图', 600000)

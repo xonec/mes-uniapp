@@ -173,10 +173,10 @@ function parsePages(pages, purpose) {
     }
     if (purpose === 'order') for (const field of ['orderNo', 'batchNo', 'plannedQty', 'sampleCount']) result[field] = (extracted.find(page => page[field] !== '' && page[field] != null) || {})[field] || ''
     return { ...result, detectedProductCodes: codes, recognitionDocument: { raw_text: pages.map((page, index) => '第' + (index + 1) + '页\n' + String(page.ParsedText || '')).join('\n\n'), structured_info: null },
-        recognitionProvider: 'OCR.space', recognitionModel: '', warnings: ['免费 OCR 的材料名称、规格及跨行编号请逐行核对。初筛可能仅识别首页，请确认材料完整。'] }
+        recognitionProvider: 'OCR.space', recognitionModel: '', warnings: ['免费 OCR 的材料名称、规格及跨行编号请逐行核对。免费识别可能仅识别首页，请确认材料完整。'] }
 }
 
-/** 逐页调用 OCR.space；初筛找到明确产品编码即停止，不自动重试。 */
+/** 逐页调用 OCR.space；免费识别找到明确产品编码即停止，不自动重试。 */
 async function recognizeFree(images, cfg, purpose, options = {}) {
     if (!cfg.ocrSpaceApiKey) throw new ClientError('OCR.space 未配置 Key，请由管理员在 OCR 配置中填写', 503)
     for (const image of images) {
@@ -189,7 +189,7 @@ async function recognizeFree(images, cfg, purpose, options = {}) {
         const remaining = Math.min((Number(options.budgetMs) || 145000) - (Date.now() - started), options.deadline ? options.deadline - Date.now() : Infinity)
         if (remaining < 1000) throw new ClientError('免费识别耗时较长，请减少照片页数后重试', 503)
         const timeout = Math.min(Number(options.pageTimeoutMs) || 12000, Number(cfg.timeout) || 35000, remaining)
-        console.log('[doc-ocr] 初筛请求 engine=' + (cfg.ocrSpaceEngine || 2) + ' page=' + (index + 1) + '/' + images.length + ' bytes=' + Buffer.byteLength(image.split(',')[1], 'base64') + ' timeout=' + timeout + ' remaining=' + Math.round(remaining))
+        console.log('[doc-ocr] 免费识别请求 engine=' + (cfg.ocrSpaceEngine || 2) + ' page=' + (index + 1) + '/' + images.length + ' bytes=' + Buffer.byteLength(image.split(',')[1], 'base64') + ' timeout=' + timeout + ' remaining=' + Math.round(remaining))
         const form = new URLSearchParams({ base64Image: image, language: cfg.ocrSpaceEngine === 1 ? 'chs' : 'auto', OCREngine: String(cfg.ocrSpaceEngine || 2), isOverlayRequired: cfg.ocrSpaceEngine === 3 ? 'false' : 'true', isTable: 'true', detectOrientation: 'true', scale: 'true' }).toString()
         let response
         try { response = await uniCloud.httpclient.request(ENDPOINT, { method: 'POST', dataType: 'json', timeout, headers: { apikey: cfg.ocrSpaceApiKey, 'Content-Type': 'application/x-www-form-urlencoded' }, data: form }) }

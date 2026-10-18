@@ -14,7 +14,10 @@ const DEFAULT_OCR_CONFIG = {
     userDailyLimit: 100,
     dedupMinutes: 10080,
     ocrSpaceApiKey: '',
-    ocrSpaceEngine: 2
+    ocrSpaceEngine: 2,
+    // 识别流程默认先保持旧流程，客户端 model-first 就绪后再由管理员切 DB 配置；
+    // model-first = 大模型优先、OCR.space 兜底，screen-first = 旧流程。
+    flowMode: 'screen-first'
 }
 
 const PROVIDER_PRESETS = {
@@ -43,6 +46,15 @@ function maskApiKey(key) {
     return String(key || '').trim() ? '********' : ''
 }
 
+/** 识别流程白名单；缺字段时默认 model-first。 */
+function normalizeFlowMode() {
+    for (let index = 0; index < arguments.length; index++) {
+        const value = String(arguments[index] == null ? '' : arguments[index]).trim()
+        if (value === 'model-first' || value === 'screen-first') return value
+    }
+    return 'model-first'
+}
+
 function mergeOcrConfig(existing, incoming) {
     const e = existing && typeof existing === 'object' ? existing : {}
     const i = incoming && typeof incoming === 'object' ? incoming : {}
@@ -66,7 +78,8 @@ function mergeOcrConfig(existing, incoming) {
     out.userDailyLimit = defNum(i.userDailyLimit, e.userDailyLimit, DEFAULT_OCR_CONFIG.userDailyLimit)
     out.dedupMinutes = defNum(i.dedupMinutes, e.dedupMinutes, DEFAULT_OCR_CONFIG.dedupMinutes)
     out.ocrSpaceEngine = num(i.ocrSpaceEngine) || num(e.ocrSpaceEngine) || DEFAULT_OCR_CONFIG.ocrSpaceEngine
-    return { ...out, ...advanced.mergeAdvancedConfig(e, i, out) }
+    out.flowMode = normalizeFlowMode(i.flowMode, e.flowMode, DEFAULT_OCR_CONFIG.flowMode)
+    return { ...out, ...advanced.mergeAdvancedConfig(e, i, out), flowMode: out.flowMode }
 }
 
 function effectiveConfig(dbCfg, envDefaults) {
@@ -87,7 +100,8 @@ function effectiveConfig(dbCfg, envDefaults) {
         dailyLimit: pick('dailyLimit', env.dailyLimit),
         userDailyLimit: pick('userDailyLimit', env.userDailyLimit),
         dedupMinutes: pick('dedupMinutes', env.dedupMinutes),
-        ocrSpaceApiKey: pick('ocrSpaceApiKey', env.ocrSpaceApiKey), ocrSpaceEngine: Number(pick('ocrSpaceEngine', env.ocrSpaceEngine)) || 2
+        ocrSpaceApiKey: pick('ocrSpaceApiKey', env.ocrSpaceApiKey), ocrSpaceEngine: Number(pick('ocrSpaceEngine', env.ocrSpaceEngine)) || 2,
+        flowMode: normalizeFlowMode(pick('flowMode', env.flowMode), DEFAULT_OCR_CONFIG.flowMode)
     }
     return { ...output, ...advanced.effectiveAdvancedConfig(d, output) }
 }

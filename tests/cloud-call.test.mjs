@@ -52,10 +52,12 @@ await test('超时文案同样归一且保留原始 errMsg', async () => {
     assert.equal(error.cause, 'request:fail timeout')
 })
 
-await test('doc-ocr 长调用 timeout 210000，普通调用 60000', async () => {
+await test('doc-ocr recognize 用 100s，原图归档长调用 210s，普通调用 60s', async () => {
     scripted = null
     await callCloud('doc-ocr', 'recognize', {})
+    await callCloud('production-orders', 'commitSourceImages', {})
     await callCloud('user-admin', 'profile', {})
+    assert.equal(calls[calls.length - 3].timeout, 100000)
     assert.equal(calls[calls.length - 2].timeout, 210000)
     assert.equal(calls[calls.length - 1].timeout, 60000)
 })

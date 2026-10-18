@@ -125,7 +125,7 @@ function mergeAdvancedConfig(existing, incoming, legacy) {
     const primary = modelChain.find(step => step.enabled && providers.some(provider => provider.id === step.providerId && provider.enabled))
     const primaryProvider = primary && providers.find(provider => provider.id === primary.providerId)
     const ocr = providers.find(provider => provider.type === 'ocrspace' && provider.enabled)
-    if (!ocr || providers.filter(provider => provider.type === 'ocrspace').length !== 1) invalid('请保留一个启用的 OCR.space 初筛服务')
+    if (!ocr || providers.filter(provider => provider.type === 'ocrspace').length !== 1) invalid('请保留一个启用的 OCR.space 免费识别服务')
     return { providers, modelChain, screenEngines, maxModelCalls, ...prompts,
         apiUrl: primaryProvider ? primaryProvider.apiUrl : legacy.apiUrl,
         apiKey: primaryProvider ? primaryProvider.apiKey : '',
