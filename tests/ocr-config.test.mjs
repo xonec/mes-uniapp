@@ -19,8 +19,9 @@ console.log('ocr-config:')
 
 t('默认配置字段齐全', () => {
     assert.equal(DEFAULT_OCR_CONFIG.apiUrl, 'https://api.deepseek.com/chat/completions')
-    assert.equal(DEFAULT_OCR_CONFIG.timeout, 35000)
-    assert.equal(DEFAULT_OCR_CONFIG.maxAttempts, 1)
+    assert.equal(DEFAULT_OCR_CONFIG.timeout, 60000)
+    assert.equal(DEFAULT_OCR_CONFIG.maxAttempts, 2)
+    assert.equal('economyMode' in DEFAULT_OCR_CONFIG, false)
 })
 
 t('预设含三家供应商', () => {
@@ -30,17 +31,10 @@ t('预设含三家供应商', () => {
     assert.equal(PROVIDER_PRESETS.siliconflow.apiUrl, 'https://api.siliconflow.cn/v1/chat/completions')
 })
 
-t('maskApiKey 长密钥保留前后各4位、中间全星号', () => {
-    const k = 'sk-abcdefghij1234567890XYZW'   // 长度 26
-    const m = maskApiKey(k)
-    assert.equal(m.length, k.length)            // 长度不变
-    assert.ok(m.startsWith('sk-a'))             // 前 4 位
-    assert.ok(m.endsWith('XYZW'))               // 后 4 位
-    assert.ok(/^\*+$/.test(m.slice(4, -4)))     // 中间全星号
-})
-
-t('maskApiKey 短密钥返回掩码', () => {
-    assert.equal(maskApiKey('abc'), '****')
+t('maskApiKey 长短密钥均为固定星号，不透露字符或长度', () => {
+    for (const key of ['sk-abcdefghij1234567890XYZW', 'abc']) {
+        assert.equal(maskApiKey(key), '********')
+    }
 })
 
 t('maskApiKey 空串返回空', () => {
@@ -93,10 +87,17 @@ t('effectiveConfig 全空回落内置默认', () => {
 })
 
 t('effectiveConfig 限额字段：DB 空白回落 env 默认', () => {
-    const eff = effectiveConfig({ apiUrl: 'https://db.com', economyMode: false }, { dailyLimit: 500, userDailyLimit: 0, dedupMinutes: 10 })
+    const eff = effectiveConfig({ apiUrl: 'https://db.com' }, { dailyLimit: 500, userDailyLimit: 0, dedupMinutes: 10 })
     assert.equal(eff.dailyLimit, 500)
     assert.equal(eff.userDailyLimit, 0)
     assert.equal(eff.dedupMinutes, 10)
+})
+
+t('effectiveConfig 不再强制重试次数与去重天数（旧库残留 economyMode 被忽略）', () => {
+    const eff = effectiveConfig({ apiUrl: 'https://db.com', maxAttempts: 3, dedupMinutes: 5, economyMode: true }, {})
+    assert.equal(eff.maxAttempts, 3)
+    assert.equal(eff.dedupMinutes, 5)
+    assert.equal('economyMode' in eff, false)
 })
 
 t('mergeOcrConfig 限额：显式 0 不被旧值覆盖', () => {

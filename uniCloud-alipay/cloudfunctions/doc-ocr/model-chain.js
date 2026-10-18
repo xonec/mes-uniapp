@@ -18,8 +18,13 @@ async function recognizeModels({ config, images, text, purpose, uid, deadline, c
     const trace = []
     const steps = config.modelChain.filter(step => step.enabled)
     for (const step of steps) {
-        const provider = config.providers.find(item => item.id === step.providerId && item.enabled && item.type !== 'ocrspace')
-        if (!provider || !provider.apiKey) { trace.push({ stepId: step.id, status: 'unconfigured' }); continue }
+        const anyProvider = config.providers.find(item => item.id === step.providerId)
+        const provider = anyProvider && anyProvider.enabled && anyProvider.type !== 'ocrspace' ? anyProvider : null
+        if (!provider) {
+            trace.push({ stepId: step.id, status: 'unconfigured', detail: anyProvider ? ('供应商「' + anyProvider.name + '」已停用') : ('供应商不存在（' + step.providerId + '）') })
+            continue
+        }
+        if (!provider.apiKey) { trace.push({ stepId: step.id, status: 'unconfigured', detail: '供应商「' + provider.name + '」未填写 Key' }); continue }
         if (budget.used >= budget.limit) break
         if (deadline - Date.now() < 1500) break
         const mode = text ? 'text' : 'image'
@@ -40,11 +45,19 @@ async function recognizeModels({ config, images, text, purpose, uid, deadline, c
                 recognitionAudit: { contentPrompt: config.contentPrompt, taskPrompt: purpose === 'bom' ? config.bomPrompt : config.orderPrompt, pagePrompt, providerId: provider.id, mode } }
         } catch (error) {
             if (!(error instanceof ClientError) || error.kind === 'quota' || error.kind === 'budget' || error.code === 400) throw error
-            trace.push({ stepId: step.id, provider: provider.name, model: mode === 'text' ? step.textModel : step.model, status: 'failed', calls: budget.used - before })
+            // 记录失败原因，便于管理员直接看到是 Key、模型名还是超时问题（不包含任何密钥）
+            trace.push({ stepId: step.id, provider: provider.name, model: mode === 'text' ? step.textModel : step.model, status: 'failed', calls: budget.used - before, detail: String(error.message || '调用失败').slice(0, 160) })
         }
     }
     if (!hasReadyModels(config, text ? 'text' : 'image')) throw new ClientError('请在后台启用可用模型步骤并填写对应供应商 Key；尚未调用模型', 503)
     if (budget.used >= budget.limit) throw new ClientError('已达到本次模型请求上限（' + budget.limit + ' 次），未获得可用结果，请核对模型配置或手动录入', 502)
-    throw new ClientError('配置顺序中的模型未返回可用结果，请核对供应商、模型和 Prompt 模板后重试', 502)
+    const notes = trace.map(item => {
+        if (item.status === 'failed') return (item.provider || item.stepId) + ' / ' + (item.model || '') + '：' + (item.detail || '调用失败')
+        if (item.status === 'unconfigured') return item.detail || '有模型步骤未配置供应商 Key'
+        if (item.status === 'unsupported-image') return (item.provider || item.stepId) + ' / ' + (item.model || '') + '：该模型不支持图片识别'
+        return ''
+    }).filter(Boolean)
+    const detail = Array.from(new Set(notes)).slice(0, 4).join('；')
+    throw new ClientError('配置顺序中的模型未返回可用结果' + (detail ? '（' + detail + '）' : '') + '，请核对供应商、模型和 Prompt 模板后重试', 502)
 }
 module.exports = { hasReadyModels, recognizeModels }

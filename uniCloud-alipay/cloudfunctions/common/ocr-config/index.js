@@ -8,12 +8,11 @@ const DEFAULT_OCR_CONFIG = {
     apiKey: '',
     model: 'deepseek-flash',
     textModel: 'deepseek-flash',
-    timeout: 35000,
-    maxAttempts: 1,
+    timeout: 60000,
+    maxAttempts: 2,
     dailyLimit: 200,
     userDailyLimit: 100,
     dedupMinutes: 10080,
-    economyMode: true,
     ocrSpaceApiKey: '',
     ocrSpaceEngine: 2
 }
@@ -28,7 +27,7 @@ const PROVIDER_PRESETS = {
     siliconflow: {
         label: '硅基流动 SiliconFlow',
         apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
-        model: 'Qwen/Qwen2.5-VL-72B-Instruct',
+        model: 'deepseek-ai/DeepSeek-V4.1-Flash',
         textModel: 'deepseek-ai/DeepSeek-V4.1-Flash'
     },
     selfhost: {
@@ -66,7 +65,6 @@ function mergeOcrConfig(existing, incoming) {
     out.dailyLimit = defNum(i.dailyLimit, e.dailyLimit, DEFAULT_OCR_CONFIG.dailyLimit)
     out.userDailyLimit = defNum(i.userDailyLimit, e.userDailyLimit, DEFAULT_OCR_CONFIG.userDailyLimit)
     out.dedupMinutes = defNum(i.dedupMinutes, e.dedupMinutes, DEFAULT_OCR_CONFIG.dedupMinutes)
-    out.economyMode = typeof i.economyMode === 'boolean' ? i.economyMode : typeof e.economyMode === 'boolean' ? e.economyMode : DEFAULT_OCR_CONFIG.economyMode
     out.ocrSpaceEngine = num(i.ocrSpaceEngine) || num(e.ocrSpaceEngine) || DEFAULT_OCR_CONFIG.ocrSpaceEngine
     return { ...out, ...advanced.mergeAdvancedConfig(e, i, out) }
 }
@@ -79,18 +77,16 @@ function effectiveConfig(dbCfg, envDefaults) {
         if (v === undefined || v === null || String(v).trim() === '') return def
         return v
     }
-    const economyMode = pick('economyMode', env.economyMode) !== false
     const output = {
         apiUrl: pick('apiUrl', env.apiUrl),
         apiKey: pick('apiKey', env.apiKey),
         model: pick('model', env.model),
         textModel: pick('textModel', env.textModel),
         timeout: Number(pick('timeout', env.timeout)) || env.timeout,
-        maxAttempts: economyMode ? 1 : Number(pick('maxAttempts', env.maxAttempts)) || env.maxAttempts,
+        maxAttempts: Number(pick('maxAttempts', env.maxAttempts)) || env.maxAttempts,
         dailyLimit: pick('dailyLimit', env.dailyLimit),
         userDailyLimit: pick('userDailyLimit', env.userDailyLimit),
-        dedupMinutes: economyMode ? Math.max(10080, Number(pick('dedupMinutes', env.dedupMinutes)) || 0) : pick('dedupMinutes', env.dedupMinutes),
-        economyMode,
+        dedupMinutes: pick('dedupMinutes', env.dedupMinutes),
         ocrSpaceApiKey: pick('ocrSpaceApiKey', env.ocrSpaceApiKey), ocrSpaceEngine: Number(pick('ocrSpaceEngine', env.ocrSpaceEngine)) || 2
     }
     return { ...output, ...advanced.effectiveAdvancedConfig(d, output) }

@@ -28,6 +28,9 @@ function providerType(apiUrl) {
     return Object.keys(PROVIDERS).find(type => type !== 'ocrspace' && PROVIDERS[type].apiUrl === apiUrl) || 'custom'
 }
 
+// DeepSeek Flash 双通道：官方与硅基流动各一个模型名
+const DEEPSEEK_FLASH_MODEL = { deepseek: 'deepseek-flash', siliconflow: 'deepseek-ai/DeepSeek-V4.1-Flash' }
+
 function migrate(legacy) {
     legacy = { apiUrl: 'https://api.deepseek.com/chat/completions', model: 'deepseek-flash', textModel: 'deepseek-flash', ...legacy }
     const selected = providerType(legacy.apiUrl)
@@ -36,7 +39,15 @@ function migrate(legacy) {
         apiKey: type === 'ocrspace' ? text(legacy.ocrSpaceApiKey) : type === selected ? text(legacy.apiKey) : ''
     }))
     if (selected === 'custom') providers.push({ id: 'legacy-custom', type: 'custom', name: '原有识别服务', apiUrl: legacy.apiUrl, enabled: true, apiKey: text(legacy.apiKey) })
-    return { providers, modelChain: [{ id: 'primary', providerId: selected === 'custom' ? 'legacy-custom' : selected, model: text(legacy.model), textModel: text(legacy.textModel), enabled: true }], screenEngines: [Number(legacy.ocrSpaceEngine) || 2], maxModelCalls: Number(legacy.maxAttempts) || 1 }
+    const primaryProviderId = selected === 'custom' ? 'legacy-custom' : selected
+    const chain = [{ id: 'primary', providerId: primaryProviderId, model: text(legacy.model), textModel: text(legacy.textModel), enabled: true }]
+    const fallbackType = selected === 'deepseek' ? 'siliconflow' : selected === 'siliconflow' ? 'deepseek' : ''
+    if (fallbackType && fallbackType !== primaryProviderId) {
+        chain.push({ id: 'fallback', providerId: fallbackType, model: DEEPSEEK_FLASH_MODEL[fallbackType], textModel: DEEPSEEK_FLASH_MODEL[fallbackType], enabled: true })
+    }
+    // 两个步骤需要各自的模型请求预算，否则备用通道永远轮不到
+    const maxModelCalls = Math.max(chain.length, Number(legacy.maxAttempts) || 1)
+    return { providers, modelChain: chain, screenEngines: [Number(legacy.ocrSpaceEngine) || 2], maxModelCalls }
 }
 
 /** 按稳定供应商 ID 合并密钥；切换供应商或端点时要求重新填写，防止串用密钥。 */
@@ -100,7 +111,10 @@ function mergeAdvancedConfig(existing, incoming, legacy) {
     const modelChain = normalizeChain(chain || [], providers, incoming.modelChain !== undefined)
     const screenEngines = incoming.screenEngines === undefined ? incoming.ocrSpaceEngine !== undefined && Number(incoming.ocrSpaceEngine) !== Number((base.screenEngines || [2])[0]) ? [Number(incoming.ocrSpaceEngine)] : base.screenEngines || [2] : incoming.screenEngines
     if (!Array.isArray(screenEngines) || !screenEngines.length || screenEngines.length > 3 || screenEngines.some(engine => ![1, 2, 3].includes(engine)) || new Set(screenEngines).size !== screenEngines.length) invalid('OCR.space 引擎顺序须为不重复的 1、2、3')
-    const maxModelCalls = Number(incoming.maxModelCalls === undefined ? base.maxModelCalls || legacy.maxAttempts || 1 : incoming.maxModelCalls)
+    // 模型链总预算默认不小于启用步数，保证备用通道能真正被调用（双通链默认 2）
+    const enabledStepCount = modelChain.filter(step => step.enabled !== false).length
+    const requestedCalls = Number(incoming.maxModelCalls === undefined ? base.maxModelCalls || legacy.maxAttempts || 1 : incoming.maxModelCalls)
+    const maxModelCalls = Math.max(requestedCalls, enabledStepCount)
     if (!Number.isInteger(maxModelCalls) || maxModelCalls < 1 || maxModelCalls > 6) invalid('单次模型请求上限须为 1～6')
     const prompts = {}
     for (const key of Object.keys(PROMPT_DEFAULTS)) {
@@ -119,13 +133,32 @@ function mergeAdvancedConfig(existing, incoming, legacy) {
         ocrSpaceApiKey: ocr.apiKey, ocrSpaceEngine: screenEngines[0] }
 }
 
+/**
+ * 单步 DeepSeek 系模型链自动补齐双通道（官方 Flash ↔ 硅基流动 DeepSeek Flash）。
+ * 只影响生效配置，不写数据库；备用步骤未填 Key 时识别逻辑会自动跳过，不产生额外费用。
+ */
+function withDeepseekFlashFallback(config) {
+    const chain = Array.isArray(config.modelChain) ? config.modelChain : []
+    const enabled = chain.filter(step => step.enabled !== false)
+    if (enabled.length !== 1) return config
+    const step = enabled[0]
+    const providers = Array.isArray(config.providers) ? config.providers : []
+    const provider = providers.find(item => item.id === step.providerId)
+    if (!provider || !DEEPSEEK_FLASH_MODEL[provider.type]) return config
+    const otherType = provider.type === 'deepseek' ? 'siliconflow' : 'deepseek'
+    const other = providers.find(item => item.type === otherType)
+    if (!other) return config
+    const appended = { id: step.id === 'fallback' ? 'fallback-alt' : 'fallback', providerId: other.id, model: DEEPSEEK_FLASH_MODEL[otherType], textModel: DEEPSEEK_FLASH_MODEL[otherType], enabled: true }
+    return { ...config, modelChain: [...chain, appended], maxModelCalls: Math.max(Number(config.maxModelCalls) || 1, chain.length + 1) }
+}
+
 /** 按运行时旧字段生成高级配置，环境变量及旧数据库数据保持兼容。 */
 function effectiveAdvancedConfig(dbConfig, legacy) {
     const base = Array.isArray(dbConfig.providers) ? { ...dbConfig } : migrate(legacy)
     if (!base.contentPrompt) base.contentPrompt = CONTENT_RECOGNITION_PROMPT
     if (!base.bomPrompt) base.bomPrompt = BOM_PROMPT
     if (!base.orderPrompt) base.orderPrompt = ORDER_PROMPT
-    return mergeAdvancedConfig({ ...legacy, ...base }, {}, legacy)
+    return withDeepseekFlashFallback(mergeAdvancedConfig({ ...legacy, ...base }, {}, legacy))
 }
 
 /** 返回不包含供应商密钥的配置。 */

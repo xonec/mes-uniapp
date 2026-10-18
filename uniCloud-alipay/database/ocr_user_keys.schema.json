@@ -1,0 +1,32 @@
+{
+    "bsonType": "object",
+    "description": "用户自带的识别模型 API Key：仅本人使用，仅服务端读写；_id = 用户 uid。存在时该用户识别使用自己的 Key，不占用内置额度",
+    "required": ["providerType", "apiKey", "updatedAt"],
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "description": "用户 uid，主键唯一"
+        },
+        "providerType": {
+            "bsonType": "string",
+            "title": "供应商类型",
+            "description": "deepseek（DeepSeek 官方）或 siliconflow（硅基流动），与识别配置中的供应商 type 对应",
+            "enum": ["deepseek", "siliconflow"]
+        },
+        "apiKey": {
+            "bsonType": "string",
+            "title": "API Key",
+            "description": "用户自己的密钥，仅在服务端使用，不向其他用户或客户端明文返回"
+        },
+        "updatedAt": {
+            "bsonType": "number",
+            "title": "更新时间",
+            "description": "毫秒时间戳"
+        }
+    }
+}

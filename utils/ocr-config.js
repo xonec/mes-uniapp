@@ -12,12 +12,11 @@ export const DEFAULT_OCR_CONFIG = {
     apiKey: '',
     model: 'deepseek-flash',     // 图片/多模态
     textModel: 'deepseek-flash',            // 文本兜底
-    timeout: 35000,                            // 单次调用超时（ms）
-    maxAttempts: 1,                            // 包含首次请求的最多尝试次数
+    timeout: 60000,                            // 单次调用超时（ms）
+    maxAttempts: 2,                            // 包含首次请求的最多尝试次数（1~3）
     dailyLimit: 200,                           // 全局每日识别上限（0=不限）
     userDailyLimit: 100,                       // 每用户每日识别上限（0=不限）
     dedupMinutes: 10080,                       // 默认复用相同输入 7 天
-    economyMode: true,                         // 省钱模式：缓存至少 7 天、只尝试一次
     ocrSpaceApiKey: '',
     ocrSpaceEngine: 2
 }
@@ -33,7 +32,7 @@ export const PROVIDER_PRESETS = {
     siliconflow: {
         label: '硅基流动 SiliconFlow',
         apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
-        model: 'Qwen/Qwen2.5-VL-72B-Instruct',
+        model: 'deepseek-ai/DeepSeek-V4.1-Flash',
         textModel: 'deepseek-ai/DeepSeek-V4.1-Flash'
     },
     selfhost: {
@@ -72,7 +71,6 @@ export function mergeOcrConfig(existing, incoming) {
     out.dailyLimit = defNum(i.dailyLimit, e.dailyLimit, DEFAULT_OCR_CONFIG.dailyLimit)
     out.userDailyLimit = defNum(i.userDailyLimit, e.userDailyLimit, DEFAULT_OCR_CONFIG.userDailyLimit)
     out.dedupMinutes = defNum(i.dedupMinutes, e.dedupMinutes, DEFAULT_OCR_CONFIG.dedupMinutes)
-    out.economyMode = typeof i.economyMode === 'boolean' ? i.economyMode : typeof e.economyMode === 'boolean' ? e.economyMode : DEFAULT_OCR_CONFIG.economyMode
     out.ocrSpaceEngine = num(i.ocrSpaceEngine) || num(e.ocrSpaceEngine) || DEFAULT_OCR_CONFIG.ocrSpaceEngine
     return out
 }
@@ -87,18 +85,16 @@ export function effectiveConfig(dbCfg, envDefaults) {
         if (v === undefined || v === null || String(v).trim() === '') return def
         return v
     }
-    const economyMode = pick('economyMode', env.economyMode) !== false
     return {
         apiUrl: pick('apiUrl', env.apiUrl),
         apiKey: pick('apiKey', env.apiKey),
         model: pick('model', env.model),
         textModel: pick('textModel', env.textModel),
         timeout: Number(pick('timeout', env.timeout)) || env.timeout,
-        maxAttempts: economyMode ? 1 : Number(pick('maxAttempts', env.maxAttempts)) || env.maxAttempts,
+        maxAttempts: Number(pick('maxAttempts', env.maxAttempts)) || env.maxAttempts,
         dailyLimit: pick('dailyLimit', env.dailyLimit),
         userDailyLimit: pick('userDailyLimit', env.userDailyLimit),
-        dedupMinutes: economyMode ? Math.max(10080, Number(pick('dedupMinutes', env.dedupMinutes)) || 0) : pick('dedupMinutes', env.dedupMinutes),
-        economyMode,
+        dedupMinutes: pick('dedupMinutes', env.dedupMinutes),
         ocrSpaceApiKey: pick('ocrSpaceApiKey', env.ocrSpaceApiKey), ocrSpaceEngine: Number(pick('ocrSpaceEngine', env.ocrSpaceEngine)) || 2
     }
 }

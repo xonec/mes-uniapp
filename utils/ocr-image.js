@@ -12,27 +12,34 @@ export function ocrImageIdentity(image) {
 export async function chooseOcrImages(sourceType = ['album', 'camera'], existing = []) {
     const remaining = 6 - existing.length
     if (remaining < 1) throw new Error('最多选择 6 张照片，请先清空照片再重新选择')
-    const result = await new Promise((resolve, reject) => uni.chooseImage({ count: remaining, sourceType, sizeType: ['original'], success: resolve, fail: reject }))
+    const result = await new Promise((resolve, reject) => uni.chooseImage({ count: remaining, sourceType, sizeType: ['compressed'], success: resolve, fail: reject }))
     const files = result.tempFilePaths || []
     const images = existing.slice()
     for (let index = 0; index < files.length; index++) {
         const original = files[index]
         const reportedSize = Number(result.tempFiles && result.tempFiles[index] && result.tempFiles[index].size) || 0
         if (reportedSize > 20 * 1024 * 1024) throw new Error('原图单张上限 20 MB，请选择体积较小的原图')
-        const originalInfo = await hashImageData(await readImageDataUrl(original))
-        if (!originalInfo.mime) throw new Error('原图须为 JPG、PNG、WebP 或 GIF，请重新选择支持的原图')
-        if (images.some(image => image.originalHash === originalInfo.hash)) continue
-        const originalSize = originalInfo.size
+        // 相册选到的图可能归媒体库所有，App 端 plus.io 读不到原图；此时退化为压缩后再计算哈希，保证流程可继续
+        let originalInfo = null
+        try { originalInfo = await hashImageData(await readImageDataUrl(original)) } catch (e) { originalInfo = null }
+        if (originalInfo && !originalInfo.mime) throw new Error('原图须为 JPG、PNG、WebP 或 GIF，请重新选择支持的原图')
+        if (!originalInfo && !/\.(jpe?g|png|webp|gif)(?:\?|$)/i.test(String(original))) throw new Error('原图须为 JPG、PNG、WebP 或 GIF，请重新选择支持的原图')
+        const originalSize = originalInfo ? originalInfo.size : reportedSize
         if (originalSize > 20 * 1024 * 1024 || images.reduce((total, image) => total + (image.originalSize || 0), originalSize) > 40 * 1024 * 1024) throw new Error('原图单张上限 20 MB、合计上限 40 MB，请减少照片页数')
-        const originalHash = originalInfo.hash
+        const originalHash = originalInfo ? originalInfo.hash : ''
+        if (originalHash && images.some(image => image.originalHash === originalHash)) continue
         // #ifdef H5
         const browserDataUrl = await compressBrowserImage(original)
-        images.push({ path: original, originalPath: original, originalSize, originalHash, processedHash: (await hashImageData(browserDataUrl)).hash, dataUrl: browserDataUrl })
+        const browserHash = (await hashImageData(browserDataUrl)).hash
+        images.push({ path: original, originalPath: original, originalSize, originalHash: originalHash || browserHash, processedHash: browserHash, dataUrl: browserDataUrl })
         continue
         // #endif
         // #ifndef H5
         const compressed = await compressPlatformImage(original)
-        images.push({ ...compressed, path: original, originalPath: original, originalSize, originalHash, processedHash: (await hashImageData(compressed.dataUrl)).hash, processedPath: compressed.path })
+        const processedHash = (await hashImageData(compressed.dataUrl)).hash
+        const finalOriginalHash = originalHash || processedHash
+        if (images.some(image => image.originalHash === finalOriginalHash)) continue
+        images.push({ ...compressed, path: original, originalPath: original, originalSize, originalHash: finalOriginalHash, processedHash, processedPath: compressed.path })
         // #endif
     }
     if (images.length > 6 || images.reduce((total, image) => total + image.dataUrl.length, 0) > 6 * 1024 * 1024) throw new Error('照片数量或总大小过大，请清空照片后减少页数重新选择')
@@ -83,7 +90,10 @@ async function compressPlatformImage(original) {
 /** 读取各端临时图片；H5 使用浏览器 FileReader。 */
 export function readImageDataUrl(filePath) {
     // #ifdef APP-PLUS
-    return new Promise((resolve, reject) => plus.io.resolveLocalFileSystemURL(filePath, entry => entry.file(file => {
+    // plus.io 不认 file:// 前缀（相册选择器在 Android 上返回的就是这种路径），去掉后才能读到文件
+    // plus.io 不认 file:// 前缀；读不到时由调用方退化为压缩后哈希
+    const localPath = String(filePath || '').replace(/^file:\/\//, '')
+    return new Promise((resolve, reject) => plus.io.resolveLocalFileSystemURL(localPath, entry => entry.file(file => {
         const reader = new plus.io.FileReader()
         reader.onloadend = event => event.target && event.target.result ? resolve(event.target.result) : reject(new Error('读取图片失败'))
         reader.onerror = () => reject(new Error('读取图片失败'))

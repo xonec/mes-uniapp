@@ -13,14 +13,14 @@
 //       OCR_API_URL / OCR_MODEL / OCR_TEXT_MODEL / OCR_API_TIMEOUT / OCR_MAX_ATTEMPTS
 //       OCR_DAILY_LIMIT      全局每日识别上限（默认 200，0=不限）
 //       OCR_USER_DAILY_LIMIT 每用户每日识别上限（默认 100，0=不限）
-//       OCR_DEDUP_MINUTES    相同输入复用分钟（默认 10080，省钱模式至少 7 天）
+//       OCR_DEDUP_MINUTES    相同输入复用分钟（默认 10080）
 //       OCRSPACE_API_KEY / OCRSPACE_ENGINE 免费 OCR Key 与引擎（默认 2）
 //   - DB 配置（App「识别设置」页填，60s 内生效，无需进控制台）：同上字段 + apiKey + dailyLimit/userDailyLimit/dedupMinutes。
 //
 // 额度保护：每次模型 HTTP 尝试前检查当日全局/个人上限（含重试），超限直接拦截；
 //          并对相同图片/文本做去重缓存，重复提交不重复计费；每次调用打印 token 用量便于监控。
 
-const { checkAuth, checkAdmin, ok, fail, ClientError } = require('mes-common')
+const { checkAuth, checkAdmin, ok, fail, ClientError, BATCH_PATTERN } = require('mes-common')
 const { buildMaterialsFromArchive } = require('order-parser')
 const { DEFAULT_OCR_CONFIG, PROVIDER_PRESETS, PROVIDERS, PROMPT_DEFAULTS, publicAdvancedConfig, maskApiKey, mergeOcrConfig, effectiveConfig } = require('ocr-config')
 const { saveOrder, updatedCount } = require('mes-document-store')
@@ -31,10 +31,12 @@ const { configuredKey, recognizeFree, parsePages: parseFreePages } = require('./
 const { originalUploadPrefix, validateOriginalIds, loadOriginalImages, cleanupOriginalImages } = require('./original-images')
 const { getModels } = require('./model-catalog')
 const { hasReadyModels, recognizeModels } = require('./model-chain')
+const { OWN_KEY_PROVIDERS, ownProviderType, normalizeOwnKey, applyUserKey } = require('./own-key')
 
 const CONFIG_COLL = 'config'
 const CONFIG_ID = 'ocr'
 const QUOTA_COLL = 'ocr_quota'
+const USER_KEY_COLL = 'ocr_user_keys'
 const OCR_PROTOCOL_VERSION = 4
 
 // 环境变量解析的兜底默认（DB 配置空白时回落到这里）
@@ -90,6 +92,8 @@ async function reserveCounter(id, date, limit, label) {
 }
 // 每次真实调用大模型前检查当日全局/个人上限；超限直接拦截（不发起请求）
 async function assertWithinQuota(cfg, uid) {
+    // 用户自带 Key 用的是自己的账户额度，不占用内置全局/个人计数
+    if (cfg && cfg.ownKey) return
     const today = dateStr()
     const gId = 'g:' + today
     const uId = 'u:' + today + ':' + uid
@@ -100,6 +104,42 @@ async function assertWithinQuota(cfg, uid) {
     catch (error) {
         await db.collection(QUOTA_COLL).doc(uId).update({ calls: db.command.inc(-1) })
         throw error
+    }
+}
+
+// ---------- 用户自带 Key（存在时优先使用，且不占内置额度） ----------
+async function readUserKey(uid) {
+    const rows = (await db.collection(USER_KEY_COLL).doc(String(uid)).get()).data || []
+    return normalizeOwnKey(rows && rows[0])
+}
+async function writeUserKey(uid, providerType, apiKey) {
+    const coll = db.collection(USER_KEY_COLL)
+    const _id = String(uid)
+    const doc = { providerType, apiKey, updatedAt: Date.now() }
+    const rows = (await coll.doc(_id).get()).data || []
+    if (rows.length) await coll.doc(_id).update(doc)
+    else await coll.add({ _id, ...doc })
+}
+async function deleteUserKey(uid) {
+    try { await db.collection(USER_KEY_COLL).doc(String(uid)).remove() } catch (error) { /* 不存在视为已清除 */ }
+}
+async function myKeyState(uid) {
+    const config = await resolveOcrConfig()
+    const rows = (await db.collection(USER_KEY_COLL).doc(String(uid)).get()).data || []
+    const row = rows && rows[0]
+    const keySet = !!(row && String(row.apiKey || '').trim())
+    let used = 0
+    try {
+        const counters = (await db.collection(QUOTA_COLL).doc('u:' + dateStr() + ':' + String(uid)).get()).data || []
+        used = Number(counters[0] && counters[0].calls) || 0
+    } catch (error) { used = 0 }
+    return {
+        keySet,
+        maskedKey: keySet ? maskApiKey(row.apiKey) : '',
+        providerType: keySet ? (ownProviderType(row.providerType) || 'deepseek') : '',
+        dailyLimit: Number(config.userDailyLimit) || 0,
+        used,
+        builtinReady: hasReadyModels(config)
     }
 }
 
@@ -156,10 +196,10 @@ async function callSF(messages, mode, cfg, uid, deadline, budget) {
             })
             const data = res && res.data
             const status = Number(res && (res.status || res.statusCode))
-            if (status >= 400 && status < 500 && status !== 429) throw new ClientError('识别服务拒绝请求，请在 OCR 配置中检查模型名和 API Key', 502)
+            if (status >= 400 && status < 500 && status !== 429) throw new ClientError('识别服务拒绝请求（HTTP ' + status + '）：请核对模型名与 API Key', 502)
             // 支付宝云 httpclient 的 statusCode 不一定可靠，直接按响应内容判定成功与否
             if (!data || !data.choices || !data.choices[0]) {
-                lastErr = '识别服务返回异常，请核对供应商和模型配置'
+                lastErr = '识别服务返回异常（HTTP ' + (Number.isFinite(status) && status ? status : '未知') + '）：响应缺少 choices，请核对供应商、模型名与 API 地址'
                 continue
             }
             const content = data.choices[0].message && data.choices[0].message.content
@@ -173,8 +213,9 @@ async function callSF(messages, mode, cfg, uid, deadline, budget) {
             }
         } catch (e) {
             if (e instanceof ClientError) throw e
-            // httpclient 超时 / 网络异常：典型为高峰排队，继续重试
-            lastErr = '识别服务请求失败或超时'
+            // httpclient 超时 / 网络异常：带上错误码便于区分 DNS、TLS、超时或证书问题
+            const code = String((e && (e.code || e.name || e.errCode)) || '').trim()
+            lastErr = '识别服务请求失败' + (code ? '（' + code + '）' : '（超时或网络异常）') + '：请核对 API 地址、网络与 Key'
             continue
         }
     }
@@ -199,14 +240,14 @@ async function recognizeScreen(images, config, purpose, deadline) {
     return result || parseFreePages([{ ParsedText: '' }], purpose)
 }
 
-// 服务端轻校验：批号 11 位字母数字；产品编码 10 位数字；订单号纯数字
+// 服务端轻校验：批号 11 位字母数字，可追加 B 单后缀；产品编码 10 位数字；订单号纯数字
 function validateFields(f) {
     f = f && typeof f === 'object' && !Array.isArray(f) ? f : {}
     const uncertain = Array.isArray(f.uncertain) ? f.uncertain : []
     const marks = {}
     const checks = [
         ['orderNo', /^\d{4,12}$/],
-        ['batchNo', /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/],
+        ['batchNo', BATCH_PATTERN],
         ['productCode', /^\d{10}$/],
         ['plannedQty', (v) => v === '' || v === undefined || v === null || (!isNaN(Number(v)) && Number(v) >= 0)]
     ]
@@ -333,7 +374,7 @@ exports.main = async (event) => {
     try {
         db = getDb()
         // 配置读写：管理员专用（先过基础鉴权，再过 admin）
-        if (event.action === 'getConfig' || event.action === 'setConfig' || event.action === 'getModels') {
+        if (event.action === 'getConfig' || event.action === 'setConfig' || event.action === 'getModels' || event.action === 'testModel') {
             const admin = await checkAdmin(db, event.uniIdToken)
             if (admin.errCode) return fail(admin.errCode, admin.message)
             if (event.action === 'getModels') {
@@ -341,10 +382,51 @@ exports.main = async (event) => {
                 const latest = effectiveConfig(await readDbConfig(), FALLBACK)
                 return ok(await getModels(latest, event.provider || event.providerId, event.forceRefresh === true))
             }
+            // 连通性自检：对每个启用步骤发一次极小的文本请求，返回状态码与耗时（不消耗图片额度）
+            if (event.action === 'testModel') {
+                const dbCfg = await readDbConfig()
+                const eff = effectiveConfig(dbCfg, FALLBACK)
+                const steps = (eff.modelChain || []).filter(step => step.enabled)
+                const results = []
+                for (const step of steps) {
+                    const provider = (eff.providers || []).find(item => item.id === step.providerId)
+                    const base = { stepId: step.id, provider: provider ? provider.name : '', model: step.model }
+                    if (!provider || provider.type === 'ocrspace') { results.push({ ...base, ok: false, error: '未配置供应商或不是对话模型' }); continue }
+                    if (!String(provider.apiKey || '').trim()) { results.push({ ...base, ok: false, error: '未配置供应商 Key' }); continue }
+                    const started = Date.now()
+                    try {
+                        const res = await uniCloud.httpclient.request(provider.apiUrl, {
+                            method: 'POST', contentType: 'json', dataType: 'json', followRedirect: false, timeout: 8000,
+                            headers: { Authorization: 'Bearer ' + provider.apiKey },
+                            data: { model: step.model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, stream: false }
+                        })
+                        const status = Number(res && (res.status || res.statusCode))
+                        const data = res && res.data
+                        const passed = !!(data && data.choices)
+                        results.push({ ...base, status: Number.isFinite(status) ? status : 0, ms: Date.now() - started, ok: passed, error: passed ? '' : ('HTTP ' + status + ' ' + JSON.stringify(data).slice(0, 180)) })
+                    } catch (error) {
+                        const code = String((error && (error.code || error.name)) || '')
+                        results.push({ ...base, ms: Date.now() - started, ok: false, error: '请求失败' + (code ? '（' + code + '）' : '') })
+                    }
+                }
+                return ok({ results })
+            }
             if (event.action === 'getConfig') {
                 const dbCfg = await readDbConfig()
                 const eff = effectiveConfig(dbCfg, FALLBACK)
+                // 管理后台展示用：今日全局模型调用次数 + 配置了自带 Key 的用户数（不含任何 Key 明文）
+                const today = dateStr()
+                let globalUsed = 0, ownKeyUsers = 0
+                try {
+                    const rows = (await db.collection(QUOTA_COLL).doc('g:' + today).get()).data || []
+                    globalUsed = Number(rows[0] && rows[0].calls) || 0
+                } catch (error) { globalUsed = 0 }
+                try {
+                    const counted = await db.collection(USER_KEY_COLL).count()
+                    ownKeyUsers = Number(counted && counted.total) || 0
+                } catch (error) { ownKeyUsers = 0 }
                 return ok({
+                    usage: { date: today, globalUsed, globalLimit: Number(eff.dailyLimit) || 0, userDailyLimit: Number(eff.userDailyLimit) || 0, ownKeyUsers },
                     ocrSpaceKeySet: !!String(eff.ocrSpaceApiKey || '').trim(),
                     ocrSpaceMaskedKey: maskApiKey(eff.ocrSpaceApiKey),
                     keySet: !!String(eff.apiKey || '').trim(),
@@ -361,7 +443,6 @@ exports.main = async (event) => {
                         dailyLimit: eff.dailyLimit,
                         userDailyLimit: eff.userDailyLimit,
                         dedupMinutes: eff.dedupMinutes,
-                        economyMode: eff.economyMode,
                         ocrSpaceEngine: eff.ocrSpaceEngine
                     },
                     presets: PROVIDER_PRESETS, providerCatalog: PROVIDERS, promptDefaults: PROMPT_DEFAULTS
@@ -369,7 +450,6 @@ exports.main = async (event) => {
             }
             // setConfig：合并保存（未重填的字段保留原值，尤其是 Key）
             const i = event.config || {}
-            if (i.economyMode !== undefined && typeof i.economyMode !== 'boolean') return fail(400, '省钱模式状态非法')
             const existing = await readDbConfig()
             if (event.expectedUpdatedAt !== undefined && Number(event.expectedUpdatedAt) !== (Number(existing.updatedAt) || 0)) return fail(409, 'OCR 配置已被其他管理员修改，请重新加载后核对再保存')
             const merged = mergeOcrConfig(effectiveConfig(existing, FALLBACK), i)
@@ -399,7 +479,24 @@ exports.main = async (event) => {
         const auth = await checkAuth(db, event.uniIdToken)
         if (auth.errCode) return fail(auth.errCode, auth.message)
 
-        if (event.action === 'getCapabilities') return ok({ protocolVersion: OCR_PROTOCOL_VERSION, flow: 'archive-first', multiImage: true, maxImages: 6, modelFallback: true, originalImages: true, hashPreflight: true, sourceTrace: true })
+        // 用户自带 Key：登录用户即可查询 / 保存 / 清除（不影响管理员配置）
+        if (event.action === 'getMyKey') return ok(await myKeyState(auth.uid))
+        if (event.action === 'setMyKey') {
+            const providerType = ownProviderType(event.providerType)
+            if (!providerType) return fail(400, '请选择供应商（DeepSeek 官方或硅基流动）')
+            const apiKey = String(event.apiKey || '').trim()
+            if (!apiKey) return fail(400, '请填写自己的 API Key')
+            if (/^[*＊•●]+$/.test(apiKey)) return fail(400, '星号不是有效的 API Key，请重新输入')
+            if (apiKey.length < 8 || apiKey.length > 4096) return fail(400, 'API Key 长度须在 8~4096 字符之间')
+            await writeUserKey(auth.uid, providerType, apiKey)
+            return ok(await myKeyState(auth.uid))
+        }
+        if (event.action === 'clearMyKey') {
+            await deleteUserKey(auth.uid)
+            return ok(await myKeyState(auth.uid))
+        }
+
+        if (event.action === 'getCapabilities') return ok({ ownKey: true, protocolVersion: OCR_PROTOCOL_VERSION, flow: 'archive-first', multiImage: true, maxImages: 6, modelFallback: true, originalImages: true, hashPreflight: true, sourceTrace: true })
 
         if (event.action === 'cleanupOriginals') {
             await assertRecognitionOwner(db, event.uploadKey, event.uploadOwner)
@@ -454,7 +551,9 @@ exports.main = async (event) => {
             }
             if (!text && !images.length && !preflight && !originalIdsToCleanup.length && !suppliedArchive) return fail(400, '缺少图片数据或 OCR 文本')
             const purpose = event.purpose === 'bom' ? 'bom' : 'order'
-            const cfg = await resolveOcrConfig()
+            // 用户自带 Key：存在且与已配置供应商类型匹配时，替换该供应商 Key 并免内置计数
+            const ownKey = await readUserKey(auth.uid).catch(() => null)
+            const cfg = applyUserKey(await resolveOcrConfig(), ownKey)
             const publish = async (result, modelImages = []) => ok(await recordRecognition(db, { uid: auth.uid, originalHashes, processedHashes, text, purpose, result, config: cfg, modelImages }))
             const dedupMinutes = Number(cfg.dedupMinutes) || 0
             // 即使关闭长期去重，本次人工确认仍可复用 30 分钟内的结果，避免二次付费。
@@ -578,7 +677,9 @@ exports.main = async (event) => {
         }
         if (e instanceof ClientError || e.name === 'OcrConfigError') return fail(e.code || 500, e.message)
         console.error('[doc-ocr] 运行异常:', e && (e.stack || e.message || e))
-        return fail(500, '服务内部错误，请稍后重试')
+        // 带出异常摘要（不含密钥），便于现场定位是模板、数据结构还是超时问题
+        const brief = String((e && (e.message || e.errMsg || e.name)) || '').slice(0, 200)
+        return fail(500, '服务内部错误' + (brief ? '：' + brief : '') + '，请稍后重试')
     } finally {
         if (originalIdsToCleanup.length) {
             try { await cleanupOriginalImages(originalIdsToCleanup) }

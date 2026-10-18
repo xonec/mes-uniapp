@@ -54,7 +54,7 @@
         "maxAttempts": {
             "bsonType": "number",
             "title": "最多尝试次数",
-            "description": "每个模型最多尝试次数，含首次；省钱模式为 1。所有实际请求还受 maxModelCalls 总上限限制"
+            "description": "每个模型最多尝试次数，含首次，默认 2，可设 1～3。所有实际请求还受 maxModelCalls 总上限限制"
         },
         "updatedAt": {
             "bsonType": "number",
@@ -79,12 +79,8 @@
         "dedupMinutes": {
             "bsonType": "number",
             "title": "去重缓存分钟",
-            "minimum": 0
-        },
-        "economyMode": {
-            "bsonType": "bool",
-            "title": "省钱模式",
-            "description": "默认开启；缓存至少复用 7 天，每个模型最多尝试一次，所有模型请求受总上限限制。已有产品跳过模型"
+            "minimum": 0,
+            "description": "相同图片/文本结果复用分钟，独立配置（默认 10080=7 天；0 表示不长期复用）"
         },
         "providers": {
             "bsonType": "array",
@@ -117,6 +113,7 @@
         "maxModelCalls": {
             "bsonType": "number",
             "title": "单次模型请求总上限",
+            "description": "单次识别的模型请求总预算，默认不小于启用模型链步数（双通链默认 2）",
             "minimum": 1,
             "maximum": 6
         },
