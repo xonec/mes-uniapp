@@ -13,6 +13,10 @@ const MES_COMMON = path.join(__dirname, '../uniCloud-alipay/cloudfunctions/commo
 const UNIID_STUB = path.join(__dirname, 'helpers/uni-id-common-stub.cjs')
 const origResolve = Module._resolveFilename
 Module._resolveFilename = function (request, ...args) {
+    if (/^mes-document-store(?:\/|$)/.test(request)) {
+        const suffix = request === 'mes-document-store' ? 'index.js' : request.slice('mes-document-store/'.length) + '.js'
+        return path.join(__dirname, '../uniCloud-alipay/cloudfunctions/common/mes-document-store', suffix)
+    }
     if (request === 'mes-common') return MES_COMMON
     if (request === 'uni-id-common') return UNIID_STUB
     return origResolve.call(this, request, ...args)
@@ -81,6 +85,7 @@ function makeQuery(name, cond) {
 function makeCollection(name) {
     const base = makeQuery(name, null)
     base.doc = (id) => ({
+        field(value) { return makeQuery(name, { _id: id }).field(value) },
         async get() { const d = ensure(name).get(id); return { data: d ? [clone(d)] : [] } },
         async set(data) { ensure(name).set(id, Object.assign({}, data, { _id: id })); return { updated: 1 } },
         async update(data) {

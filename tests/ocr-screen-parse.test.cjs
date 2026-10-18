@@ -1,4 +1,4 @@
-// OCR.space 初筛解析回归：真实 Engine 2 响应（2026-10-18 真机用图 zld-1.jpg）。
+// OCR.space 免费识别解析回归：真实 Engine 2 响应（2026-10-18 真机用图 zld-1.jpg）。
 // 关键 bug：parsePages 曾用空的字段提取结果覆盖 parseOrderSheet 已扫描到的 10 位编码。
 const assert = require('node:assert/strict')
 const path = require('node:path')

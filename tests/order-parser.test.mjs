@@ -56,6 +56,11 @@ t('批号扫描兜底', () => {
     assert.equal(r.orderNo, '559288')
 })
 
+t('批号扫描保留 B 单且不跨文字拼接', () => {
+    assert.equal(parseOrderSheet('本批 APDE26X1007B 将于下月生产').batchNo, 'APDE26X1007B')
+    assert.equal(parseOrderSheet('本批 APDE26X 将于 1007 生产').batchNo, '')
+})
+
 // 4) 批号非法形态 → 标黄
 t('批号过短标黄', () => {
     const r = parseOrderSheet('批号：APDE26X')

@@ -5,6 +5,10 @@ const { createMemoryDb } = require('./helpers/memory-db.cjs')
 const root = path.join(__dirname, '../uniCloud-alipay/cloudfunctions')
 const resolve = Module._resolveFilename
 Module._resolveFilename = function (request, ...args) {
+    if (/^mes-document-store(?:\/|$)/.test(request)) {
+        const suffix = request === 'mes-document-store' ? 'index.js' : request.slice('mes-document-store/'.length) + '.js'
+        return path.join(__dirname, '../uniCloud-alipay/cloudfunctions/common/mes-document-store', suffix)
+    }
     if (request === 'uni-id-common') return path.join(__dirname, 'helpers/uni-id-common-stub.cjs')
     if (['mes-common', 'mes-document-store', 'order-parser', 'ocr-config'].includes(request)) return path.join(root, 'common', request, 'index.js')
     return resolve.call(this, request, ...args)
@@ -38,7 +42,7 @@ async function test(name, fn) {
     })
     await test('已有产品必须匹配确认时的版本，两个并发修改只有一个成功', async () => {
         await invoke(products, 'upsert', { record: record() })
-        const results = await Promise.all(['甲', '乙'].map(name => invoke(products, 'upsert', { record: record(name), expectedVersion: 1 })))
+        const results = await Promise.all(['甲', '乙'].map(name => invoke(products, 'upsert', { record: { ...record(name), changeReason: '核对产品名称' }, expectedVersion: 1 })))
         assert.deepEqual(results.map(result => result.code).sort(), [0, 409])
         const history = db.ensure('product_materials_versions').get('ver:1306008056:1')
         assert.equal(history.snapshot.productName, '乳清蛋白粉')
@@ -47,8 +51,8 @@ async function test(name, fn) {
     await test('历史保存失败时不得覆盖当前产品', async () => {
         await invoke(products, 'upsert', { record: record() })
         db.failWrite = 'product_materials_versions'
-        const result = await invoke(products, 'upsert', { record: record('修改') })
-        assert.notEqual(result.code, 0)
+        const result = await invoke(products, 'upsert', { record: { ...record('修改'), changeReason: '核对产品名称' }, expectedVersion: 1 })
+        assert.equal(result.code, 500)
         assert.equal(db.ensure('product_materials').get('mat:1306008056').productName, '乳清蛋白粉')
     })
     await test('后台列表需要管理员，支持分页和字面量搜索', async () => {
@@ -79,10 +83,25 @@ async function test(name, fn) {
         assert.equal((await invoke(orders, 'list')).code, 403)
         const list = await invoke(orders, 'list', { keyword: '559290' }, 'admin')
         assert.equal(list.data.total, 1)
-        assert.equal((await invoke(orders, 'upsert', { record: { ...order, plannedQty: 300 }, expectedVersion: 1 }, 'admin')).data.version, 2)
+        assert.equal((await invoke(orders, 'upsert', { record: { ...order, plannedQty: 300, changeReason: '修正计划产量' }, expectedVersion: 1 }, 'admin')).data.version, 2)
         assert.equal((await invoke(orders, 'upsert', { record: order, expectedVersion: 1 }, 'admin')).code, 409)
         assert.equal((await invoke(orders, 'setEnabled', { orderNo: '559290', enabled: false, expectedVersion: 2 }, 'admin')).code, 0)
         assert.equal((await invoke(orders, 'list', {}, 'admin')).data.total, 0)
+    })
+    await test('产品与订单更新缺少原因时拒绝且保留当前版本', async () => {
+        await invoke(products, 'upsert', { record: record(), expectedVersion: 0 })
+        assert.equal((await invoke(products, 'upsert', { record: record('修改'), expectedVersion: 1 })).code, 400)
+        assert.equal(db.ensure('product_materials').get('mat:1306008056').version, 1)
+        const orders = require(path.join(root, 'production-orders/index.js'))
+        const order = { ...record(), orderNo: '559290', batchNo: 'APDD26X1006', plannedQty: 250 }
+        await invoke(orders, 'save', { record: order, expectedVersion: 0 })
+        assert.equal((await invoke(orders, 'upsert', { record: { ...order, plannedQty: 300 }, expectedVersion: 1 }, 'admin')).code, 400)
+        assert.equal((await invoke(orders, 'list', {}, 'admin')).data.list[0].version, 1)
+    })
+    await test('已有产品更新未带版本时拒绝覆盖', async () => {
+        await invoke(products, 'upsert', { record: record(), expectedVersion: 0 })
+        assert.equal((await invoke(products, 'upsert', { record: { ...record('修改'), changeReason: '修正名称' } })).code, 409)
+        assert.equal(db.ensure('product_materials').get('mat:1306008056').version, 1)
     })
     console.log(`${passed} passed, ${failed} failed`)
     process.exitCode = failed ? 1 : 0

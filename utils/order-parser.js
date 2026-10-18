@@ -31,8 +31,9 @@ const FIELD_NAME = {
     sampleCount: '取样数'
 }
 
-// 批号：11 位，且同时含字母与数字（与 utils/product-data.js 的 batchIsValid 同义，此处自包含）
-export const batchIsValid = (v) => /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(v || '')
+// 批号：11 位且含字母与数字，B 单追加末尾 B；规则来自共享模块（唯一来源：shared/logic/batch.js）
+import { batchIsValid } from './shared/batch.js'
+export { batchIsValid }
 
 export function cleanBatch(s) {
     return String(s == null ? '' : s).toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -57,21 +58,13 @@ function extractLabeled(text, labels, valueRe) {
     return m ? m[1] : ''
 }
 
-// 全文本扫描批号（标签提取失败兜底）：在非字母数字分隔出的 token 中找 11 位合法批号
+// 全文本扫描批号（标签提取失败兜底）：在独立 token 中找完整批号，保留 B 单后缀
 // （按 token 切分，避免跨边界拼出假批号）
 function scanBatch(text) {
-    const tokens = cleanBatch(text).match(/[A-Z0-9]+/g) || []
-    for (const tk of tokens) {
-        if (tk.length < 11) continue
-        for (let i = 0; i + 11 <= tk.length; i++) {
-            const w = tk.slice(i, i + 11)
-            if (batchIsValid(w)) return w
-        }
-    }
-    return ''
+    const tokens = String(text || '').toUpperCase().match(/[A-Z0-9]+/g) || []
+    return tokens.find(token => batchIsValid(token)) || ''
 }
 
-// 全文本扫描 10 位产品编码（标签失败兜底）：按非数字切分成独立 token，避免跨边界拼出假编码
 function scanProductCode(text) {
     const tokens = String(text).split(/[^0-9]+/).filter(Boolean)
     for (const tk of tokens) {
@@ -110,7 +103,7 @@ export function parseOrderSheet(text, opts = {}) {
     const orderNo = cleanDigits(extractLabeled(t, FIELD_LABELS.orderNo, '\\d{4,12}'))
     if (flagMissing && !orderNo) uncertain.push('orderNo')
 
-    // 批号：11 位字母数字
+    // 批号：11 位字母数字，可追加 B 单后缀
     const batchRaw = extractLabeled(t, FIELD_LABELS.batchNo, '[A-Za-z0-9]{6,20}')
     let batchNo = batchRaw ? cleanBatch(batchRaw) : ''
     if (!batchNo) batchNo = scanBatch(t)

@@ -50,7 +50,6 @@ mes-uniapp/
 │   ├── app-version.js              # App 端版本检查（小程序/H5 被条件编译剔除）
 │   └── device.js                   # 设备 ID（草稿按「用户 + 设备」隔离）
 ├── static/tabbar/                  # 底部导航图标（4 图标 × 普通/选中，占位可替换）
-├── libs/xlsx.full.min.js           # 解析帆软导出的表格
 ├── uniCloud-alipay/
 │   ├── cloudfunctions/
 │   │   ├── user-admin/             # 用户管理薄封装（列表/个人资料）

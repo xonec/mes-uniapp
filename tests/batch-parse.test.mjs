@@ -71,6 +71,15 @@ t('高置信结果一定合法', () => {
     })
 })
 
+t('B 单完整保留且允许前后杂字符', () => {
+    for (const raw of ['OPDG26X1001B', '001OPDG26X1001B', 'opdg-26x1001-b', '批号 OPDG26X1001B']) {
+        const result = parseBatchCode(raw)
+        assert.equal(result.code, 'OPDG26X1001B')
+        assert.equal(result.matched, true)
+        assert.ok(batchIsValid(result.code))
+    }
+})
+
 for (const [name, fn] of cases) {
     try {
         fn()

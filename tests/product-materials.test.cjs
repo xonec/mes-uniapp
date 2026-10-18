@@ -13,6 +13,10 @@ const MES_COMMON = path.join(__dirname, '../uniCloud-alipay/cloudfunctions/commo
 const UNIID_STUB = path.join(__dirname, 'helpers/uni-id-common-stub.cjs')
 const origResolve = Module._resolveFilename
 Module._resolveFilename = function (request, ...args) {
+    if (/^mes-document-store(?:\/|$)/.test(request)) {
+        const suffix = request === 'mes-document-store' ? 'index.js' : request.slice('mes-document-store/'.length) + '.js'
+        return path.join(__dirname, '../uniCloud-alipay/cloudfunctions/common/mes-document-store', suffix)
+    }
     if (request === 'mes-common') return MES_COMMON
     if (request === 'mes-document-store') return path.join(__dirname, '../uniCloud-alipay/cloudfunctions/common/mes-document-store/index.js')
     if (request === 'uni-id-common') return UNIID_STUB
@@ -61,6 +65,7 @@ function makeQuery(name, cond) {
 function makeCollection(name) {
     const base = makeQuery(name, null)
     base.doc = (id) => ({
+        field(value) { return makeQuery(name, { _id: id }).field(value) },
         async get() { const d = ensure(name).get(id); return { data: d ? [clone(d)] : [] } },
         async set(data) { ensure(name).set(id, Object.assign({}, data, { _id: id })); return { updated: 1 } },
         async update(data) {
@@ -116,7 +121,7 @@ const recFoyes = (over = {}) => Object.assign({
     ]
 }, over)
 
-const upsert = (record, uid = 'u1') => fn.main({ action: 'upsert', uniIdToken: tokenFor(uid), record })
+const upsert = (record, uid = 'u1', expectedVersion) => fn.main({ action: 'upsert', uniIdToken: tokenFor(uid), record, expectedVersion })
 
 ;(async () => {
     console.log('\nproduct-materials 云函数测试')
@@ -150,26 +155,26 @@ const upsert = (record, uid = 'u1') => fn.main({ action: 'upsert', uniIdToken: t
         assert.strictEqual(r.data.materials[4].materialName, '透明胶带')
     })
 
-    await test('upsert 归一化：materialVersion 兜底 N/A、seq 按行号补、编码去空格', async () => {
+    await test('upsert 归一化：缺失 materialVersion 保留 null、seq 按行号补、编码去空格', async () => {
         reset()
         await upsert(recFoyes({
             productCode: '  1306008056  ',
             materials: [
                 { materialCode: '3100004832', unit: '只' },          // 无 seq / 无版本
-                { materialCode: '3309000090', unit: '卷', materialVersion: '' }  // 空版本 → N/A
+                { materialCode: '3309000090', unit: '卷', materialVersion: '' }  // 缺失版本不推断
             ]
         }))
         const doc = ensure('product_materials').get('mat:1306008056')
         assert.strictEqual(doc.productCode, '1306008056')
         assert.deepStrictEqual(doc.materials.map(m => m.seq), [1, 2])
-        assert.strictEqual(doc.materials[0].materialVersion, 'N/A')
-        assert.strictEqual(doc.materials[1].materialVersion, 'N/A')
+        assert.strictEqual(doc.materials[0].materialVersion, null)
+        assert.strictEqual(doc.materials[1].materialVersion, null)
     })
 
     await test('upsert 幂等：同产品编码二次写为覆盖更新，不产生第二份文档', async () => {
         reset()
         await upsert(recFoyes())
-        await upsert(recFoyes({ productName: 'FoYes（改）', sourceOrderNo: '559291' }))
+        await upsert(recFoyes({ productName: 'FoYes（改）', sourceOrderNo: '559291', changeReason: '核对指令单修正名称' }), 'u1', 1)
         assert.strictEqual(ensure('product_materials').size, 1)
         const doc = ensure('product_materials').get('mat:1306008056')
         assert.strictEqual(doc.productName, 'FoYes（改）')
@@ -238,7 +243,7 @@ const upsert = (record, uid = 'u1') => fn.main({ action: 'upsert', uniIdToken: t
     await test('upsert 产生历史版本：二次更新写入 product_materials_versions，listVersions 可查', async () => {
         reset()
         await upsert(recFoyes())
-        const r2 = await upsert(recFoyes({ productName: 'FoYes（改）', sourceOrderNo: '559291' }))
+        const r2 = await upsert(recFoyes({ productName: 'FoYes（改）', sourceOrderNo: '559291', changeReason: '核对指令单修正名称' }), 'u1', 1)
         assert.strictEqual(r2.data.version, 2)
         const versions = await fn.main({ action: 'listVersions', uniIdToken: T(), productCode: '1306008056' })
         assert.strictEqual(versions.code, 0)
@@ -252,7 +257,7 @@ const upsert = (record, uid = 'u1') => fn.main({ action: 'upsert', uniIdToken: t
         reset()
         await upsert(recFoyes())
         const before = ensure('product_materials_versions').size
-        const r = await upsert(recFoyes())   // 完全相同的第二次
+        const r = await upsert(recFoyes(), 'u1', 1)   // 完全相同的第二次
         assert.strictEqual(r.data.unchanged, true)
         assert.strictEqual(ensure('product_materials_versions').size, before)
         assert.strictEqual(ensure('product_materials').get('mat:1306008056').version, 1)

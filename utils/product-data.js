@@ -12,8 +12,10 @@ export const exactBatch = {
     OPDG26X1003: { productCode: '1306005929', perCase: 4, perPallet: 36 }
 }
 
-// 批号：11 位，且同时包含字母与数字
-export const batchIsValid = (value) => /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(value || '')
+// 批号为 11 位字母数字；B 单追加末尾 B，关联时使用完整编码。
+// 批号规则来自共享模块（唯一来源：shared/logic/batch.js）
+import { batchIsValid } from './shared/batch.js'
+export { batchIsValid }
 
 export function productMatches(batch) {
     return productCatalog.filter(p => p.prefix === String(batch || '').slice(0, 4).toUpperCase())
@@ -28,22 +30,18 @@ export function resolveProduct(batch) {
     return null
 }
 
-// 从扫码 / 相册识别 / 粘贴的原文中提取批号
-// 返回 { code, matched, raw, cleaned }
-//   matched = true 表示命中「合法的 11 位片段，且前 4 位能在产品目录里找到」——高置信，可直接使用
-//   matched = false 只表示「没找到高置信片段」，code 仍给出尽力而为的结果，由调用方决定是否要用户确认
+/** 从扫码原文提取完整批号，B 单不截断；不能识别时交由用户核对。 */
 export function parseBatchCode(raw) {
     const rawStr = String(raw == null ? '' : raw)
     const cleaned = rawStr.toUpperCase().replace(/[^A-Z0-9]/g, '')
-    if (!cleaned) return { code: '', matched: false, raw: rawStr, cleaned }
-    const prefixes = productCatalog.map(p => p.prefix)
+    const prefixes = productCatalog.map(product => product.prefix)
     let fallback = ''
-    for (let i = 0; i + 11 <= cleaned.length; i++) {
-        const w = cleaned.slice(i, i + 11)
-        if (!batchIsValid(w)) continue
-        if (prefixes.indexOf(w.slice(0, 4)) >= 0) return { code: w, matched: true, raw: rawStr, cleaned }
-        if (!fallback) fallback = w
+    for (let index = 0; index + 11 <= cleaned.length; index++) {
+        const base = cleaned.slice(index, index + 11)
+        if (!batchIsValid(base)) continue
+        const code = cleaned[index + 11] === 'B' ? base + 'B' : base
+        if (prefixes.includes(base.slice(0, 4))) return { code, matched: true, raw: rawStr, cleaned }
+        if (!fallback) fallback = code
     }
-    if (fallback) return { code: fallback, matched: false, raw: rawStr, cleaned }
-    return { code: cleaned.slice(0, 11), matched: false, raw: rawStr, cleaned }
+    return { code: fallback || cleaned.slice(0, 11), matched: false, raw: rawStr, cleaned }
 }
