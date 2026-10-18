@@ -123,6 +123,42 @@ async function test(name, f) {
         assert.equal((await invoke('recognize', { images: [PHOTO], purpose: 'bom' })).code, 400)
         assert.equal(calls.length, 0)
     })
+    await test('初筛失败时给出引擎原因，而不是静默当作未找到编码', async () => {
+        reset()
+        const bytes = Buffer.from(PHOTO.split(',')[1], 'base64')
+        const hash = createHash('sha256').update(bytes).digest('hex')
+        const checked = await fn.main({ action: 'checkRecognition', uniIdToken: 'tok-u1', originalHashes: [hash], processedHashes: [hash], purpose: 'order' })
+        assert.equal(checked.code, 0)
+        assert.equal(checked.data.needsProcessedImages, true)
+        const result = await fn.main({ action: 'recognize', uniIdToken: 'tok-u1', images: [PHOTO], originalHashes: [hash], processedHashes: [hash], purpose: 'order', useModel: false, uploadKey: checked.data.uploadKey, uploadOwner: checked.data.uploadOwner })
+        assert.equal(result.code, 0)
+        assert.match(result.data.message, /初筛未能确认/)
+        assert.match(result.data.message, /免费初筛失败/)
+        assert.match(result.data.message, /引擎2/)
+        assert.equal(Array.isArray(result.data.screenErrors), true)
+        assert.match(result.data.screenErrors[0].message, /未配置 Key/)
+    })
+    await test('初筛超时立即返回可读提示，不干等也不调用大模型', async () => {
+        reset({ ocrSpaceApiKey: 'ocr-space-test-key' })
+        const original = global.uniCloud.httpclient.request
+        global.uniCloud.httpclient.request = async () => { const error = new Error('ResponseTimeoutError'); error.code = 'ResponseTimeoutError'; throw error }
+        try {
+            const bytes = Buffer.from(PHOTO.split(',')[1], 'base64')
+            const hash = createHash('sha256').update(bytes).digest('hex')
+            const checked = await fn.main({ action: 'checkRecognition', uniIdToken: 'tok-u1', originalHashes: [hash], processedHashes: [hash], purpose: 'order' })
+            assert.equal(checked.code, 0)
+            const startedAt = Date.now()
+            const result = await fn.main({ action: 'recognize', uniIdToken: 'tok-u1', images: [PHOTO], originalHashes: [hash], processedHashes: [hash], purpose: 'order', useModel: false, uploadKey: checked.data.uploadKey, uploadOwner: checked.data.uploadOwner })
+            assert.equal(result.code, 0)
+            assert.match(result.data.message, /免费初筛超时/)
+            assert.match(result.data.message, /引擎2/)
+            assert.match(result.data.message, /已跳过/)
+            assert.equal(Array.isArray(result.data.screenErrors), true)
+            assert.equal(result.data.screenErrors[0].code, 503)
+            assert.ok(Date.now() - startedAt < 15000, '初筛超时应快速返回')
+            assert.equal(calls.length, 0, '初筛未确认编码时不得调用大模型')
+        } finally { global.uniCloud.httpclient.request = original }
+    })
     await test('配置过期版本拒绝覆盖现有 Key', async () => {
         const result = await invoke('setConfig', { config: { apiKey: 'replacement-test-key' }, expectedUpdatedAt: 0 }, 'admin')
         assert.equal(result.code, 409)

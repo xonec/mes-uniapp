@@ -23,21 +23,58 @@ function wordsOf(page) {
 }
 function normalized(text) { return String(text || '').replace(/\s+/g, '') }
 function center(word) { return word.x + word.w / 2 }
-function findLabel(words, pattern, minY = -Infinity) {
-    return words.filter(word => word.y >= minY && pattern.test(normalized(word.text))).sort((a, b) => a.y - b.y)[0] || null
-}
-function linesOf(words) {
+
+/** 把同一视觉行的 words 聚成行；OCR.space 会把中文表头拆成单个字，必须按行重新拼接。 */
+function groupLines(words) {
     const groups = []
     for (const word of words.slice().sort((a, b) => a.y - b.y || a.x - b.x)) {
         let line = groups.find(group => Math.abs(group.y - word.y) <= Math.max(word.h, group.h) * .55)
         if (!line) { line = { y: word.y, h: word.h, words: [] }; groups.push(line) }
         line.words.push(word); line.h = Math.max(line.h, word.h)
     }
-    return groups.sort((a, b) => a.y - b.y).map(line => line.words.sort((a, b) => a.x - b.x).map(word => word.text).join(' ').trim())
+    return groups.sort((a, b) => a.y - b.y).map(line => ({ ...line, words: line.words.sort((a, b) => a.x - b.x) }))
+}
+function linesOf(words) {
+    return groupLines(words).map(line => line.words.map(word => word.text).join(' ').trim())
+}
+
+/**
+ * 在视觉行内查找标签：逐字拼接同一行的相邻 words 后再匹配，
+ * 这样「产/品/编/码」这种被 OCR.space 拆开的中文表头也能命中，并返回真实列位置。
+ */
+function findLabel(words, pattern, minY = -Infinity) {
+    const groups = groupLines(words).filter(line => line.y >= minY)
+    for (const line of groups) {
+        for (let start = 0; start < line.words.length; start++) {
+            let text = ''
+            for (let count = 1; count <= Math.min(6, line.words.length - start); count++) {
+                text += normalized(line.words[start + count - 1].text)
+                if (!pattern.test(text)) continue
+                const span = line.words.slice(start, start + count)
+                const left = Math.min(...span.map(word => word.x))
+                const right = Math.max(...span.map(word => word.x + word.w))
+                return { text, x: left, y: line.y, w: Math.max(1, right - left), h: line.h }
+            }
+        }
+    }
+    return null
 }
 function textValue(text, label) {
     const match = String(text).match(new RegExp('(?:' + label + ')\\s*[:：]?\\s*([^\\n|]+)'))
     return match ? match[1].replace(/(?:包装规格|产品名称|计划产量|生产批号|订单编号).*$/, '').trim() : ''
+}
+
+/** 表头行只有标签、数值落在后续行时（OCR.space 常见版式），在标签后 4 行内找 10 位编码。 */
+function codeNearLabel(text, label) {
+    const lines = String(text || '').replace(/\r/g, '').split('\n')
+    const pattern = new RegExp('(?:' + label + ')')
+    for (let index = 0; index < lines.length; index++) {
+        if (!pattern.test(normalized(lines[index]))) continue
+        const windowText = lines.slice(index, index + 4).join('\n')
+        const match = windowText.match(/(?:^|[^0-9])(\d{10})(?![0-9])/)
+        if (match) return match[1]
+    }
+    return ''
 }
 
 // 表头是列标题时，读取对应列下面最多两行；不扫描物料编号猜产品编码。
@@ -54,8 +91,8 @@ function productHeaders(words, text) {
         const candidates = words.filter(word => center(word) > left && center(word) < right && word.y > label.y + label.h * .75 && word.y < label.y + label.h * 6)
         result[field] = linesOf(candidates).slice(0, field === 'productCode' ? 1 : 2).join('')
     }
-    const explicitCode = textValue(text, '产品编码|产品代码|货号').match(/^\d{10}(?!\d)/)
-    if (!/^\d{10}$/.test(normalized(result.productCode))) result.productCode = explicitCode ? explicitCode[0] : ''
+    const explicitCode = textValue(text, '产品编码|产品代码|货号').match(/^\d{10}(?!\d)/) || [codeNearLabel(text, '产品编码|产品代码|货号')].filter(Boolean)
+    if (!/^\d{10}$/.test(normalized(result.productCode))) result.productCode = explicitCode ? (explicitCode[0] || '') : ''
     else result.productCode = normalized(result.productCode)
     if (!result.productName) result.productName = textValue(text, '产品名称|产品名')
     if (!result.packSpec) result.packSpec = textValue(text, '包装规格(?:[（(]件[）)])?')
@@ -118,10 +155,13 @@ function parsePages(pages, purpose) {
         const text = String(page.ParsedText || '')
         const words = wordsOf(page)
         const markdown = markdownTables(text)
+        const base = parseOrderSheet(text)
         const fields = productHeaders(words, text)
         for (const field of ['productCode', 'productName', 'packSpec']) if (markdown[field]) fields[field] = markdown[field]
+        // 位置提取失败时才回退正则结果；绝不能拿空值覆盖 parseOrderSheet 已扫描到的编码。
+        for (const field of ['productCode', 'productName', 'packSpec']) if (!fields[field] && base[field]) fields[field] = base[field]
         const materials = materialRows(words)
-        return { ...parseOrderSheet(text), ...fields, materials: materials.length ? materials : markdown.materials }
+        return { ...base, ...fields, materials: materials.length ? materials : markdown.materials }
     })
     const codes = Array.from(new Set(extracted.map(page => page.productCode).filter(Boolean)))
     const result = { productCode: codes.length === 1 ? codes[0] : '', productName: '', packSpec: '', materials: [], uncertain: ['materials'] }
@@ -144,17 +184,27 @@ async function recognizeFree(images, cfg, purpose, options = {}) {
         if (!/^data:image\/(jpeg|jpg|png|gif);/i.test(image)) throw new ClientError('免费识别请使用 JPG、PNG 或 GIF 照片', 400)
     }
     const started = Date.now(), pages = []
-    for (const image of images) {
+    for (let index = 0; index < images.length; index++) {
+        const image = images[index]
         const remaining = Math.min((Number(options.budgetMs) || 145000) - (Date.now() - started), options.deadline ? options.deadline - Date.now() : Infinity)
         if (remaining < 1000) throw new ClientError('免费识别耗时较长，请减少照片页数后重试', 503)
+        const timeout = Math.min(Number(options.pageTimeoutMs) || 12000, Number(cfg.timeout) || 35000, remaining)
+        console.log('[doc-ocr] 初筛请求 engine=' + (cfg.ocrSpaceEngine || 2) + ' page=' + (index + 1) + '/' + images.length + ' bytes=' + Buffer.byteLength(image.split(',')[1], 'base64') + ' timeout=' + timeout + ' remaining=' + Math.round(remaining))
         const form = new URLSearchParams({ base64Image: image, language: cfg.ocrSpaceEngine === 1 ? 'chs' : 'auto', OCREngine: String(cfg.ocrSpaceEngine || 2), isOverlayRequired: cfg.ocrSpaceEngine === 3 ? 'false' : 'true', isTable: 'true', detectOrientation: 'true', scale: 'true' }).toString()
         let response
-        try { response = await uniCloud.httpclient.request(ENDPOINT, { method: 'POST', dataType: 'json', timeout: Math.min(Number(cfg.timeout) || 35000, remaining), headers: { apikey: cfg.ocrSpaceApiKey, 'Content-Type': 'application/x-www-form-urlencoded' }, data: form }) }
-        catch (error) { throw new ClientError('免费 OCR 服务暂时不可用，可稍后重试、重新拍照或手动录入', 503) }
+        try { response = await uniCloud.httpclient.request(ENDPOINT, { method: 'POST', dataType: 'json', timeout, headers: { apikey: cfg.ocrSpaceApiKey, 'Content-Type': 'application/x-www-form-urlencoded' }, data: form }) }
+        catch (error) {
+            const code = String((error && (error.code || error.name || error.errCode)) || '').trim()
+            throw new ClientError('免费 OCR 服务暂时不可用' + (code ? '（' + code + '）' : '') + '，可稍后重试、重新拍照或手动录入', 503)
+        }
         const data = response.data || {}, status = Number(response.status || response.statusCode)
+        console.log('[doc-ocr] OCR.space engine=' + (cfg.ocrSpaceEngine || 2) + ' status=' + status + ' exit=' + (data.OCRExitCode === undefined ? '?' : data.OCRExitCode) + ' parsed=' + (Array.isArray(data.ParsedResults) ? data.ParsedResults.length : 0) + ' textLen=' + String(((data.ParsedResults || [])[0] || {}).ParsedText || '').length)
         if (status === 429) throw new ClientError('OCR.space 免费额度或频率已达上限，请稍后重试或手动录入', 429)
         const parsed = Array.isArray(data.ParsedResults) ? data.ParsedResults : []
-        if (status >= 400 || data.IsErroredOnProcessing || Number(data.OCRExitCode) > 2 || !parsed.length || parsed.some(page => Number(page.FileParseExitCode) !== 1)) throw new ClientError('OCR.space 未完整识别本页，可稍后重试、重拍或手动录入', 502)
+        if (status >= 400 || data.IsErroredOnProcessing || Number(data.OCRExitCode) > 2 || !parsed.length || parsed.some(page => Number(page.FileParseExitCode) !== 1)) {
+            const detail = String((data.ErrorMessage && data.ErrorMessage[0]) || data.ErrorMessage || '').slice(0, 120)
+            throw new ClientError('OCR.space 未完整识别本页（HTTP ' + (Number.isFinite(status) ? status : '未知') + (detail ? '：' + detail : '') + '），可稍后重试、重拍或手动录入', 502)
+        }
         pages.push(...parsed)
         if (options.screenOnly) {
             const screened = parsePages(pages, purpose)

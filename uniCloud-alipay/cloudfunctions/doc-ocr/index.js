@@ -38,6 +38,10 @@ const CONFIG_ID = 'ocr'
 const QUOTA_COLL = 'ocr_quota'
 const USER_KEY_COLL = 'ocr_user_keys'
 const OCR_PROTOCOL_VERSION = 4
+// 初筛预算：OCR.space 正常 2~6 秒/页；20 秒内拿不到编码就返回可读提示，避免把函数窗口耗死。
+// 可用环境变量 OCR_SCREEN_BUDGET_MS / OCR_SCREEN_PAGE_TIMEOUT_MS 覆盖。
+const SCREEN_BUDGET_MS = Number(process.env.OCR_SCREEN_BUDGET_MS) || 20000
+const SCREEN_PAGE_TIMEOUT_MS = Number(process.env.OCR_SCREEN_PAGE_TIMEOUT_MS) || 12000
 
 // 环境变量解析的兜底默认（DB 配置空白时回落到这里）
 const FALLBACK = {
@@ -222,22 +226,49 @@ async function callSF(messages, mode, cfg, uid, deadline, budget) {
     throw new ClientError(lastErr, 502)
 }
 
-/** OCR.space 按管理员配置的引擎顺序初筛，所有引擎共用 90 秒预算。 */
+/** OCR.space 初筛：正常 2~6 秒/页；预算内拿不到编码就立即返回可读原因，不干等函数窗口。 */
 async function recognizeScreen(images, config, purpose, deadline) {
-    const screenDeadline = Math.min(deadline, Date.now() + 90000)
+    const startedAt = Date.now()
+    const screenDeadline = Math.min(deadline, startedAt + SCREEN_BUDGET_MS)
     let result = null
+    const errors = []
     for (const engine of config.screenEngines) {
-        if (screenDeadline - Date.now() < 1500) break
+        if (screenDeadline - Date.now() < 1500) {
+            errors.push({ engine, code: 'skipped', message: '初筛时间预算不足，未执行', ms: Date.now() - startedAt })
+            break
+        }
+        const engineStarted = Date.now()
         try {
-            const found = await recognizeFree(images, { ...config, ocrSpaceEngine: engine }, purpose, { screenOnly: true, budgetMs: screenDeadline - Date.now(), deadline: screenDeadline })
+            const found = await recognizeFree(images, { ...config, ocrSpaceEngine: engine }, purpose, { screenOnly: true, budgetMs: screenDeadline - Date.now(), deadline: screenDeadline, pageTimeoutMs: SCREEN_PAGE_TIMEOUT_MS })
             result = found
-            if ((found.detectedProductCodes || []).length > 1 || /^\d{10}$/.test(String(found.productCode || ''))) return found
+            const codes = found.detectedProductCodes || []
+            console.log('[doc-ocr] 初筛 engine=' + engine + ' ms=' + (Date.now() - engineStarted) + ' codes=' + JSON.stringify(codes))
+            if (codes.length > 1 || /^\d{10}$/.test(String(found.productCode || ''))) {
+                console.log('[doc-ocr] 初筛结束 totalMs=' + (Date.now() - startedAt) + ' codes=' + JSON.stringify(codes) + ' errors=0')
+                return found
+            }
         } catch (error) {
             if (!(error instanceof ClientError)) throw error
             if (error.code === 400) throw error
+            // 免费 OCR 的 Key/额度/超时错误不能静默降级成"没找到编码"；立即中止并给出可读原因。
+            const failure = { engine, code: Number(error.code) || 0, message: String(error.message || '初筛失败').slice(0, 160), ms: Date.now() - engineStarted }
+            errors.push(failure)
+            console.warn('[doc-ocr] 初筛失败 engine=' + engine + ' code=' + failure.code + ' ms=' + failure.ms + ' ' + failure.message)
+            break
         }
     }
-    return result || parseFreePages([{ ParsedText: '' }], purpose)
+    const screened = result || parseFreePages([{ ParsedText: '' }], purpose)
+    console.log('[doc-ocr] 初筛结束 totalMs=' + (Date.now() - startedAt) + ' codes=' + JSON.stringify(screened.detectedProductCodes || []) + ' errors=' + errors.length)
+    if (errors.length) {
+        const first = errors[0]
+        const seconds = Math.max(1, Math.round((Number(first.ms) || 0) / 1000))
+        const timeoutLike = /超时|timed?\s*out|ResponseTimeout|暂时不可用/i.test(String(first.message || ''))
+        const screenSummary = (timeoutLike ? '免费初筛超时' : '免费初筛失败') + '（引擎' + first.engine + '，' + seconds + ' 秒），已跳过'
+        return { ...screened, screenErrors: errors, screenSummary,
+            warnings: [...(screened.warnings || []), '初筛未取得可信编码：' + errors.map(item => '引擎' + item.engine + ' ' + item.message).join('；')] }
+    }
+    if (!/^\d{10}$/.test(String(screened.productCode || ''))) return { ...screened, screenSummary: '免费初筛已返回文本但未匹配到 10 位产品编码' }
+    return screened
 }
 
 // 服务端轻校验：批号 11 位字母数字，可追加 B 单后缀；产品编码 10 位数字；订单号纯数字
@@ -368,6 +399,7 @@ async function readDbConfig() {
 exports.main = async (event) => {
     event = event || {}
     const recognitionDeadline = Date.now() + 165000
+    const functionStartedAt = Date.now()
     let recognitionKey = '', recognitionOwner = '', productRecognitionKey = '', productRecognitionOwner = ''
     let originalIdsToCleanup = []
     let uploadLeaseKey = '', uploadLeaseOwner = '', retainUploadLease = false
@@ -508,6 +540,7 @@ exports.main = async (event) => {
         // 识别：图片 base64（小程序）或本地 OCR 文本（App）→ 结构化字段
         if (event.action === 'recognize' || event.action === 'checkRecognition') {
             const preflight = event.action === 'checkRecognition'
+            console.log('[doc-ocr] ' + (preflight ? 'checkRecognition' : 'recognize') + ' start images=' + (Array.isArray(event.images) ? event.images.length : 0) + ' textLen=' + String(event.text || '').length + ' useModel=' + (event.useModel === true) + ' purpose=' + (event.purpose === 'bom' ? 'bom' : 'order'))
             if (event.protocolVersion !== undefined && event.protocolVersion !== OCR_PROTOCOL_VERSION) return fail(426, '图片识别参数版本不匹配，请更新前端并重新上传 doc-ocr')
             if (event.useModel !== undefined && typeof event.useModel !== 'boolean') return fail(400, '识别方式非法')
             const modelFallback = event.useModel === true
@@ -600,7 +633,13 @@ exports.main = async (event) => {
             const candidateCode = confirmedCode || String(screened.productCode || '').trim()
             const productCode = /^\d{10}$/.test(candidateCode) ? candidateCode : ''
             if (!productCode && !modelFallback) {
-                return await publish({ ...screened, archiveMatched: false, modelUsed: false, needsProductCodeConfirmation: true, canUseModelFallback: true, recognitionSource: text ? 'local' : 'ocrspace', message: '初筛未能确认 10 位产品编码，尚未调用大模型。可点击“使用大模型识别”自动提取，或确认编码后先查库。' })
+                const screenNotes = Array.isArray(screened.screenErrors)
+                    ? screened.screenErrors.map(item => '引擎' + item.engine + '：' + item.message)
+                    : []
+                const summary = String(screened.screenSummary || '').trim()
+                const screenNote = summary ? '：' + summary : (screenNotes.length ? '（' + screenNotes.slice(0, 2).join('；') + '）' : '')
+                return await publish({ ...screened, archiveMatched: false, modelUsed: false, needsProductCodeConfirmation: true, canUseModelFallback: true, recognitionSource: text ? 'local' : 'ocrspace',
+                    message: '初筛未能确认 10 位产品编码' + screenNote + '，尚未调用大模型。可点击“使用大模型识别”自动提取，或确认编码后先查库。' })
             }
             if (expectedCode && productCode && productCode !== expectedCode) return fail(409, '照片中的产品编码与当前产品不一致，请在新增入口导入；未调用大模型')
             if (productCode) screened = { ...screened, productCode, uncertain: (screened.uncertain || []).filter(field => field !== 'productCode') }
@@ -675,12 +714,16 @@ exports.main = async (event) => {
             try { await failRecognition(db, productRecognitionKey, productRecognitionOwner) }
             catch (error) { console.warn('[doc-ocr] 无法释放产品识别请求，请等待处理状态过期') }
         }
-        if (e instanceof ClientError || e.name === 'OcrConfigError') return fail(e.code || 500, e.message)
+        if (e instanceof ClientError || e.name === 'OcrConfigError') {
+            console.warn('[doc-ocr] 业务失败 action=' + String(event.action || '') + ' code=' + (e.code || 500) + ' ms=' + (Date.now() - functionStartedAt) + ' ' + String(e.message || '').slice(0, 160))
+            return fail(e.code || 500, e.message)
+        }
         console.error('[doc-ocr] 运行异常:', e && (e.stack || e.message || e))
         // 带出异常摘要（不含密钥），便于现场定位是模板、数据结构还是超时问题
         const brief = String((e && (e.message || e.errMsg || e.name)) || '').slice(0, 200)
         return fail(500, '服务内部错误' + (brief ? '：' + brief : '') + '，请稍后重试')
     } finally {
+        console.log('[doc-ocr] 结束 action=' + String(event.action || '') + ' totalMs=' + (Date.now() - functionStartedAt))
         if (originalIdsToCleanup.length) {
             try { await cleanupOriginalImages(originalIdsToCleanup) }
             catch (error) { console.warn('[doc-ocr] 临时原图清理失败，请稍后清理云存储') }
