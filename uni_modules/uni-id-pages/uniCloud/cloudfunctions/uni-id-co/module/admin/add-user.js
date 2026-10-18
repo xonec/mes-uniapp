@@ -123,9 +123,10 @@ module.exports = async function (params = {}) {
     })
   }
 
-  await userCollection.add(userRecord)
+  const created = await userCollection.add(userRecord)
   return {
     errCode: 0,
-    errMsg: ''
+    errMsg: '',
+    uid: created.id
   }
 }

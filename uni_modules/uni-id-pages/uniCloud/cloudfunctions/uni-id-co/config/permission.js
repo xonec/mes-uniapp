@@ -1,5 +1,15 @@
 // 各接口权限配置，未配置接口表示允许任何用户访问（包括未登录用户）
 module.exports = {
+  previewLegacyAccountMerge: { role: ['admin'] },
+  startLegacyAccountMerge: { role: ['admin'] },
+  continueLegacyAccountMerge: { role: ['admin'] },
+  finalizeLegacyAccountMerge: { role: ['admin'] },
+  previewEmployeeAccount: { role: ['admin'] },
+  createEmployeeAccount: { role: ['admin'] },
+  updateEmployeeAccount: { role: ['admin'] },
+  getEmployeeAccounts: { role: ['admin'] },
+  listEmployeeAccounts: { role: ['admin'] },
+  migrateEmployeeAccountIds: { role: ['admin'] },
   // 管理接口
   addUser: {
     // auth: true // 已登录用户方可操作，配置角色或权限时此项可不写

@@ -1,0 +1,23 @@
+[
+  {
+    "IndexName": "employee_no_unique",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [{ "Name": "employeeNo", "Direction": "1", "Type": "varchar" }],
+      "MgoIsUnique": true
+    }
+  },
+  {
+    "IndexName": "uid",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [{ "Name": "uid", "Direction": "1", "Type": "varchar" }],
+      "MgoIsUnique": false
+    }
+  },
+  {
+    "IndexName": "identity_unique",
+    "MgoKeySchema": {
+      "MgoIndexKeys": [{ "Name": "idCard", "Direction": "1", "Type": "varchar" }],
+      "MgoIsUnique": true
+    }
+  }
+]

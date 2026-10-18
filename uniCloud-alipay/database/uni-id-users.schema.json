@@ -1,6 +1,6 @@
 {
     "bsonType": "object",
-    "description": "用户表（uni-id）：仅云函数/云对象可读写，客户端不可直连，账号由管理员通过 uni-id-co（addUser/updateUser）管理",
+    "description": "账号表（uni-id）：本系统里账号即人员，列表页的工号/账号/姓名/手机/状态等就是人员档案；仅云函数/云对象可读写，客户端不可直连，账号由管理员通过 uni-id-co（addUser/updateUser）管理。身份证等敏感档案不在此表，见 mes_employee_accounts",
     "required": ["username", "password"],
     "permission": {
         "read": false,
@@ -10,30 +10,65 @@
     },
     "properties": {
         "_id": {
-            "description": "用户ID"
+            "description": "用户ID，同时是人员 ID（业务表外键一律存这个值）"
         },
         "username": {
             "bsonType": "string",
-            "title": "用户名"
+            "title": "工号 / 账号",
+            "description": "工号即登录账号，6～20 位数字；排班自动建档时由系统生成占位工号"
         },
         "password": {
             "bsonType": "string",
-            "title": "密码（加密存储）"
+            "title": "密码（加密存储）",
+            "description": "正式账号初始密码等于工号；自动建档的占位账号为随机值，不对外展示"
         },
         "nickname": {
             "bsonType": "string",
-            "title": "昵称"
+            "title": "真实姓名",
+            "description": "排班、工单、考勤等处显示的人员姓名"
         },
         "role": {
             "bsonType": "array",
             "title": "角色",
-            "description": "admin 管理员 / user 普通用户"
+            "description": "admin 管理员 / user 普通用户；管理员可见全部数据，普通用户只看本人数据"
         },
         "status": {
             "bsonType": "int",
-            "title": "状态",
-            "description": "1 正常 / 0 禁用",
-            "defaultValue": 1
+            "title": "用户状态",
+            "description": "0 或未设置=正常；1 封禁；2 审核中；3 审核失败；4 已注销。判定以 mes-common.isBlocked 为准（uni-id 自身登录流程不校验 status）",
+            "defaultValue": 0
+        },
+        "mobile": {
+            "bsonType": "string",
+            "title": "手机号码"
+        },
+        "email": {
+            "bsonType": "string",
+            "title": "邮箱"
+        },
+        "tags": {
+            "bsonType": "array",
+            "title": "用户标签"
+        },
+        "dcloud_appid": {
+            "bsonType": "array",
+            "title": "可登录应用",
+            "description": "允许登录的 DCloud AppId 列表，现场端为 __UNI__A2E52B9"
+        },
+        "last_login_date": {
+            "bsonType": "number",
+            "title": "最后登录时间",
+            "description": "毫秒时间戳"
+        },
+        "processIds": {
+            "bsonType": "array",
+            "title": "可参与工序",
+            "description": "人员业务字段：该账号可参与的生产执行工序 ID 列表（原 mes_ops_personnel.processIds）"
+        },
+        "autoCreated": {
+            "bsonType": "bool",
+            "title": "排班自动建档",
+            "description": "人员业务字段：true 表示由排班导入自动建立、尚无身份证档案；status 为封禁，管理员补录身份证并启用后才能登录"
         },
         "loginFailCount": {
             "bsonType": "int",

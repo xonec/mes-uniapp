@@ -1,0 +1,17 @@
+{
+  "bsonType": "object",
+  "description": "员工档案：登录账号与工号分离。_id 是稳定标识（emp:<uid>；没有账号时为 emp:<工号>），employeeNo 是可修改的普通唯一字段；登录账号以 uni-id-users.username 为准。身份证按业务要求明文保存，仅管理员云接口可读。",
+  "permission": { "read": false, "create": false, "update": false, "delete": false },
+  "properties": {
+    "_id": { "bsonType": "string", "description": "稳定标识：emp:<uid>；还没有账号时为 emp:<employeeNo>" },
+    "employeeNo": { "bsonType": "string", "description": "工号：6～20 位数字，可修改但全局唯一；不再作为档案 _id" },
+    "account": { "bsonType": "string", "description": "登录账号：uni-id-users.username 的镜像，缺省等于工号，可改为手机号或字母账号" },
+    "name": { "bsonType": "string", "description": "姓名" },
+    "idCard": { "bsonType": "string", "description": "身份证明文，仅管理员接口返回" },
+    "uid": { "bsonType": "string", "description": "关联的 uni-id 账号 _id；工号档案尚未建号时为空" },
+    "state": { "bsonType": "string", "description": "preparing / ready" },
+    "createdAt": { "bsonType": "long" },
+    "updatedAt": { "bsonType": "long" },
+    "createdBy": { "bsonType": "string", "description": "建号管理员 uid" }
+  }
+}

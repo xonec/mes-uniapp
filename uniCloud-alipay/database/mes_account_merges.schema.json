@@ -1,0 +1,18 @@
+{
+  "bsonType": "object",
+  "description": "账号合并清单、账号备份与原UID映射，仅服务端管理员迁移接口维护",
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "bsonType": "string"
+    },
+    "createdAt": {
+      "bsonType": "long"
+    }
+  }
+}

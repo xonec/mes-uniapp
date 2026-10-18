@@ -23,7 +23,17 @@ const {
 } = require('./module/register/index')
 const {
   addUser,
-  updateUser
+  updateUser,
+  previewEmployeeAccount,
+  createEmployeeAccount,
+  updateEmployeeAccount,
+  getEmployeeAccounts,
+  listEmployeeAccounts,
+  migrateEmployeeAccountIds,
+  previewLegacyAccountMerge,
+  startLegacyAccountMerge,
+  continueLegacyAccountMerge,
+  finalizeLegacyAccountMerge
 } = require('./module/admin/index')
 const {
   login,
@@ -147,6 +157,16 @@ module.exports = {
     this.validator = new Validator({
       passwordStrength: this.config.passwordStrength
     })
+
+    // 员工以6～20位数字工号建号和登录，其余用户名继续使用官方规则。
+    const employeeUsernameMethods = ['previewEmployeeAccount', 'createEmployeeAccount', 'addUser', 'updateUser', 'login']
+    if (employeeUsernameMethods.includes(this.getMethodName())) {
+      const originalUsernameValidator = this.validator.getRealBaseValidator('username')
+      this.validator.mixin('username', function (username) {
+        if (typeof username === 'string' && /^\d{6,20}$/.test(username)) return
+        return originalUsernameValidator(username)
+      })
+    }
 
     // 扩展 validator 增加 验证身份证号码合法性
     this.validator.mixin('idCard', function (idCard) {
@@ -284,6 +304,16 @@ module.exports = {
    * @returns
    */
   addUser,
+  previewEmployeeAccount,
+  createEmployeeAccount,
+  updateEmployeeAccount,
+  getEmployeeAccounts,
+  listEmployeeAccounts,
+  migrateEmployeeAccountIds,
+  previewLegacyAccountMerge,
+  startLegacyAccountMerge,
+  continueLegacyAccountMerge,
+  finalizeLegacyAccountMerge,
   /**
    * 修改用户
    * @tutorial https://uniapp.dcloud.net.cn/uniCloud/uni-id-pages.html#update-user

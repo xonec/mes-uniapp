@@ -1,0 +1,15 @@
+{
+  "bsonType": "object",
+  "description": "员工档案 _id 迁移的一次性备份（migrateEmployeeAccountIds 写入）：仅服务端管理员迁移接口读写，不参与业务。确认迁移稳定后可整表删除。",
+  "permission": { "read": false, "create": false, "update": false, "delete": false },
+  "properties": {
+    "_id": { "bsonType": "string", "description": "固定为 backup:<旧档案 _id>" },
+    "oldId": { "bsonType": "string", "description": "旧 _id（当时等于工号）" },
+    "newId": { "bsonType": "string", "description": "迁移后的稳定 _id：emp:<uid> 或 emp:<employeeNo>" },
+    "employeeNo": { "bsonType": "string" },
+    "uid": { "bsonType": "string" },
+    "snapshot": { "bsonType": "object", "description": "迁移前的完整档案快照（含身份证明文），仅管理员迁移接口使用" },
+    "at": { "bsonType": "long", "description": "备份时间" },
+    "by": { "bsonType": "string", "description": "执行迁移的管理员 uid" }
+  }
+}
