@@ -1,6 +1,6 @@
 <template>
     <view class="fw-page">
-        <view class="fw-header"><text class="fw-eyebrow">生产记录</text><text class="fw-title">历史记录</text><text class="fw-subtitle">查找批号，查看保存版本并载入计算。</text></view>
+        <view class="fw-header"><text class="fw-subtitle">查找批号，查看保存版本并载入计算。</text></view>
         <view class="fw-search"><input v-model="kw" placeholder="搜索批号，完整批号可查询云端" confirm-type="search" maxlength="30" @confirm="searchRemote" /><text v-if="kw" class="fw-search-clear" @tap="kw = ''">清除</text></view>
         <view class="history-caption"><text>已载入 {{ list.length }} 个批号</text><text @tap="refresh">{{ loading ? '加载中…' : '刷新' }}</text></view>
         <view v-if="error" class="fw-notice error">{{ error }}<button class="fw-button secondary" :disabled="loading" @tap="loadMore">重试加载</button></view>
@@ -27,6 +27,7 @@
 import { listProductionRecords, listRecordVersions, fetchProductionRecord } from '@/utils/production-db.js'
 import { STORE_LOAD_RECORD } from '@/utils/storage-keys.js'
 import { getUser } from '@/utils/auth.js'
+import { batchIsValid } from '@/utils/shared/batch.js'
 export default {
     data() { return { list: [], kw: '', cursor: 0, done: false, loading: false, error: '', searching: false, searchError: '', requestNo: 0, searchRequest: 0, showVersions: false, versionBatch: '', versions: [], verLoading: false, versionError: '', historyLimitReached: false, versionRequest: 0 } },
     computed: { filtered() { const keyword = this.kw.trim().toUpperCase(); return keyword ? this.list.filter(row => row.batchNo.toUpperCase().includes(keyword)) : this.list } },
@@ -36,7 +37,7 @@ export default {
     onUnload() { this.cancelRequests() },
     methods: {
         cancelRequests() { this.requestNo++; this.searchRequest++; this.versionRequest++; this.loading = false; this.searching = false; this.verLoading = false; this.showVersions = false },
-        goCalculation() { uni.switchTab({ url: '/pages/materials/materials' }) },
+        goCalculation() { uni.navigateTo({ url: '/pages/materials/materials' }) },
         async refresh() { if (this.loading) return; this.searchRequest++; this.searching = false; this.requestNo++; this.cursor = 0; this.done = false; this.list = []; this.error = ''; this.searchError = ''; await this.loadMore() },
         async loadMore() {
             if (this.loading || this.done) return
@@ -54,7 +55,7 @@ export default {
         async searchRemote() {
             if (this.searching) return
             const batch = this.kw.trim().toUpperCase()
-            if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(batch)) { uni.showToast({ title: '云端查询请填写完整 11 位批号', icon: 'none' }); return }
+            if (!batchIsValid(batch)) { uni.showToast({ title: '云端查询请填写完整批号（含 B 单后缀）', icon: 'none' }); return }
             const request = ++this.searchRequest
             this.searching = true; this.searchError = ''
             try { const record = await fetchProductionRecord(batch); if (request !== this.searchRequest) return; if (!record) { this.searchError = '云端没有此批号的生产记录。'; return }; if (!this.list.some(row => row.batchNo === batch)) this.list.unshift({ batchNo: batch, updatedAt: record.updatedAt || record.savedAt }); await this.openVersions(batch) }
@@ -82,8 +83,8 @@ export default {
 </script>
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
-.history-caption, .history-row { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }.history-caption { font-size: .75rem; color: $muted; margin-bottom: .9rem; }.history-caption text:last-child { color: $primary; padding: .4rem 0; }.batch-code { font-weight: 700; font-size: 1rem; letter-spacing: .04rem; }.version-link { color: $primary; font-size: .8rem; flex-shrink: 0; }.record-time { display: block; color: $muted; font-size: .75rem; margin-top: .6rem; }
-.load-more { margin: .8rem 0; font-size: .85rem; line-height: 2.8rem; background: $surface; color: $primary; border-radius: .6rem; }.load-more::after { border: 0; }.end-note { text-align: center; color: $muted; font-size: .75rem; padding: 1rem; }.fw-notice .fw-button { margin-top: .5rem; }
-.sheet-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: $overlay; display: flex; align-items: flex-end; z-index: 99; }.sheet { box-sizing: border-box; background: $surface; width: 100%; border-radius: 1rem 1rem 0 0; padding: .6rem 1rem calc(1rem + env(safe-area-inset-bottom)); max-height: 80vh; }.sheet-handle { width: 2.4rem; height: .25rem; background: $line; border-radius: .2rem; margin: 0 auto .8rem; }.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }.sheet-title { font-weight: 700; font-size: 1.1rem; display: block; }.sheet-batch { font-size: .8rem; color: $muted; display: block; margin-top: .3rem; }.sheet-close { padding: 0; margin: 0; width: 2.6rem; height: 2.6rem; line-height: 2.6rem; font-size: 1.4rem; border-radius: 50%; background: $canvas; color: $muted; }.sheet-close::after { border: 0; }.sheet-body { height: 55vh; }
-.version-item { border: 1px solid $line; border-radius: .6rem; padding: .85rem; margin-bottom: .65rem; }.version-top { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }.version-top .fw-note { font-size: .7rem; }.version-bottom { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: .7rem; }.version-bottom > view { flex: 1; min-width: 0; }.version-bottom .fw-button { font-size: .8rem; min-height: 2.4rem; line-height: 2.4rem; padding: 0 .8rem; }.version-desc { display: block; font-size: .9rem; }.version-order { display: block; font-size: .75rem; color: $muted; margin-top: .4rem; }
+.history-caption, .history-row { display: flex; justify-content: space-between; align-items: center; gap: 19.2rpx; }.history-caption { font-size: 24rpx; color: $muted; margin-bottom: 28.8rpx; }.history-caption text:last-child { color: $primary; padding: 12.8rpx 0; }.batch-code { font-weight: 700; font-size: 32rpx; letter-spacing: 1.3rpx; }.version-link { color: $primary; font-size: 25.6rpx; flex-shrink: 0; }.record-time { display: block; color: $muted; font-size: 24rpx; margin-top: 19.2rpx; }
+.load-more { margin: 25.6rpx 0; font-size: 27.2rpx; line-height: 89.6rpx; background: $surface; color: $primary; border-radius: 19.2rpx; }.load-more::after { border: 0; }.end-note { text-align: center; color: $muted; font-size: 24rpx; padding: 32rpx; }.fw-notice .fw-button { margin-top: 16rpx; }
+.sheet-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: $overlay; display: flex; align-items: flex-end; z-index: 99; }.sheet { box-sizing: border-box; background: $surface; width: 100%; border-radius: 32rpx 32rpx 0 0; padding: 19.2rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); max-height: 80vh; }.sheet-handle { width: 76.8rpx; height: 8rpx; background: $line; border-radius: 6.4rpx; margin: 0 auto 25.6rpx; }.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 32rpx; margin-bottom: 28.8rpx; }.sheet-title { font-weight: 700; font-size: 35.2rpx; display: block; }.sheet-batch { font-size: 25.6rpx; color: $muted; display: block; margin-top: 9.6rpx; }.sheet-close { padding: 0; margin: 0; width: 83.2rpx; height: 83.2rpx; line-height: 83.2rpx; font-size: 44.8rpx; border-radius: 50%; background: $canvas; color: $muted; }.sheet-close::after { border: 0; }.sheet-body { height: 55vh; }
+.version-item { border: 1px solid $line; border-radius: 19.2rpx; padding: 27.2rpx; margin-bottom: 20.8rpx; }.version-top { display: flex; justify-content: space-between; align-items: center; gap: 19.2rpx; }.version-top .fw-note { font-size: 22.4rpx; }.version-bottom { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; margin-top: 22.4rpx; }.version-bottom > view { flex: 1; min-width: 0; }.version-bottom .fw-button { font-size: 25.6rpx; min-height: 76.8rpx; line-height: 76.8rpx; padding: 0 25.6rpx; }.version-desc { display: block; font-size: 28.8rpx; }.version-order { display: block; font-size: 24rpx; color: $muted; margin-top: 12.8rpx; }
 </style>

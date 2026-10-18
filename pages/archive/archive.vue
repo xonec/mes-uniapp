@@ -1,6 +1,6 @@
 <template>
     <view class="fw-page">
-        <view class="fw-header"><text class="fw-eyebrow">产品资料</text><text class="fw-title">产品档案</text><text class="fw-subtitle">按产品编码查找规格和包装材料。</text></view>
+        <view class="fw-header"><text class="fw-subtitle">按产品编码查找规格和包装材料。</text></view>
         <button class="fw-button primary import-button" @tap="importProduct">＋ 从照片录入产品</button>
         <view class="archive-tabs"><button :class="{ active: tab === 'materials' }" @tap="switchTab('materials')">产品物料</button><button :class="{ active: tab === 'bom' }" @tap="switchTab('bom')">计算模板</button></view>
         <view class="fw-search"><input v-model="kw" placeholder="搜索已加载的产品编码 / 名称" confirm-type="search" /><text v-if="kw" class="fw-search-clear" @tap="kw = ''">清除</text></view>
@@ -40,7 +40,7 @@ export default {
 </script>
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
-.import-button { width: 100%; margin-bottom: 1rem; }.archive-tabs { display: flex; gap: .3rem; margin-bottom: 1rem; background: $line; padding: .25rem; border-radius: .65rem; }.archive-tabs button { margin: 0; flex: 1; line-height: 2.4rem; font-size: .9rem; padding: 0 .5rem; background: transparent; color: $muted; border-radius: .45rem; }.archive-tabs button::after { border: 0; }.archive-tabs button.active { background: $surface; color: $primary; font-weight: 600; }
-.list-caption { display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-size: .75rem; color: $muted; margin-bottom: .8rem; }.list-caption text:last-child { color: $primary; padding: .4rem 0; }
-.archive-heading { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }.product-code { font-size: .8rem; color: $primary; letter-spacing: .04rem; }.product-name { display: block; font-size: 1rem; font-weight: 600; line-height: 1.5; margin-top: .6rem; }.product-spec { display: block; font-size: .85rem; color: $muted; line-height: 1.6; margin-top: .4rem; overflow-wrap: anywhere; }.archive-bottom { display: flex; justify-content: space-between; gap: .5rem; border-top: 1px solid $line; margin-top: .8rem; padding-top: .7rem; font-size: .75rem; color: $muted; }.archive-bottom text:last-child { color: $primary; }.fw-notice .fw-button { margin-top: .6rem; }
+.import-button { width: 100%; margin-bottom: 32rpx; }.archive-tabs { display: flex; gap: 9.6rpx; margin-bottom: 32rpx; background: $line; padding: 8rpx; border-radius: 20.8rpx; }.archive-tabs button { margin: 0; flex: 1; line-height: 76.8rpx; font-size: 28.8rpx; padding: 0 16rpx; background: transparent; color: $muted; border-radius: 14.4rpx; }.archive-tabs button::after { border: 0; }.archive-tabs button.active { background: $surface; color: $primary; font-weight: 600; }
+.list-caption { display: flex; align-items: center; justify-content: space-between; gap: 19.2rpx; font-size: 24rpx; color: $muted; margin-bottom: 25.6rpx; }.list-caption text:last-child { color: $primary; padding: 12.8rpx 0; }
+.archive-heading { display: flex; align-items: center; justify-content: space-between; gap: 19.2rpx; }.product-code { font-size: 25.6rpx; color: $primary; letter-spacing: 1.3rpx; }.product-name { display: block; font-size: 32rpx; font-weight: 600; line-height: 1.5; margin-top: 19.2rpx; }.product-spec { display: block; font-size: 27.2rpx; color: $muted; line-height: 1.6; margin-top: 12.8rpx; overflow-wrap: anywhere; }.archive-bottom { display: flex; justify-content: space-between; gap: 16rpx; border-top: 1px solid $line; margin-top: 25.6rpx; padding-top: 22.4rpx; font-size: 24rpx; color: $muted; }.archive-bottom text:last-child { color: $primary; }.fw-notice .fw-button { margin-top: 19.2rpx; }
 </style>

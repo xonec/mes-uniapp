@@ -24,6 +24,8 @@
     </view>
 </template>
 <script>
+import { MAX_MATERIAL_ROWS, patchMaterialRow, appendMaterialRow, removeMaterialRow, sourcePagesLabel } from '@/utils/shared/material-list.js'
+
 export default {
     props: { value: { type: Array, default: () => [] }, disabled: Boolean },
     data() {
@@ -38,13 +40,14 @@ export default {
     computed: { rows() { return this.value || [] } },
     watch: { expandedIndex() { this.sourceEditing = false } },
     methods: {
-        sourceLabel(pages) { return Array.isArray(pages) && pages.length ? pages.join('、') : typeof pages === 'string' && pages ? pages : '未标记' },
-        patch(index, key, value) { this.$emit('input', this.rows.map((row, i) => i === index ? { ...row, [key]: value } : row)) },
+        sourceLabel(pages) { return sourcePagesLabel(pages) },
+        patch(index, key, value) { this.$emit('input', patchMaterialRow(this.rows, index, key, value)) },
         add() {
             if (this.disabled) return
-            if (this.rows.length >= 200) return uni.showToast({ title: '最多 200 行物料', icon: 'none' })
+            const next = appendMaterialRow(this.rows)
+            if (!next) return uni.showToast({ title: '最多 ' + MAX_MATERIAL_ROWS + ' 行物料', icon: 'none' })
             this.expandedIndex = this.rows.length
-            this.$emit('input', [...this.rows, { seq: this.rows.length + 1, materialCode: '', materialName: '', spec: '', materialVersion: null, unit: '' }])
+            this.$emit('input', next)
         },
         async remove(index) {
             if (this.disabled) return
@@ -52,23 +55,23 @@ export default {
             if (!yes || this.disabled) return
             if (this.expandedIndex === index) this.expandedIndex = -1
             else if (this.expandedIndex > index) this.expandedIndex--
-            this.$emit('input', this.rows.filter((row, i) => i !== index).map((row, i) => ({ ...row, seq: i + 1 })))
+            this.$emit('input', removeMaterialRow(this.rows, index))
         }
     }
 }
 </script>
 <style lang="scss" scoped>
-.material-heading { display: flex; align-items: center; justify-content: space-between; gap: .7rem; margin-bottom: .9rem; }
-.material-title { display: block; font-size: 1rem; font-weight: 700; }.material-count { display: block; font-size: .75rem; margin-top: .35rem; color: $muted; }
-.add-button { flex-shrink: 0; margin: 0; padding: 0 .8rem; font-size: .8rem; line-height: 2.5rem; border-radius: .5rem; background: $primary-soft; color: $primary; }.add-button::after { border: 0; }
-.material-item { margin-top: .6rem; border: 1px solid $line; border-radius: .6rem; overflow: hidden; }.material-item.expanded { border-color: $primary; }.material-item.incomplete { border-color: $warning; }
-.material-summary { display: flex; align-items: flex-start; gap: .65rem; padding: .85rem .7rem; }.material-seq { flex-shrink: 0; color: $primary; background: $primary-soft; border-radius: .3rem; width: 1.6rem; line-height: 1.6rem; text-align: center; font-size: .75rem; }
-.material-overview { min-width: 0; flex: 1; }.material-name { display: block; font-size: .9rem; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }.material-code { display: block; font-size: .78rem; color: $muted; margin-top: .25rem; }.material-spec { display: block; font-size: .75rem; line-height: 1.5; color: $muted; margin-top: .35rem; max-height: 3em; overflow: hidden; }
-.material-toggle { flex-shrink: 0; font-size: .75rem; line-height: 1.7rem; color: $primary; }.material-detail { border-top: 1px solid $line; padding: .8rem; }
-.material-fields { display: flex; flex-wrap: wrap; gap: .8rem; }.material-field { flex: 1 1 7rem; min-width: 0; }.material-field.wide { flex-basis: 100%; }
-.material-field text { display: block; color: $muted; font-size: .8rem; margin-bottom: .4rem; }
-.material-field input, .material-field textarea, .source-input { width: 100%; box-sizing: border-box; padding: .7rem; min-height: 2.7rem; background: $canvas; font-size: .9rem; border-radius: .4rem; }
-.material-empty { color: $muted; padding: 1.5rem .6rem; line-height: 1.6; font-size: .85rem; background: $canvas; border-radius: .5rem; text-align: center; }
-.material-source { margin-top: .75rem; display: flex; align-items: center; justify-content: space-between; color: $muted; font-size: .75rem; }.material-source button { margin: 0; font-size: .75rem; padding: .3rem 0 .3rem .5rem; line-height: 1.6; background: $surface; color: $primary; }.material-source button::after, .remove-button::after { border: 0; }
-.remove-button { margin: 1rem 0 0; padding: 0; line-height: 2.5rem; background: $surface; color: $danger; border-top: 1px solid $line; border-radius: 0; font-size: .8rem; }
+.material-heading { display: flex; align-items: center; justify-content: space-between; gap: 22.4rpx; margin-bottom: 28.8rpx; }
+.material-title { display: block; font-size: 32rpx; font-weight: 700; }.material-count { display: block; font-size: 24rpx; margin-top: 11.2rpx; color: $muted; }
+.add-button { flex-shrink: 0; margin: 0; padding: 0 25.6rpx; font-size: 25.6rpx; line-height: 80rpx; border-radius: 16rpx; background: $primary-soft; color: $primary; }.add-button::after { border: 0; }
+.material-item { margin-top: 19.2rpx; border: 1px solid $line; border-radius: 19.2rpx; overflow: hidden; }.material-item.expanded { border-color: $primary; }.material-item.incomplete { border-color: $warning; }
+.material-summary { display: flex; align-items: flex-start; gap: 20.8rpx; padding: 27.2rpx 22.4rpx; }.material-seq { flex-shrink: 0; color: $primary; background: $primary-soft; border-radius: 9.6rpx; width: 51.2rpx; line-height: 51.2rpx; text-align: center; font-size: 24rpx; }
+.material-overview { min-width: 0; flex: 1; }.material-name { display: block; font-size: 28.8rpx; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }.material-code { display: block; font-size: 25rpx; color: $muted; margin-top: 8rpx; }.material-spec { display: block; font-size: 24rpx; line-height: 1.5; color: $muted; margin-top: 11.2rpx; max-height: 3em; overflow: hidden; }
+.material-toggle { flex-shrink: 0; font-size: 24rpx; line-height: 54.4rpx; color: $primary; }.material-detail { border-top: 1px solid $line; padding: 25.6rpx; }
+.material-fields { display: flex; flex-wrap: wrap; gap: 25.6rpx; }.material-field { flex: 1 1 224rpx; min-width: 0; }.material-field.wide { flex-basis: 100%; }
+.material-field text { display: block; color: $muted; font-size: 25.6rpx; margin-bottom: 12.8rpx; }
+.material-field input, .material-field textarea, .source-input { width: 100%; box-sizing: border-box; padding: 22.4rpx; min-height: 86.4rpx; background: $canvas; font-size: 28.8rpx; border-radius: 12.8rpx; }
+.material-empty { color: $muted; padding: 48rpx 19.2rpx; line-height: 1.6; font-size: 27.2rpx; background: $canvas; border-radius: 16rpx; text-align: center; }
+.material-source { margin-top: 24rpx; display: flex; align-items: center; justify-content: space-between; color: $muted; font-size: 24rpx; }.material-source button { margin: 0; font-size: 24rpx; padding: 9.6rpx 0 9.6rpx 16rpx; line-height: 1.6; background: $surface; color: $primary; }.material-source button::after, .remove-button::after { border: 0; }
+.remove-button { margin: 32rpx 0 0; padding: 0; line-height: 80rpx; background: $surface; color: $danger; border-top: 1px solid $line; border-radius: 0; font-size: 25.6rpx; }
 </style>

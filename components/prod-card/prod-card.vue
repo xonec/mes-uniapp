@@ -1,5 +1,5 @@
 <template>
-    <view>
+    <view :class="{ 'legacy-layout': legacyLayout }">
         <view class="data-grid">
             <view class="data-cell"><text class="dlbl">入库瓶数</text><text class="dval">{{ inboundCount }}</text></view>
             <view class="data-cell">
@@ -31,7 +31,7 @@
 export default {
     name: 'ProdCard',
     props: {
-        hideActions: Boolean, saving: Boolean,
+        hideActions: Boolean, saving: Boolean, legacyLayout: Boolean,
         inboundCount: { type: String, default: '0 瓶' },
         sampleCount: { type: [String, Number], default: '' },
         innerIssued: { type: String, default: '0 瓶' },
@@ -52,15 +52,23 @@ export default {
 
 <style lang="scss" scoped>
 .data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
-.data-cell { background: $canvas; border-radius: 12rpx; padding: .75rem; min-height: 3.5rem; display: flex; flex-direction: column; justify-content: center; }
-.dlbl { font-size: .75rem; color: $muted; }
-.dinp { margin-top: 4rpx; font-size: .9rem; background: transparent; height: 2.3rem; }
-.dval { margin-top: 4rpx; font-size: 1rem; font-weight: 700; color: $primary; }
+.data-cell { background: $canvas; border-radius: 12rpx; padding: 24rpx; min-height: 112rpx; display: flex; flex-direction: column; justify-content: center; }
+.dlbl { font-size: 24rpx; color: $muted; }
+.dinp { margin-top: 4rpx; font-size: 28.8rpx; background: transparent; height: 73.6rpx; }
+.dval { margin-top: 4rpx; font-size: 32rpx; font-weight: 700; color: $primary; }
+// 安卓 App 恢复原有三列生产数据布局。
+.legacy-layout {
+    .data-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .data-cell { min-width: 0; padding: 10rpx; min-height: 88rpx; }
+    .dlbl { font-size: 20rpx; }
+    .dinp { min-width: 0; height: 40rpx; font-size: 26rpx; }
+    .dval { font-size: 28rpx; }
+}
 .seg-row { display: flex; align-items: center; gap: 12rpx; margin: 6rpx 0 12rpx; }
 .seg { flex: 1; display: flex; background: $canvas; border-radius: 12rpx; padding: 4rpx; gap: 4rpx; }
 .seg-item { flex: 1; text-align: center; font-size: 24rpx; color: $muted; padding: 14rpx 0; border-radius: 10rpx; }
 .seg-item.active { background: $primary; color: $surface; font-weight: 700; }
-.sync-line { font-size: .75rem; color: $muted; margin: 12rpx 0; }
+.sync-line { font-size: 24rpx; color: $muted; margin: 12rpx 0; }
 .btn-row { display: flex; gap: 12rpx; }
 .btn-row .btn { flex: 1; }
 .btn { font-size: 24rpx; border-radius: 12rpx; padding: 0 18rpx; height: 64rpx; line-height: 64rpx; background: $canvas; color: $ink; }

@@ -23,7 +23,6 @@
 
 <script>
 // #ifdef APP-PLUS
-import { scanBarcode } from '@/uni_modules/hx-mlkit-barcode'
 import { STORE_LAST_BATCH } from '@/utils/storage-keys.js'
 // #endif
 
@@ -52,6 +51,14 @@ export default {
     },
     methods: {
         // #ifdef APP-PLUS
+        /** 实时扫码与相册识别共用码制；内置 Barcode 模块，标准基座即可用，无需 UTS 插件。 */
+        barcodeFilters() {
+            return [
+                plus.barcode.QR, plus.barcode.CODE128, plus.barcode.CODE39, plus.barcode.CODE93,
+                plus.barcode.EAN13, plus.barcode.EAN8, plus.barcode.UPC_A, plus.barcode.UPC_E,
+                plus.barcode.ITF, plus.barcode.CODABAR
+            ]
+        },
         createScanner() {
             const sys = uni.getSystemInfoSync()
             const statusBar = sys.statusBarHeight || 24
@@ -59,19 +66,7 @@ export default {
             const toolbarH = 90
             const top = statusBar + navBar + 16
             const h = Math.max(sys.windowHeight - statusBar - navBar - toolbarH - 32, 200)
-            const filters = [
-                plus.barcode.QR,
-                plus.barcode.CODE128,
-                plus.barcode.CODE39,
-                plus.barcode.CODE93,
-                plus.barcode.EAN13,
-                plus.barcode.EAN8,
-                plus.barcode.UPC_A,
-                plus.barcode.UPC_E,
-                plus.barcode.ITF,
-                plus.barcode.CODABAR
-            ]
-            const bc = plus.barcode.create('mes-scan', filters, {
+            const bc = plus.barcode.create('mes-scan', this.barcodeFilters(), {
                 top: top + 'px',
                 left: '0px',
                 width: '100%',
@@ -81,7 +76,7 @@ export default {
                 frameColor: '#00E5A0',
                 scanbarColor: '#00E5A0'
             })
-            bc.onmarked = this.onMarked
+            bc.onmarked = (type, result) => this.onMarked(type, result)
             bc.onerror = () => {}
             const pages = getCurrentPages()
             const page = pages[pages.length - 1]
@@ -99,52 +94,52 @@ export default {
             try { plus.device.vibrate(200) } catch (e) { /* ignore */ }
             this.emitResult(result)
         },
+        /** 相册识别：用内置 Barcode 模块的图片识别能力（标准基座可用），不再依赖 UTS 插件。 */
         chooseAlbum() {
             uni.chooseImage({
                 count: 1,
                 sourceType: ['album'],
                 sizeType: ['original'],
                 success: (res) => {
-                    const p = res.tempFilePaths && res.tempFilePaths[0]
-                    if (!p) return
+                    const raw = res.tempFilePaths && res.tempFilePaths[0]
+                    if (!raw) return
+                    // 内置 API 需要本地文件路径，uni.chooseImage 在 Android 上可能返回 file:// 前缀
+                    const p = String(raw).replace(/^file:\/\//, '')
                     uni.showLoading({ title: '识别中…' })
-                    scanBarcode({
-                        imagePath: p,
-                        success: (r) => {
+                    try {
+                        plus.barcode.scan(p, (type, code) => {
                             uni.hideLoading()
-                            const codes = Array.from(new Set(
-                                (r.barcodes || []).map(b => String(b.rawValue || '').trim()).filter(Boolean)
-                            ))
-                            if (!codes.length) {
-                                uni.showModal({ title: '未识别到条码', content: '请确保照片清晰、条码占画面比例大、无反光', showCancel: false })
-                                return
-                            }
-                            if (codes.length > 1) {
-                                // 多个条码：底部动作面板让用户点选哪一个
-                                uni.showActionSheet({
-                                    itemList: codes,
-                                    success: (a) => { this.emitResult(codes[a.tapIndex]) },
-                                    fail: () => { /* 用户取消选择，留在扫码页 */ }
-                                })
-                                return
-                            }
-                            this.emitResult(codes[0])
-                        },
-                        fail: (err) => {
+                            const text = String(code || '').trim()
+                            if (!text) { this.albumNotFound(); return }
+                            this.emitResult(text)
+                        }, () => {
                             uni.hideLoading()
-                            uni.showModal({ title: '相册识别失败', content: (err && err.message) || '未知错误', showCancel: false })
-                        }
-                    })
+                            this.albumNotFound()
+                        }, this.barcodeFilters(), true)
+                    } catch (e) {
+                        uni.hideLoading()
+                        this.albumNotFound()
+                    }
                 }
             })
+        },
+        albumNotFound() {
+            uni.showModal({ title: '未识别到条码', content: '请确保照片清晰、条码占画面比例大、无反光；也可以返回后直接对准条码实时扫描', showCancel: false })
         },
         toggleFlash() {
             this.flashOn = !this.flashOn
             try { this.barcode && this.barcode.setFlash(this.flashOn) } catch (e) { /* ignore */ }
         },
         emitResult(raw) {
-            const ch = this.$scope ? this.$scope.getOpenerEventChannel() : this.getOpenerEventChannel && this.getOpenerEventChannel()
-            if (ch && ch.emit) ch.emit('scanResult', raw)
+            // 回传扫码结果：优先用页面事件通道；App 端 this.$scope 上不一定有该方法，需逐级容错
+            try {
+                let ch = null
+                if (this.$scope && typeof this.$scope.getOpenerEventChannel === 'function') ch = this.$scope.getOpenerEventChannel()
+                else if (typeof this.getOpenerEventChannel === 'function') ch = this.getOpenerEventChannel()
+                if (ch && typeof ch.emit === 'function') ch.emit('scanResult', raw)
+            } catch (e) {
+                console.error('[scan] emit failed', e && (e.message || e))
+            }
             uni.navigateBack()
         }
         // #endif

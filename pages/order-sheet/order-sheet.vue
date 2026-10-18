@@ -1,8 +1,6 @@
 <template>
     <view class="fw-page entry-page">
         <view class="fw-header">
-            <text class="fw-eyebrow">包装指令单录入</text>
-            <text class="fw-title">{{ recordKey ? '核对产品档案' : purpose === 'bom' ? '建立产品物料档案' : '指令单录入' }}</text>
             <text class="fw-subtitle">{{ purpose === 'bom' ? '以产品编码建档，保留固定规格和材料清单。' : '同一份指令单解析后录入生产订单；产品尚未建档时可一并建立产品资料。' }}</text>
         </view>
         <view class="steps">
@@ -154,10 +152,12 @@ export default {
         if (uni.onKeyboardHeightChange) uni.onKeyboardHeightChange(this.keyboardHandler)
         // 默认走完整的指令单流程；只有档案页「从照片录入产品」才显式传 purpose=bom
         this.purpose = options.purpose === 'bom' ? 'bom' : 'order'
+        this.syncNavTitle()
         // 识别流程由云端能力决定；取不到时按旧流程（screen-first）处理。
         loadOcrFlowMode(callCloud).then(mode => { this.flowMode = mode }).catch(() => {})
         if (options.productCode) {
             this.recordKey = options.productCode
+            this.syncNavTitle()
             this.choosing = true
             try {
                 const record = await fetchMaterialsByCode(options.productCode)
@@ -287,6 +287,11 @@ export default {
             } catch (error) { this.error = error.message || '识别失败，请重试' }
             finally { this.recognizing = false }
         },
+        /** 页面标题改由原生导航栏显示，状态变化时同步，避免与页内标题重复。 */
+        syncNavTitle() {
+            const title = this.recordKey ? '核对产品档案' : this.purpose === 'bom' ? '建立产品物料档案' : '指令单录入'
+            uni.setNavigationBarTitle({ title })
+        },
         async observeExisting() {
             const key = String(this.form[this.purpose === 'bom' ? 'productCode' : 'orderNo'] || '').trim()
             if (!(this.purpose === 'bom' ? /^\d{10}$/ : /^\d{4,12}$/).test(key)) return null
@@ -365,31 +370,31 @@ export default {
 </script>
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
-.entry-page { padding-bottom: calc(7rem + env(safe-area-inset-bottom)); }
-.status-options { display: flex; padding: .25rem; gap: .3rem; border-radius: .7rem; background: $line; margin-bottom: 1rem; }
-.status-options button { flex: 1; margin: 0; padding: .6rem .3rem; font-size: .9rem; line-height: 1.5; background: transparent; color: $muted; border-radius: .5rem; }
+.entry-page { padding-bottom: calc(224rpx + env(safe-area-inset-bottom)); }
+.status-options { display: flex; padding: 8rpx; gap: 9.6rpx; border-radius: 22.4rpx; background: $line; margin-bottom: 32rpx; }
+.status-options button { flex: 1; margin: 0; padding: 19.2rpx 9.6rpx; font-size: 28.8rpx; line-height: 1.5; background: transparent; color: $muted; border-radius: 16rpx; }
 .status-options button::after { border: 0; }
 .status-options button.active { background: $surface; color: $primary; font-weight: 600; }
-.steps { display: flex; justify-content: space-between; gap: .3rem; padding: .1rem 0 1.1rem; }
-.step { display: flex; align-items: center; gap: .35rem; font-size: .8rem; color: $muted; }
-.step-number { width: 1.55rem; height: 1.55rem; line-height: 1.55rem; text-align: center; background: $line; border-radius: 50%; }
+.steps { display: flex; justify-content: space-between; gap: 9.6rpx; padding: 3.2rpx 0 35.2rpx; }
+.step { display: flex; align-items: center; gap: 11.2rpx; font-size: 25.6rpx; color: $muted; }
+.step-number { width: 49.6rpx; height: 49.6rpx; line-height: 49.6rpx; text-align: center; background: $line; border-radius: 50%; }
 .step.active { color: $primary; font-weight: 600; }.step.active .step-number { background: $primary; color: $surface; }.step.complete .step-number { color: $primary; background: $primary-soft; }
-.photo-empty { display: flex; flex-direction: column; align-items: center; gap: .55rem; padding: 1.5rem .5rem; background: $canvas; border: 1px dashed $line; border-radius: .65rem; }
-.photo-symbol { color: $primary; font-size: 2rem; }.photo-empty-title { font-size: .95rem; font-weight: 600; }
-.photos { display: flex; flex-wrap: wrap; gap: .6rem; }.photo-item { position: relative; width: calc((100% - 1.2rem) / 3); min-width: 0; padding-bottom: 1.1rem; }
-.photo-item image { width: 100%; height: 8rem; border-radius: .5rem; background: $canvas; }
-.photo-page { display: block; text-align: center; color: $muted; font-size: .75rem; padding: .35rem 0; }
-.photo-remove { position: absolute; right: -.2rem; top: -.2rem; margin: 0; padding: 0; width: 2rem; height: 2rem; font-size: 1.25rem; line-height: 2rem; border-radius: 50%; background: $ink; color: $surface; }
-.photo-remove::after, .photo-first::after { border: 0; }.photo-first { margin: 0; padding: .2rem 0; font-size: .7rem; line-height: 1.8; color: $primary; background: $primary-soft; border-radius: .3rem; }
-.photo-actions { margin: 1rem 0 .7rem; align-items: center; }.photo-actions .fw-button { flex: 1; }
-.manual-entry { margin: 1rem 0 0; width: 100%; font-size: .8rem; line-height: 2.5rem; background: $surface; color: $primary; padding: 0; border-top: 1px solid $line; border-radius: 0; }.manual-entry::after { border: 0; }
-.model-action { margin: .9rem 0 0; padding: .85rem .75rem; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: .5rem; background: $canvas; border-radius: .5rem; font-size: .85rem; line-height: 1.6; }.model-action::after { border: 0; }.model-cost { font-size: .7rem; color: $warning; }
-.recognition-note { margin-top: .75rem; color: $primary; font-size: .8rem; line-height: 1.6; }.code-confirmation { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid $line; }.code-confirmation .fw-field { margin-top: .75rem; }
-.review-summary { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }.review-summary .fw-button { flex-shrink: 0; font-size: .8rem; padding: 0 .7rem; }
-.code-row { display: flex; align-items: flex-end; gap: .6rem; margin-bottom: .9rem; }.code-row .fw-field { flex: 1; min-width: 0; margin-bottom: 0; }.code-row .fw-button { min-height: 2.9rem; line-height: 2.9rem; }
-.status-help { display: block; font-size: .72rem; font-weight: normal; margin-top: .25rem; }.status-options { background: $canvas; }
-.archive-option { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid $line; }.archive-option .fw-button { margin-top: .7rem; width: 100%; }
-.fallback-card { border-left: .2rem solid #d08700; }
-.fallback-text { margin-top: .6rem; padding: .6rem; background: #f7f7f2; border-radius: .3rem; font-size: .8rem; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 6rem; overflow: hidden; }
+.photo-empty { display: flex; flex-direction: column; align-items: center; gap: 17.6rpx; padding: 48rpx 16rpx; background: $canvas; border: 1px dashed $line; border-radius: 20.8rpx; }
+.photo-symbol { color: $primary; font-size: 64rpx; }.photo-empty-title { font-size: 30.4rpx; font-weight: 600; }
+.photos { display: flex; flex-wrap: wrap; gap: 19.2rpx; }.photo-item { position: relative; width: calc((100% - 38.4rpx) / 3); min-width: 0; padding-bottom: 35.2rpx; }
+.photo-item image { width: 100%; height: 256rpx; border-radius: 16rpx; background: $canvas; }
+.photo-page { display: block; text-align: center; color: $muted; font-size: 24rpx; padding: 11.2rpx 0; }
+.photo-remove { position: absolute; right: -6.4rpx; top: -6.4rpx; margin: 0; padding: 0; width: 64rpx; height: 64rpx; font-size: 40rpx; line-height: 64rpx; border-radius: 50%; background: $ink; color: $surface; }
+.photo-remove::after, .photo-first::after { border: 0; }.photo-first { margin: 0; padding: 6.4rpx 0; font-size: 22.4rpx; line-height: 1.8; color: $primary; background: $primary-soft; border-radius: 9.6rpx; }
+.photo-actions { margin: 32rpx 0 22.4rpx; align-items: center; }.photo-actions .fw-button { flex: 1; }
+.manual-entry { margin: 32rpx 0 0; width: 100%; font-size: 25.6rpx; line-height: 80rpx; background: $surface; color: $primary; padding: 0; border-top: 1px solid $line; border-radius: 0; }.manual-entry::after { border: 0; }
+.model-action { margin: 28.8rpx 0 0; padding: 27.2rpx 24rpx; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16rpx; background: $canvas; border-radius: 16rpx; font-size: 27.2rpx; line-height: 1.6; }.model-action::after { border: 0; }.model-cost { font-size: 22.4rpx; color: $warning; }
+.recognition-note { margin-top: 24rpx; color: $primary; font-size: 25.6rpx; line-height: 1.6; }.code-confirmation { margin-top: 32rpx; padding-top: 32rpx; border-top: 1px solid $line; }.code-confirmation .fw-field { margin-top: 24rpx; }
+.review-summary { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; }.review-summary .fw-button { flex-shrink: 0; font-size: 25.6rpx; padding: 0 22.4rpx; }
+.code-row { display: flex; align-items: flex-end; gap: 19.2rpx; margin-bottom: 28.8rpx; }.code-row .fw-field { flex: 1; min-width: 0; margin-bottom: 0; }.code-row .fw-button { min-height: 92.8rpx; line-height: 92.8rpx; }
+.status-help { display: block; font-size: 23rpx; font-weight: normal; margin-top: 8rpx; }.status-options { background: $canvas; }
+.archive-option { margin-top: 32rpx; padding-top: 32rpx; border-top: 1px solid $line; }.archive-option .fw-button { margin-top: 22.4rpx; width: 100%; }
+.fallback-card { border-left: 6.4rpx solid #d08700; }
+.fallback-text { margin-top: 19.2rpx; padding: 19.2rpx; background: #f7f7f2; border-radius: 9.6rpx; font-size: 25.6rpx; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 192rpx; overflow: hidden; }
 .fallback-text.expanded { max-height: none; }
 </style>

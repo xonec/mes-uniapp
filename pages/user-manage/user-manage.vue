@@ -98,7 +98,7 @@ export default {
         const info = await checkLogin().catch(() => null)
         if (!info || (info.role || []).indexOf('admin') < 0) {
             uni.showToast({ title: '无权限', icon: 'none' })
-            setTimeout(() => uni.reLaunch({ url: '/pages/materials/materials' }), 800)
+            setTimeout(() => uni.reLaunch({ url: '/pages/operations/workbench' }), 800)
             return
         }
         const u = getUser() || {}

@@ -1,5 +1,5 @@
 <template>
-    <view>
+    <view :class="{ 'legacy-layout': legacyLayout }">
         <view class="bucket-grid">
             <view class="bucket" v-for="(key, idx2) in bucketKeys" :key="key">
                 <text class="blbl">{{ key }}桶</text>
@@ -32,7 +32,7 @@ export default {
         zeroCount: { type: [String, Number], default: '' },
         perCase: { type: [String, Number], default: '' },
         perPallet: { type: [String, Number], default: '' },
-        palletLocked: Boolean, disabled: Boolean,
+        palletLocked: Boolean, disabled: Boolean, legacyLayout: Boolean,
         bucketKeys: { type: Array, default: () => ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'] }
     },
     methods: {
@@ -54,6 +54,19 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.bucket-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }.bucket { display: flex; align-items: center; gap: .5rem; background: $canvas; padding: .5rem .6rem; border-radius: .55rem; }.blbl { flex-shrink: 0; font-size: .8rem; color: $primary; font-weight: 600; }.binp { flex: 1; min-width: 0; height: 2.3rem; font-size: 1rem; text-align: right; background: transparent; }.binp[disabled] { color: $muted; }
-.bucket-tail { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid $line; }.data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }.data-cell { background: $canvas; border-radius: .5rem; padding: .7rem; min-height: 3.2rem; display: flex; flex-direction: column; justify-content: center; }.dlbl { font-size: .75rem; color: $muted; }.dinp { margin-top: .3rem; font-size: .95rem; background: transparent; height: 2.2rem; }
+.bucket-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 19.2rpx; }.bucket { display: flex; align-items: center; gap: 16rpx; background: $canvas; padding: 16rpx 19.2rpx; border-radius: 17.6rpx; }.blbl { flex-shrink: 0; font-size: 25.6rpx; color: $primary; font-weight: 600; }.binp { flex: 1; min-width: 0; height: 73.6rpx; font-size: 32rpx; text-align: right; background: transparent; }.binp[disabled] { color: $muted; }
+.bucket-tail { margin-top: 25.6rpx; padding-top: 25.6rpx; border-top: 1px solid $line; }.data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 19.2rpx; }.data-cell { background: $canvas; border-radius: 16rpx; padding: 22.4rpx; min-height: 102.4rpx; display: flex; flex-direction: column; justify-content: center; }.dlbl { font-size: 24rpx; color: $muted; }.dinp { margin-top: 9.6rpx; font-size: 30.4rpx; background: transparent; height: 70.4rpx; }
+// 安卓 App 恢复原有五列分桶及三列参数布局。
+.legacy-layout {
+    .bucket-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10rpx; }
+    .bucket { flex-direction: column; align-items: stretch; gap: 0; min-width: 0; padding: 0; border-radius: 0; background: transparent; }
+    .blbl { margin-bottom: 4rpx; font-size: 20rpx; font-weight: normal; color: $muted; }
+    .binp { flex: none; width: 100%; box-sizing: border-box; height: 60rpx; border: 1rpx solid $line; border-radius: 10rpx; font-size: 26rpx; text-align: center; background: $surface; }
+    .binp[disabled] { background: $canvas; color: $muted; }
+    .bucket-tail { margin-top: 12rpx; padding-top: 0; border-top: 0; }
+    .data-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12rpx; }
+    .data-cell { min-width: 0; min-height: 88rpx; padding: 10rpx; border-radius: 12rpx; }
+    .dlbl { font-size: 20rpx; }
+    .dinp { margin-top: 4rpx; height: 40rpx; font-size: 26rpx; }
+}
 </style>

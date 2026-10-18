@@ -1,7 +1,7 @@
 <template>
     <page-meta :disable-scroll="dragMode"></page-meta>
     <view class="page" @touchmove="onDragMove" @touchend="endDrag" @touchcancel="endDrag">
-        <view class="work-header"><view><text class="fw-eyebrow">现场作业</text><text class="fw-title">生产计算</text><text class="fw-subtitle">先确认批号和订单，再填写每桶件数。</text></view>
+        <view class="work-header"><view><text class="fw-subtitle">先确认批号和订单，再填写每桶件数。</text></view>
             <!-- #ifdef MP-WEIXIN -->
             <button class="fw-button secondary share-button" open-type="share">分享</button>
             <!-- #endif -->
@@ -35,11 +35,13 @@
                     @scan="scanBatch" @smart-fill="smartFill" @choose-product="chooseProduct"
                     @fetch-cloud="fetchFromCloud" @fetch-fr="fetchFromFr" />
                 <buckets-card :disabled="savingRecord" v-else-if="c.key==='buckets'"
+                    :legacy-layout="isAndroid"
                     :buckets.sync="buckets" :bucket-keys="bucketKeys"
                     :zero-count.sync="zeroCount" :per-case.sync="perCase" :per-pallet.sync="perPallet"
                     :pallet-locked="!!linkedOrder"
                     @change="calculateMaterial" />
                 <prod-card v-else-if="c.key==='prod'"
+                    :legacy-layout="isAndroid"
                     :inbound-count="inboundCount" :sample-count.sync="sampleCount"
                     :inner-issued="innerIssued" :bucket-count="bucketCount"
                     :case-count-text="caseCountText" :pallet-code="palletCode"
@@ -186,6 +188,7 @@ export default {
             this.adminChecked = true
         }).catch(() => { this.adminChecked = true })
         this.loadCardLayout()
+        if (uni.getStorageSync('mes:operation-calculation')) return
         // 分享带批号进入：优先从云端加载该批号数据
         if (sharedBatch) {
             this.batchNo = sharedBatch
@@ -207,6 +210,8 @@ export default {
         }
     },
     onShow() {
+        const operation = uni.getStorageSync('mes:operation-calculation')
+        if (operation && operation.jobId) { this.loadOperationCalculation(operation); return }
         // 历史页「载入」切回：读取暂存记录回填表单
         const rec = uni.getStorageSync(STORE_LOAD_RECORD)
         if (rec && rec.batchNo) {
@@ -231,8 +236,29 @@ export default {
         }
     },
     methods: {
+        /** 从云端复核工单采用版本，再载入计算；本地传递数据不作为订单凭据。 */
+        async loadOperationCalculation(context) {
+            if (this.orderLookupPending) return
+            this.orderLookupPending = true; this.orderMessage = '正在复核工单及采用的订单版本…'
+            const request = ++this.orderLookupRequest
+            try {
+                const result = await callCloud('production-operations', 'getJob', { id: context.jobId })
+                const job = result.job
+                if (!job || !job.orderSnapshot || job.orderSnapshot.batchNo !== job.batchNo) throw new Error('工单采用的订单凭据不完整')
+                const rec = await fetchProductionRecord(job.batchNo)
+                if (request !== this.orderLookupRequest) return
+                this.loadRecord({ ...(rec || {}), batchNo: job.batchNo, productCode: job.productCode, orderSnapshot: job.orderSnapshot, buckets: rec && rec.buckets || {} })
+                const spec = String(job.orderSnapshot.packSpec || '').match(/(\d+)\s*(?:瓶|罐|袋|盒|包|支|个)\s*[/／]\s*(?:箱|件)/)
+                this.perCase = spec ? Number(spec[1]) : ''
+                this.perPallet = job.orderSnapshot.pallet && job.orderSnapshot.pallet.status === 'confirmed' ? job.orderSnapshot.pallet.casesPerPallet : ''
+                this.weightProduct = job.productName
+                this.orderMessage = '工单 ' + job.processName + ' · 采用订单 ' + job.orderNo + ' V' + job.orderVersion + (rec ? ' · 已载入该批原有计算数据' : '') + (!this.perPallet ? ' · 上托待补充' : '')
+                this.calculateMaterial(); uni.removeStorageSync('mes:operation-calculation')
+            } catch (error) { if (request === this.orderLookupRequest) { this.orderLookupFailed = true; this.orderMessage = '工单计算载入失败：' + error.message; uni.removeStorageSync('mes:operation-calculation') } }
+            finally { if (request === this.orderLookupRequest) this.orderLookupPending = false }
+        },
         onBatchInput(v) {
-            v = (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11)
+            v = (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)
             this.batchNo = v
             this.resolveProductOptions()
         },
@@ -307,7 +333,7 @@ export default {
             const looksLikeBatch = batchIsValid(parsed.code) && parsed.cleaned === parsed.code
             uni.showModal({
                 title: looksLikeBatch ? '批号前缀未匹配' : '这不像批号',
-                content: '扫描内容：' + (parsed.raw || '（空）') + '\n解析为：' + parsed.code + '\n（批号格式：11 位字母数字，前 4 位为产品前缀）',
+                content: '扫描内容：' + (parsed.raw || '（空）') + '\n解析为：' + parsed.code + '\n（批号格式：11 位字母数字，B 单保留末尾 B；按完整批号关联订单）',
                 confirmText: '仍要填入',
                 cancelText: '重新扫',
                 success: (m) => { if (m.confirm) use(parsed.code) }
@@ -483,7 +509,7 @@ export default {
         // ===== 草稿持久化 =====
         async save() {
             if (this.savingRecord || this.cloudFetching || this.fetching) return
-            if (!this.batchValid) { uni.showToast({ title: '批号须为11位且含字母与数字', icon: 'none' }); return }
+            if (!this.batchValid) { uni.showToast({ title: '批号须为11位字母数字或追加B单后缀', icon: 'none' }); return }
             if (this.orderLookupPending || this.orderLookupFailed) { uni.showToast({ title: '请先完成订单查询后保存', icon: 'none' }); return }
             if (this.linkedOrder && (this.linkedOrder.orderStatus !== 'confirmed' || this.linkedOrder.enabled === false)) { uni.showToast({ title: '请先在后台确认并启用本单', icon: 'none' }); return }
             this.calculateMaterial()
@@ -600,9 +626,9 @@ export default {
         },
         // ===== 卡片折叠 / 排序 / 拖拽 ===== 由 mixins/card-layout.js 提供
         goOrderSheet() { uni.navigateTo({ url: '/pages/order-sheet/order-sheet?purpose=order' }) },
-        goArchive() { uni.switchTab({ url: '/pages/archive/archive' }) },
+        goArchive() { uni.navigateTo({ url: '/pages/archive/archive' }) },
         goHistory() {
-            uni.switchTab({ url: '/pages/history/history' })
+            uni.navigateTo({ url: '/pages/history/history' })
         }
     }
 }
@@ -610,10 +636,10 @@ export default {
 
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
-.page { box-sizing: border-box; padding: 1rem 1rem calc(7rem + env(safe-area-inset-bottom)); color: $ink; }
-.work-header { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin: .25rem 0 1.2rem; }.share-button { font-size: .75rem; padding: 0 .75rem; flex-shrink: 0; margin-top: .2rem; }
-.work-entries { display: flex; gap: .7rem; margin-bottom: 1rem; }.work-entries button { flex: 1; min-width: 0; text-align: left; padding: .9rem; margin: 0; background: $surface; border-radius: .75rem; line-height: 1.5; }.work-entries button::after { border: 0; }.entry-label { display: block; font-size: .9rem; font-weight: 600; color: $primary; }.entry-note { display: block; font-size: .72rem; color: $muted; margin-top: .4rem; }
-.order-overview { background: $surface; padding: 1rem; border-radius: .75rem; margin-bottom: 1rem; border-left: .2rem solid $primary; }.order-overview-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .85rem; font-weight: 600; }.order-product { display: block; font-size: .9rem; line-height: 1.6; margin-top: .6rem; }.order-tags { display: flex; flex-wrap: wrap; gap: .6rem; font-size: .75rem; margin-top: .6rem; color: $muted; }.order-tags .pending { color: $warning; }
-.card { background: $surface; border-radius: .85rem; margin-bottom: .85rem; overflow: hidden; }.card-head { display: flex; align-items: center; justify-content: space-between; padding: .85rem 1rem; border-bottom: 1px solid $line; }.card-head-left { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; flex: 1; min-width: 0; }.card-title { font-size: 1rem; font-weight: 700; }.card-tools { display: flex; align-items: center; gap: .35rem; margin-left: .3rem; }.drag-hint { font-size: 1.1rem; color: $muted; padding: .3rem; }.collapse-btn { min-width: 1.8rem; line-height: 1.8rem; text-align: center; font-size: .85rem; color: $primary; background: $canvas; border-radius: .35rem; }.card-body { padding: 1rem; }.card.dragging { opacity: .92; transform: scale(1.01); border: 1px solid $primary; }
-.hint { font-size: .7rem; color: $muted; }.chip { font-size: .7rem; color: $primary; background: $primary-soft; padding: .2rem .45rem; border-radius: .3rem; }.chip.active { background: $primary; color: $surface; }.fw-footer .fw-button.secondary { flex: 0 0 30%; padding: 0 .3rem; }
+.page { box-sizing: border-box; padding: 32rpx 32rpx calc(224rpx + env(safe-area-inset-bottom)); color: $ink; }
+.work-header { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; margin: 0 0 20rpx; }.work-header .fw-subtitle { font-size: 24rpx; line-height: 1.5; margin-top: 0; }.share-button { font-size: 24rpx; padding: 0 24rpx; flex-shrink: 0; margin-top: 6.4rpx; }
+.work-entries { display: flex; gap: 22.4rpx; margin-bottom: 32rpx; }.work-entries button { flex: 1; min-width: 0; text-align: left; padding: 28.8rpx; margin: 0; background: $surface; border-radius: 24rpx; line-height: 1.5; }.work-entries button::after { border: 0; }.entry-label { display: block; font-size: 28.8rpx; font-weight: 600; color: $primary; }.entry-note { display: block; font-size: 23rpx; color: $muted; margin-top: 12.8rpx; }
+.order-overview { background: $surface; padding: 32rpx; border-radius: 24rpx; margin-bottom: 32rpx; border-left: 6.4rpx solid $primary; }.order-overview-head { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; font-size: 27.2rpx; font-weight: 600; }.order-product { display: block; font-size: 28.8rpx; line-height: 1.6; margin-top: 19.2rpx; }.order-tags { display: flex; flex-wrap: wrap; gap: 19.2rpx; font-size: 24rpx; margin-top: 19.2rpx; color: $muted; }.order-tags .pending { color: $warning; }
+.card { background: $surface; border-radius: 27.2rpx; margin-bottom: 27.2rpx; overflow: hidden; }.card-head { display: flex; align-items: center; justify-content: space-between; padding: 27.2rpx 32rpx; border-bottom: 1px solid $line; }.card-head-left { display: flex; flex-wrap: wrap; align-items: center; gap: 16rpx; flex: 1; min-width: 0; }.card-title { font-size: 32rpx; font-weight: 700; }.card-tools { display: flex; align-items: center; gap: 11.2rpx; margin-left: 9.6rpx; }.drag-hint { font-size: 35.2rpx; color: $muted; padding: 9.6rpx; }.collapse-btn { min-width: 57.6rpx; line-height: 57.6rpx; text-align: center; font-size: 27.2rpx; color: $primary; background: $canvas; border-radius: 11.2rpx; }.card-body { padding: 32rpx; }.card.dragging { opacity: .92; transform: scale(1.01); border: 1px solid $primary; }
+.hint { font-size: 22.4rpx; color: $muted; }.chip { font-size: 22.4rpx; color: $primary; background: $primary-soft; padding: 6.4rpx 14.4rpx; border-radius: 9.6rpx; }.chip.active { background: $primary; color: $surface; }.fw-footer .fw-button.secondary { flex: 0 0 30%; padding: 0 9.6rpx; }
 </style>

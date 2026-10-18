@@ -18,6 +18,8 @@
   </view>
 </template>
 <script>
+import { patchPalletField, palletConfirmBlocker } from '@/utils/shared/pallet.js'
+
 export default {
   props: { value: { type: Object, default: () => ({}) }, disabled: Boolean },
   data() { return { expanded: false, autoCalculated: false, fields: [{ key: 'casesPerLayer', label: '箱 / 层', numeric: true }, { key: 'layers', label: '层数', numeric: true }, { key: 'casesPerPallet', label: '箱 / 托 *', numeric: true }, { key: 'dimensions', label: '托盘尺寸', placeholder: '如1200×1000mm', max: 120 }, { key: 'placement', label: '摆放说明', wide: true }, { key: 'sourceNote', label: '依据说明 *', placeholder: '客户要求或现场标准的名称、日期等', wide: true }], sourceOptions: [{ value: '', text: '请选择来源' }, { value: 'customer', text: '客户要求' }, { value: 'site', text: '现场标准' }, { value: 'document', text: '单据明确记载' }], statusOptions: [{ value: 'pending', text: '待补充' }, { value: 'confirmed', text: '已确认' }] }; },
@@ -29,28 +31,25 @@ export default {
   methods: {
     patch(key, value) {
       if (this.disabled) return
-      const next = { ...this.value, [key]: value }
-      if (key === 'casesPerPallet') this.autoCalculated = false
-      if (key === 'casesPerLayer' || key === 'layers') {
-        if (Number(next.casesPerLayer) > 0 && Number(next.layers) > 0) { next.casesPerPallet = Number(next.casesPerLayer) * Number(next.layers); this.autoCalculated = true; }
-        else if (this.autoCalculated) { next.casesPerPallet = ''; next.status = 'pending'; }
-      }
-      this.lastEmitted = next; this.$emit('input', next)
+      const result = patchPalletField(this.value, key, value, this.autoCalculated)
+      this.autoCalculated = result.autoCalculated
+      this.lastEmitted = result.value; this.$emit('input', result.value)
     },
     changeStatus(event) {
       const status = this.statusOptions[Number(event.detail.value)].value
-      if (status === 'confirmed' && (!Number.isInteger(Number(this.value.casesPerPallet)) || Number(this.value.casesPerPallet) <= 0 || !this.value.sourceType || !String(this.value.sourceNote || '').trim())) return uni.showToast({ title: '请补齐每托箱数、来源和依据', icon: 'none' })
+      const blocker = status === 'confirmed' ? palletConfirmBlocker(this.value) : ''
+      if (blocker) return uni.showToast({ title: blocker, icon: 'none' })
       this.patch('status', status)
     }
   }
 };
 </script>
 <style lang="scss" scoped>
-.pallet-heading { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin-bottom: .8rem; }.pallet-title { font-weight: 700; font-size: 1rem; }
-.pallet-state { color: $warning; background: mix($warning, $surface, 10%); padding: .25rem .6rem; border-radius: .4rem; font-size: .72rem; }.pallet-state.confirmed { color: $primary; background: $primary-soft; }
-.pallet-summary { display: flex; align-items: center; justify-content: space-between; gap: .7rem; padding: .8rem; border-radius: .55rem; background: $canvas; }.pallet-summary > view { flex: 1; min-width: 0; }.pallet-number { display: block; font-size: 1rem; font-weight: 600; }.pallet-description { display: block; margin-top: .35rem; font-size: .8rem; color: $muted; line-height: 1.5; overflow-wrap: anywhere; }.pallet-edit { flex-shrink: 0; font-size: .75rem; color: $primary; }
-.pallet-detail { margin-top: 1rem; }.pallet-note, .pending-note { color: $muted; font-size: .8rem; margin-top: .8rem; line-height: 1.6; }.pending-note { color: $warning; }
-.pallet-grid { display: flex; flex-wrap: wrap; gap: .8rem; }.pallet-field { flex: 1 1 7rem; min-width: 0; }.pallet-field.wide { flex-basis: 100%; }
-.pallet-field text { display: block; margin-bottom: .4rem; color: $muted; font-size: .8rem; }
-.pallet-field input, .pallet-field textarea, .pallet-picker { width: 100%; box-sizing: border-box; min-height: 2.7rem; padding: .7rem; background: $canvas; border-radius: .5rem; font-size: .9rem; }
+.pallet-heading { display: flex; justify-content: space-between; align-items: center; gap: 25.6rpx; margin-bottom: 25.6rpx; }.pallet-title { font-weight: 700; font-size: 32rpx; }
+.pallet-state { color: $warning; background: mix($warning, $surface, 10%); padding: 8rpx 19.2rpx; border-radius: 12.8rpx; font-size: 23rpx; }.pallet-state.confirmed { color: $primary; background: $primary-soft; }
+.pallet-summary { display: flex; align-items: center; justify-content: space-between; gap: 22.4rpx; padding: 25.6rpx; border-radius: 17.6rpx; background: $canvas; }.pallet-summary > view { flex: 1; min-width: 0; }.pallet-number { display: block; font-size: 32rpx; font-weight: 600; }.pallet-description { display: block; margin-top: 11.2rpx; font-size: 25.6rpx; color: $muted; line-height: 1.5; overflow-wrap: anywhere; }.pallet-edit { flex-shrink: 0; font-size: 24rpx; color: $primary; }
+.pallet-detail { margin-top: 32rpx; }.pallet-note, .pending-note { color: $muted; font-size: 25.6rpx; margin-top: 25.6rpx; line-height: 1.6; }.pending-note { color: $warning; }
+.pallet-grid { display: flex; flex-wrap: wrap; gap: 25.6rpx; }.pallet-field { flex: 1 1 224rpx; min-width: 0; }.pallet-field.wide { flex-basis: 100%; }
+.pallet-field text { display: block; margin-bottom: 12.8rpx; color: $muted; font-size: 25.6rpx; }
+.pallet-field input, .pallet-field textarea, .pallet-picker { width: 100%; box-sizing: border-box; min-height: 86.4rpx; padding: 22.4rpx; background: $canvas; border-radius: 16rpx; font-size: 28.8rpx; }
 </style>

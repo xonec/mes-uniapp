@@ -1,4 +1,6 @@
 <script>
+import { isLoggedIn } from '@/utils/auth.js'
+
 // #ifdef APP-PLUS
 import checkUpdate from '@/uni_modules/uni-upgrade-center-app/utils/check-update'
 // #endif
@@ -23,7 +25,7 @@ export default {
         this.checkUpdate()
         // 分享直进等场景：未登录先跳登录，避免目标页先渲染导致白屏
         try {
-            if (!uni.getStorageSync('mes_user')) {
+            if (!isLoggedIn()) {
                 uni.reLaunch({ url: '/pages/login/login' })
             }
         } catch (e) { /* ignore */ }

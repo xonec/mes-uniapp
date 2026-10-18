@@ -77,8 +77,8 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.selection-heading { display: flex; justify-content: space-between; align-items: center; gap: .6rem; margin-bottom: 1rem; }.selection-title { font-weight: 700; font-size: 1rem; }.selection-badge { font-size: .72rem; color: $primary; background: $primary-soft; padding: .3rem .5rem; border-radius: .35rem; }
-.selection-field { margin-bottom: .85rem; }.selection-field > text { display: block; color: $muted; font-size: .8rem; margin-bottom: .4rem; }
-.selection-picker { display: flex; align-items: center; justify-content: space-between; gap: .6rem; background: $canvas; padding: .8rem; border-radius: .5rem; font-size: .9rem; min-height: 1.4rem; }.selection-picker text:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }.selection-picker text:last-child { color: $primary; }.selection-picker.muted { color: $muted; }
-.selection-note { color: $muted; line-height: 1.6; margin-top: .6rem; font-size: .8rem; }.selection-error { color: $danger; margin-bottom: .8rem; font-size: .8rem; line-height: 1.6; }.selection-error button { display: inline; margin: 0; padding: .2rem .5rem; line-height: 1.6; font-size: .8rem; background: $surface; color: $primary; }.selection-error button::after { border: 0; }
+.selection-heading { display: flex; justify-content: space-between; align-items: center; gap: 19.2rpx; margin-bottom: 32rpx; }.selection-title { font-weight: 700; font-size: 32rpx; }.selection-badge { font-size: 23rpx; color: $primary; background: $primary-soft; padding: 9.6rpx 16rpx; border-radius: 11.2rpx; }
+.selection-field { margin-bottom: 27.2rpx; }.selection-field > text { display: block; color: $muted; font-size: 25.6rpx; margin-bottom: 12.8rpx; }
+.selection-picker { display: flex; align-items: center; justify-content: space-between; gap: 19.2rpx; background: $canvas; padding: 25.6rpx; border-radius: 16rpx; font-size: 28.8rpx; min-height: 44.8rpx; }.selection-picker text:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }.selection-picker text:last-child { color: $primary; }.selection-picker.muted { color: $muted; }
+.selection-note { color: $muted; line-height: 1.6; margin-top: 19.2rpx; font-size: 25.6rpx; }.selection-error { color: $danger; margin-bottom: 25.6rpx; font-size: 25.6rpx; line-height: 1.6; }.selection-error button { display: inline; margin: 0; padding: 6.4rpx 16rpx; line-height: 1.6; font-size: 25.6rpx; background: $surface; color: $primary; }.selection-error button::after { border: 0; }
 </style>
