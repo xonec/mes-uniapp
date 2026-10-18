@@ -1,0 +1,64 @@
+[
+    {
+        "IndexName": "entityId",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "entityId",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "updatedAt",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "updatedAt",
+                    "Direction": "1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "entity_version",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "entityId",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "version",
+                    "Direction": "1",
+                    "Type": "int"
+                }
+            ],
+            "MgoIsUnique": true
+        }
+    },
+    {
+        "IndexName": "job_event_dates",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "snapshot.entityType",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "snapshot.event.date",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

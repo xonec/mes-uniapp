@@ -1,0 +1,33 @@
+{
+    "bsonType": "object",
+    "description": "生产执行资料 / processes；仅受鉴权云函数维护",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "code": {
+            "bsonType": "string"
+        },
+        "name": {
+            "bsonType": "string"
+        },
+        "workshopId": {
+            "bsonType": "string"
+        },
+        "_id": {
+            "bsonType": "string"
+        },
+        "version": {
+            "bsonType": "number"
+        },
+        "updatedAt": {
+            "bsonType": "number"
+        },
+        "audit": {
+            "bsonType": "object"
+        }
+    }
+}

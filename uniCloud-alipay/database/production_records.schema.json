@@ -17,7 +17,7 @@
         "batchNo": {
             "bsonType": "string",
             "title": "批号",
-            "description": "11 位、同时含字母与数字"
+            "description": "11 位、同时含字母与数字；B 单追加末尾 B，完整保存并精确关联"
         },
         "productCode": {
             "bsonType": "string",

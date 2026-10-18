@@ -100,5 +100,7 @@ function fail(code, message) {
 }
 
 module.exports = {
-    checkAuth, checkAdmin, ok, fail, ClientError, USER_COLL
+    checkAuth, checkAdmin, ok, fail, ClientError, USER_COLL,
+    // 共享业务规则：源文件在 shared/logic，由 tools/sync-shared.mjs 生成 ./rules.js
+    ...require('./rules')
 }

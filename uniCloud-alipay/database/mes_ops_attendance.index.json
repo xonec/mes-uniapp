@@ -1,0 +1,74 @@
+[
+    {
+        "IndexName": "personDate",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "personId",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "date",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "scopeDate",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "workshopId",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "teamId",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "date",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "updatedAt",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "updatedAt",
+                    "Direction": "1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "workshopDate",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "workshopId",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "date",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

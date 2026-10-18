@@ -1,0 +1,61 @@
+{
+    "bsonType": "object",
+    "description": "生产执行资料 / shifts；仅受鉴权云函数维护",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "code": {
+            "bsonType": "string"
+        },
+        "name": {
+            "bsonType": "string"
+        },
+        "startTime": {
+            "bsonType": "string"
+        },
+        "endTime": {
+            "bsonType": "string"
+        },
+        "_id": {
+            "bsonType": "string"
+        },
+        "version": {
+            "bsonType": "number"
+        },
+        "updatedAt": {
+            "bsonType": "number"
+        },
+        "audit": {
+            "bsonType": "object"
+        },
+        "startDayOffset": {
+            "bsonType": "int",
+            "description": "相对排班日期：0 当天，1 次日"
+        },
+        "endDayOffset": {
+            "bsonType": "int",
+            "description": "相对排班日期：0 当天，1 次日"
+        },
+        "systemHours": {
+            "bsonType": [
+                "int",
+                "null"
+            ],
+            "description": "8 或 12 小时班制；自定义可为空"
+        },
+        "shiftSlot": {
+            "bsonType": "string",
+            "description": "early / middle / night"
+        },
+        "plannedHours": {
+            "bsonType": "number"
+        },
+        "crossDay": {
+            "bsonType": "bool"
+        }
+    }
+}

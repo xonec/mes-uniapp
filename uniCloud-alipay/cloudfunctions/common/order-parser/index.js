@@ -1,5 +1,7 @@
 'use strict'
 
+const { batchIsValid } = require('mes-common')
+
 // 云函数端：包装指令单 OCR 文本 → 表头标量字段（纯正则，无需大模型）。
 // 与客户端 utils/order-parser.js 保持逻辑一致（两端不能共享文件，改一端请同步另一端）。
 // 物料清单由调用方用 productCode 反查 product_materials 档案（enrichFromArchive），不在此 OCR。
@@ -22,10 +24,6 @@ const FIELD_NAME = {
     packSpec: '包装规格',
     plannedQty: '计划产量',
     sampleCount: '取样数'
-}
-
-function batchIsValid(v) {
-    return /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(v || '')
 }
 
 function cleanBatch(s) {
@@ -52,15 +50,7 @@ function extractLabeled(text, labels, valueRe) {
 
 function scanBatch(text) {
     const tokens = cleanBatch(text).match(/[A-Z0-9]+/g) || []
-    for (var ti = 0; ti < tokens.length; ti++) {
-        var tk = tokens[ti]
-        if (tk.length < 11) continue
-        for (var i = 0; i + 11 <= tk.length; i++) {
-            var w = tk.slice(i, i + 11)
-            if (batchIsValid(w)) return w
-        }
-    }
-    return ''
+    return tokens.find(token => batchIsValid(token)) || ''
 }
 
 function scanProductCode(text) {

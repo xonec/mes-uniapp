@@ -1,0 +1,67 @@
+[
+    {
+        "IndexName": "jobId",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "jobId",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "workshopId",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "workshopId",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "teamId",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "teamId",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "status",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "status",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "updatedAt",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "updatedAt",
+                    "Direction": "1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

@@ -1,0 +1,155 @@
+{
+    "bsonType": "object",
+    "description": "排班自动预设与实际考勤记录；多工序共用工时，保留原表、冲突选择和版本历史",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "scheduleId": {
+            "bsonType": "string"
+        },
+        "date": {
+            "bsonType": "string"
+        },
+        "personId": {
+            "bsonType": "string"
+        },
+        "personName": {
+            "bsonType": "string"
+        },
+        "workshopId": {
+            "bsonType": "string"
+        },
+        "teamId": {
+            "bsonType": "string",
+            "description": "历史兼容字段，仅保留旧记录追溯；新业务不再使用"
+        },
+        "kind": {
+            "bsonType": "string"
+        },
+        "shiftId": {
+            "bsonType": "string"
+        },
+        "shiftName": {
+            "bsonType": "string"
+        },
+        "processId": {
+            "bsonType": "string"
+        },
+        "processName": {
+            "bsonType": "string"
+        },
+        "startTime": {
+            "bsonType": "string"
+        },
+        "endTime": {
+            "bsonType": "string"
+        },
+        "status": {
+            "bsonType": "string"
+        },
+        "confirmedBy": {
+            "bsonType": "string"
+        },
+        "note": {
+            "bsonType": "string"
+        },
+        "startDayOffset": {
+            "bsonType": "int"
+        },
+        "endDayOffset": {
+            "bsonType": "int"
+        },
+        "observedScheduleVersion": {
+            "bsonType": "int"
+        },
+        "confirmedHours": {
+            "bsonType": "number"
+        },
+        "confirmedAt": {
+            "bsonType": "number"
+        },
+        "version": {
+            "bsonType": "number"
+        },
+        "updatedAt": {
+            "bsonType": "number"
+        },
+        "scheduleSnapshot": {
+            "bsonType": "object"
+        },
+        "_id": {
+            "bsonType": "string"
+        },
+        "entityType": {
+            "bsonType": "string"
+        },
+        "event": {
+            "bsonType": "object"
+        },
+        "audit": {
+            "bsonType": "object"
+        },
+        "plannedHours": {
+            "bsonType": "number"
+        },
+        "crossDay": {
+            "bsonType": "bool"
+        },
+        "changedFromSchedule": {
+            "bsonType": "bool"
+        },
+        "source": {
+            "bsonType": "string"
+        },
+        "sourceShiftId": {
+            "bsonType": "string"
+        },
+        "sourceSignature": {
+            "bsonType": "string"
+        },
+        "updatedBy": {
+            "bsonType": "string"
+        },
+        "changeReason": {
+            "bsonType": "string"
+        },
+        "edited": {
+            "bsonType": "bool"
+        },
+        "scheduleRemoved": {
+            "bsonType": "bool"
+        },
+        "workHours": {
+            "bsonType": "number"
+        },
+        "originalSnapshot": {
+            "bsonType": "object"
+        },
+        "processIds": {
+            "bsonType": "array",
+            "items": {
+                "bsonType": "string"
+            }
+        },
+        "processNames": {
+            "bsonType": "array",
+            "items": {
+                "bsonType": "string"
+            }
+        },
+        "conflict": {
+            "bsonType": [
+                "object",
+                "null"
+            ]
+        },
+        "absenceType": {
+            "bsonType": "string",
+            "description": "非出勤状态：rest 休息 / leave 请假；工作记录为空"
+        }
+    }
+}

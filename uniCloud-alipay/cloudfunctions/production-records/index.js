@@ -15,7 +15,7 @@
 //
 // 依赖公共模块 mes-common（鉴权 / 响应封装 / ClientError）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
-const { checkAuth, ok, fail, ClientError } = require('mes-common')
+const { checkAuth, ok, fail, ClientError, batchIsValid } = require('mes-common')
 const { addImmutable, duplicate } = require('mes-document-store/source-store')
 const { currentOrder, orderVersion, getOrderByBatch } = require('mes-document-store/order-trace')
 const { actorName, text } = require('mes-document-store/trace-fields')
@@ -52,8 +52,8 @@ function draftId(uid, deviceId, batchNo) {
 
 function normalizeBatchNo(v) {
     const s = String(v || '').trim().toUpperCase()
-    if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(s)) {
-        throw new ClientError('批号非法：须为 11 位且同时含字母与数字')
+    if (!batchIsValid(s)) {
+        throw new ClientError('批号非法：须为 11 位且含字母和数字，可追加 B 单后缀')
     }
     return s
 }

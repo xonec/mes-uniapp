@@ -1,0 +1,28 @@
+[
+    {
+        "IndexName": "uid",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "uid",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "personId",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "personId",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

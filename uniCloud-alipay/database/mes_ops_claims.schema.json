@@ -1,0 +1,77 @@
+{
+    "bsonType": "object",
+    "description": "登录用户申请认领人员档案；管理员审核绑定，历史记录仅由云函数维护",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "_id": {
+            "bsonType": "string"
+        },
+        "uid": {
+            "bsonType": "string"
+        },
+        "accountName": {
+            "bsonType": "string"
+        },
+        "personId": {
+            "bsonType": "string"
+        },
+        "personCode": {
+            "bsonType": "string"
+        },
+        "personName": {
+            "bsonType": "string"
+        },
+        "workshopId": {
+            "bsonType": "string"
+        },
+        "workshopName": {
+            "bsonType": "string"
+        },
+        "teamId": {
+            "bsonType": "string",
+            "description": "历史兼容字段，仅保留旧记录追溯；新业务不再使用"
+        },
+        "teamName": {
+            "bsonType": "string",
+            "description": "历史兼容字段，仅保留旧记录追溯；新业务不再使用"
+        },
+        "status": {
+            "bsonType": "string"
+        },
+        "note": {
+            "bsonType": "string"
+        },
+        "reviewedBy": {
+            "bsonType": "string"
+        },
+        "reviewReason": {
+            "bsonType": "string"
+        },
+        "version": {
+            "bsonType": "number"
+        },
+        "updatedAt": {
+            "bsonType": "number"
+        },
+        "reviewedAt": {
+            "bsonType": "number"
+        },
+        "requestedAt": {
+            "bsonType": "number"
+        },
+        "audit": {
+            "bsonType": "object"
+        },
+        "event": {
+            "bsonType": "object"
+        },
+        "employeeNo": {
+            "bsonType": "string"
+        }
+    }
+}

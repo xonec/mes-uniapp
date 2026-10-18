@@ -1,0 +1,20 @@
+@import '@/styles/field-work.scss';
+.op-page { padding-bottom: calc(64rpx + env(safe-area-inset-bottom)); }
+.op-grid { display: flex; flex-wrap: wrap; gap: 22.4rpx; margin-bottom: 32rpx; }
+.op-grid > view, .op-grid > button { flex: 1 1 40%; min-width: 0; margin: 0; box-sizing: border-box; }
+.op-number { display: block; font-size: 51.2rpx; font-weight: 700; margin-bottom: 9.6rpx; }
+.op-row { display: flex; align-items: center; justify-content: space-between; gap: 22.4rpx; padding: 24rpx 0; border-bottom: 1px solid $line; }
+.op-row:last-child { border-bottom: 0; }
+.op-main { min-width: 0; flex: 1; }
+.op-name { display: block; font-size: 30.4rpx; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; }
+.op-code { font-family: monospace; font-size: 28.2rpx; overflow-wrap: anywhere; }
+.op-meta { display: block; color: $muted; font-size: 25.6rpx; line-height: 1.7; overflow-wrap: anywhere; }
+.op-toolbar { display: flex; gap: 16rpx; align-items: center; margin-bottom: 32rpx; flex-wrap: wrap; }
+.op-toolbar .fw-button { flex: 1; }
+.op-event { border-left: 2px solid $line; padding: 16rpx 0 25.6rpx 32rpx; margin-left: 9.6rpx; }
+.op-event .op-name { color: $primary; }
+.op-chips { display: flex; gap: 16rpx; flex-wrap: wrap; margin: 16rpx 0 32rpx; }
+.op-chip { padding: 12.8rpx 20.8rpx; border-radius: 16rpx; border: 1px solid $line; font-size: 26.2rpx; }
+.op-chip.selected { background: $primary-soft; border-color: $primary; color: $primary; }
+.op-pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 27.2rpx; }
+.op-label { display: block; margin: 16rpx 0; color: $muted; font-size: 25.6rpx; }

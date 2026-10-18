@@ -1,0 +1,70 @@
+{
+    "bsonType": "object",
+    "description": "生产执行资料 / schedules；仅受鉴权云函数维护",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "date": {
+            "bsonType": "string"
+        },
+        "personId": {
+            "bsonType": "string"
+        },
+        "workshopId": {
+            "bsonType": "string"
+        },
+        "teamId": {
+            "bsonType": "string",
+            "description": "历史兼容字段，仅保留旧记录追溯；新业务不再使用"
+        },
+        "_id": {
+            "bsonType": "string"
+        },
+        "version": {
+            "bsonType": "number"
+        },
+        "updatedAt": {
+            "bsonType": "number"
+        },
+        "audit": {
+            "bsonType": "object"
+        },
+        "startDayOffset": {
+            "bsonType": "int",
+            "description": "相对排班日期：0 当天，1 次日"
+        },
+        "endDayOffset": {
+            "bsonType": "int",
+            "description": "相对排班日期：0 当天，1 次日"
+        },
+        "systemHours": {
+            "bsonType": [
+                "int",
+                "null"
+            ],
+            "description": "8 或 12 小时班制；自定义可为空"
+        },
+        "shiftSlot": {
+            "bsonType": "string",
+            "description": "early / middle / night"
+        },
+        "plannedHours": {
+            "bsonType": "number"
+        },
+        "crossDay": {
+            "bsonType": "bool"
+        },
+        "absenceType": {
+            "bsonType": "string",
+            "description": "非出勤状态：rest 休息 / leave 请假；工作记录为空"
+        },
+        "importSource": {
+            "bsonType": "object",
+            "description": "原表文件 SHA-256、工作表、行列、原始备注与解析规则版本；自动补齐记录关联当日源文件哈希"
+        }
+    }
+}

@@ -1,0 +1,59 @@
+{
+    "bsonType": "object",
+    "description": "生产执行资料 / personnel；仅受鉴权云函数维护",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "code": {
+            "bsonType": "string"
+        },
+        "name": {
+            "bsonType": "string"
+        },
+        "workshopId": {
+            "bsonType": "string"
+        },
+        "teamId": {
+            "bsonType": "string",
+            "description": "历史兼容字段，仅保留旧记录追溯；新业务不再使用"
+        },
+        "_id": {
+            "bsonType": "string"
+        },
+        "version": {
+            "bsonType": "number"
+        },
+        "updatedAt": {
+            "bsonType": "number"
+        },
+        "audit": {
+            "bsonType": "object"
+        },
+        "enterpriseEmployeeNo": {
+            "bsonType": "string"
+        },
+        "uid": {
+            "bsonType": "string"
+        },
+        "scopeRole": {
+            "bsonType": "string",
+            "description": "现场职责：operator 操作员、workshop_manager 车间负责人；历史职责按操作员生效，管理员身份以 uni-id 为准"
+        },
+        "autoCreated": {
+            "bsonType": "bool"
+        },
+        "enabled": {
+            "bsonType": "bool"
+        },
+        "processIds": {
+            "bsonType": "array",
+            "items": {
+                "bsonType": "string"
+            }
+        }
+    }
+}

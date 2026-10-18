@@ -1,0 +1,37 @@
+{
+    "bsonType": "object",
+    "description": "生产执行资料 / handovers；仅受鉴权云函数维护",
+    "permission": {
+        "read": false,
+        "create": false,
+        "update": false,
+        "delete": false
+    },
+    "properties": {
+        "date": {
+            "bsonType": "string"
+        },
+        "workshopId": {
+            "bsonType": "string"
+        },
+        "teamId": {
+            "bsonType": "string",
+            "description": "历史兼容字段，仅保留旧记录追溯；新业务不再使用"
+        },
+        "status": {
+            "bsonType": "string"
+        },
+        "_id": {
+            "bsonType": "string"
+        },
+        "version": {
+            "bsonType": "number"
+        },
+        "updatedAt": {
+            "bsonType": "number"
+        },
+        "audit": {
+            "bsonType": "object"
+        }
+    }
+}

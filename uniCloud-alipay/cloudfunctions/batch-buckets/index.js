@@ -6,7 +6,7 @@
 //   action = 'get'   ：读取某批号分桶件数（需登录）
 // 依赖公共模块 mes-common（token 校验 / 鉴权 / 响应封装 / ClientError）；密钥从环境变量 MES_TOKEN_SECRET 读取。
 
-const { checkAuth, ok, fail, ClientError } = require('mes-common')
+const { checkAuth, ok, fail, ClientError, batchIsValid } = require('mes-common')
 
 const COLL = 'batch_buckets'
 const BUCKET_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
@@ -24,8 +24,8 @@ function docId(batchNo) {
 
 function normalizeBatchNo(v) {
     const s = String(v || '').trim().toUpperCase()
-    if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/.test(s)) {
-        throw new ClientError('批号非法：须为 11 位且同时含字母与数字')
+    if (!batchIsValid(s)) {
+        throw new ClientError('批号非法：须为 11 位且含字母和数字，可追加 B 单后缀')
     }
     return s
 }

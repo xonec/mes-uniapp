@@ -1,0 +1,67 @@
+[
+    {
+        "IndexName": "code",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "code",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "name",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "name",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "workshopId",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "workshopId",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "processId",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "processId",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "updatedAt",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "updatedAt",
+                    "Direction": "1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

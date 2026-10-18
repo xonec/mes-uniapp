@@ -1,0 +1,46 @@
+[
+    {
+        "IndexName": "uid",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "uid",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": true
+        }
+    },
+    {
+        "IndexName": "statusUpdated",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "status",
+                    "Direction": "1",
+                    "Type": "string"
+                },
+                {
+                    "Name": "updatedAt",
+                    "Direction": "1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "personId",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "personId",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]

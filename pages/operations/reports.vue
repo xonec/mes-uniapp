@@ -1,0 +1,13 @@
+<template>
+    <view class="fw-page op-page"><view class="fw-header"><text class="fw-subtitle">按报工日期统计，单次最多 31 天。</text></view><view class="op-toolbar"><picker mode="date" :value="dateFrom" :disabled="loading" @change="dateFrom = $event.detail.value"><view class="fw-button secondary">{{ dateFrom }}</view></picker><text class="fw-note">至</text><picker mode="date" :value="dateTo" :disabled="loading" @change="dateTo = $event.detail.value"><view class="fw-button secondary">{{ dateTo }}</view></picker><button class="fw-button" :disabled="loading" @tap="load">查询</button></view><view v-if="error" class="fw-notice error">{{ error }}</view>
+        <view v-if="result" class="fw-card"><view class="fw-heading"><text class="fw-heading-title">{{ loadedFrom }} 至 {{ loadedTo }}</text></view><view v-for="total in result.totals" :key="total.unit" class="op-row"><view><text class="op-name">{{ units[total.unit] }}</text><text class="op-meta">合格 {{ total.goodQty }} / 不良 {{ total.defectQty }} / 入库 {{ total.inboundQty }}</text></view></view><text class="op-meta">报工工时合计：{{ result.workHours }} 小时</text><text class="fw-note">报工工时用于生产统计，考勤需另行核对。</text></view>
+        <view v-if="result" class="fw-card"><view class="fw-heading"><text class="fw-heading-title">逐班生产明细</text></view><view v-for="(row, index) in result.rows" :key="index" class="op-row" @tap="open(row.jobId)"><view class="op-main"><text class="op-name">{{ row.batchNo }} · {{ row.productName }}</text><text class="op-meta">{{ row.date }} · {{ row.shiftName }} · {{ row.processName }}</text><text class="op-meta">合格 {{ row.goodQty }} / 不良 {{ row.defectQty }} {{ units[row.unit] }} · {{ row.workHours }} 小时</text><text class="op-meta">入库确认 {{ row.inboundQty }} {{ units[row.unit] }}</text></view></view><text v-if="!result.rows.length" class="op-meta">所选日期没有生产报工或入库确认记录。</text></view>
+    </view>
+</template>
+<script>
+import { callOperations, operationsPage, loadOperations, operationDate, OPERATION_UNITS } from '@/utils/operations-api.js'
+export default { mixins: [operationsPage], data() { return { dateFrom: operationDate(), dateTo: operationDate(), loadedFrom: '', loadedTo: '', result: null, units: OPERATION_UNITS } }, onShow() { this.load() }, methods: {
+    load() { const dateFrom = this.dateFrom, dateTo = this.dateTo; return loadOperations(this, () => callOperations('report', { dateFrom, dateTo }), result => { this.result = result; this.loadedFrom = dateFrom; this.loadedTo = dateTo }) }, clearLoaded() { this.result = null }, open(id) { uni.navigateTo({ url: '/pages/operations/job-detail?id=' + encodeURIComponent(id) }) }
+} }
+</script>
+<style lang="scss" scoped>@import '@/styles/operations.scss';</style>

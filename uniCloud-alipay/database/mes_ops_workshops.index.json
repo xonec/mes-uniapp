@@ -1,0 +1,41 @@
+[
+    {
+        "IndexName": "code",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "code",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "name",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "name",
+                    "Direction": "1",
+                    "Type": "string"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    },
+    {
+        "IndexName": "updatedAt",
+        "MgoKeySchema": {
+            "MgoIndexKeys": [
+                {
+                    "Name": "updatedAt",
+                    "Direction": "1",
+                    "Type": "long"
+                }
+            ],
+            "MgoIsUnique": false
+        }
+    }
+]
