@@ -33,8 +33,8 @@ function load(scenario) {
     }
     if (request === './shared') {
       return {
-        all: (...args) => args,
-        and: (...args) => args,
+        all: async (db, name, where) => db.query(name, where),
+        and: (db, ...args) => args,
         collection: type => 'mes_ops_' + type,
         identifier: value => String(value),
         text: value => String(value == null ? '' : value),
@@ -54,15 +54,28 @@ function load(scenario) {
   return { loaded, saved }
 }
 
-/** 只实现 personnel-import 用到的那几层链式方法。 */
-function fakeDb(personnelMatches) {
+/** 批量查询用的条件匹配：支持 in / or / and 组合与字段相等，和真实 db.command 语义对齐。 */
+function matches(record, condition) {
+  if (!condition) return true
+  if (Array.isArray(condition)) return condition.every(item => matches(record, item))
+  if (condition.or) return condition.or.some(item => matches(record, item))
+  return Object.entries(condition).every(([key, value]) => value && Array.isArray(value.in) ? value.in.includes(record[key]) : record[key] === value)
+}
+
+/** 只实现 personnel-import 用到的查询：批量 in/or 与单条 get。 */
+function fakeDb(personnelMatches, schedules = []) {
+  const rows = name => name === 'mes_ops_personnel' ? personnelMatches : name === 'mes_ops_schedules' ? schedules : []
   return {
-    command: { or: (...args) => args },
+    command: { in: values => ({ in: values }), or: (...args) => ({ or: args.flat() }) },
+    query: (name, where) => rows(name).filter(row => matches(row, where)),
     collection(name) {
       return {
-        where() { return this },
-        limit() { return this },
-        async get() { return { data: name === 'mes_ops_personnel' ? personnelMatches : [] } }
+        where(where) {
+          return {
+            limit() { return this },
+            async get() { return { data: rows(name).filter(row => matches(row, where)) } }
+          }
+        }
       }
     }
   }

@@ -15,6 +15,8 @@ function collection(type) {
     if (![...TYPES, 'teams', 'schedules', 'jobs', 'handovers', 'exceptions', 'attendance', 'claims'].includes(type)) throw new ClientError('资料类型非法', 400)
     return 'mes_ops_' + type
 }
+/** 直接对已序列化文本取摘要，供批量导入复用同一份大字段。 */
+function digestText(value) { return createHash('sha256').update(value).digest('hex') }
 /** 稳定主键用于重试和自然唯一键。 */
 function digest(value) { return createHash('sha256').update(stableKey(value)).digest('hex') }
 /** 校验长度有限的实际标识，拒绝对象和模糊匹配。 */
@@ -109,7 +111,7 @@ async function list(db, type, event, scope = {}, fields = ['name'], filters = {}
     return { list: rows, total: counted.total || 0, page, pageSize }
 }
 /** 业务内容和服务端审计一并写入 CAS 版本，不存在独立事件插入窗口。 */
-async function save(db, type, id, record, profile, version, reason, authorizeChange) {
+async function save(db, type, id, record, profile, version, reason, authorizeChange, options) {
     expectedVersion(version)
     const business = { ...record, entityType: type }
     delete business._id; delete business.version; delete business.audit; delete business.updatedAt; delete business.updatedBy; delete business.changeReason
@@ -124,12 +126,15 @@ async function save(db, type, id, record, profile, version, reason, authorizeCha
                 if (old && signature(old) !== signature(business) && !text(reason, 1000)) throw new ClientError('修改资料请填写原因，便于追溯', 400)
                 if (authorizeChange) authorizeChange(old)
             },
-            audit: (old, nextVersion) => ({ actorId: profile.uid, actorName: name, at: Date.now(), reason: text(reason, 1000) || '首次录入', action: old ? 'update' : 'create', previousVersion: old ? old.version : 0, version: nextVersion, changedFields: changes(old, business, stableKey).map(item => item.field) })
+            audit: (old, nextVersion) => ({ actorId: profile.uid, actorName: name, at: Date.now(), reason: text(reason, 1000) || '首次录入', action: old ? 'update' : 'create', previousVersion: old ? old.version : 0, version: nextVersion, changedFields: changes(old, business, stableKey).map(item => item.field) }),
+            current: options && options.current
         })
     } catch (error) {
         if (duplicate(error)) throw new ClientError('唯一编码、账号或排班组合已存在，请刷新核对', 409)
         throw error
     }
+    // 批量导入在人员租约内写入，落库内容即为当前版本，不必再多读一次。
+    if (options && options.skipReread && result.record) return result.record
     // 当前记录可能已经被其他操作继续推进，返回本次实际接受版本。
     const current = await get(db, type, id)
     if (current.version === result.version) return current
@@ -154,8 +159,8 @@ async function priorRequest(db, type, current, id, signature) {
 function event(profile, type, id, signature, data = {}) {
     return { ...data, type, requestId: id, signature, at: Date.now(), actorId: profile.uid, actorName: profile.name }
 }
-/** 对同一员工的排班写入加租约，防止两次并发提交绕过时间重叠检查。 */
-async function withScheduleLock(db, personId, callback) {
+/** 取得同一员工的排班租约，返回释放函数；批量导入按人复用同一租约。 */
+async function acquireScheduleLock(db, personId) {
     const id = 'schedule-person:' + digest(personId)
     const owner = randomBytes(16).toString('hex')
     const expiresAt = Date.now() + 600000
@@ -164,8 +169,19 @@ async function withScheduleLock(db, personId, callback) {
         const count = updatedCount(await db.collection('mes_ops_locks').where({ _id: id, expiresAt: db.command.lte(Date.now()) }).update({ owner, expiresAt }))
         if (!count) throw new ClientError('该人员排班正在保存，请稍后重试', 409)
     }
-    try { return await callback() }
-    finally { await db.collection('mes_ops_locks').where({ _id: id, owner }).update({ expiresAt: 0 }).catch(error => console.warn('[mes-operations] 排班租约释放失败', error.message)) }
+    // 云端支持删除租约时直接删除，下次可获得一次写入；测试或旧版本回退为过期标记。
+    return async () => {
+        const query = db.collection('mes_ops_locks').where({ _id: id, owner })
+        if (typeof query.remove === 'function') {
+            try { await query.remove(); return } catch (error) { console.warn('[mes-operations] 排班租约删除失败，改为过期标记', error.message) }
+        }
+        await db.collection('mes_ops_locks').where({ _id: id, owner }).update({ expiresAt: 0 }).catch(error => console.warn('[mes-operations] 排班租约释放失败', error.message))
+    }
+}
+/** 单条写入持有租约期间完成全部检查与写库，防止并发提交绕过时间重叠检查。 */
+async function withScheduleLock(db, personId, callback) {
+    const release = await acquireScheduleLock(db, personId)
+    try { return await callback() } finally { await release() }
 }
 
-module.exports = { TYPES, MAX_READ, VERSIONS, collection, digest, identifier, batch, date, time, quantity, plus, expectedVersion, requestId, ids, get, all, and, list, save, history, priorRequest, event, withScheduleLock, text, stableKey, addImmutable }
+module.exports = { TYPES, MAX_READ, VERSIONS, collection, digest, identifier, batch, date, time, quantity, plus, expectedVersion, requestId, ids, get, all, and, list, save, history, priorRequest, event, withScheduleLock, acquireScheduleLock, digestText, text, stableKey, addImmutable }

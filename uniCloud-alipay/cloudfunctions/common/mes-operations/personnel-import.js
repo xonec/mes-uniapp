@@ -22,18 +22,27 @@ async function prepareScheduleImport(db, profile, input) {
     let created = 0
     // 排班导入只建"待建号"的人员档案，不建登录账号；账号统一在后台「人员与账号」建立。
     const createdPeople = []
+    // 预取本批人员档案与姓名匹配结果，避免逐行 name→personnel 与 schedule 查询。
+    const knownIds = [...new Set(input.rows.map(row => row.personId ? identifier(row.personId) : '').filter(Boolean))]
+    const known = new Map()
+    for (let offset = 0; offset < knownIds.length; offset += 100) for (const record of await all(db, collection('personnel'), { _id: db.command.in(knownIds.slice(offset, offset + 100)) }, 500)) known.set(record._id, record)
+    const names = [...new Set(input.rows.map(row => row.personId ? '' : text(row.personName, 120)).filter(Boolean))]
+    for (let offset = 0; offset < names.length; offset += 100) {
+        const part = new Set(names.slice(offset, offset + 100)), values = [...part]
+        const matched = await all(db, collection('personnel'), and(db, { workshopId: workshop._id }, db.command.or([{ name: db.command.in(values) }, { code: db.command.in(values) }, { enterpriseEmployeeNo: db.command.in(values) }])), 300)
+        for (const record of matched) for (const value of new Set([record.name, record.code, record.enterpriseEmployeeNo].filter(Boolean))) if (part.has(value)) personnel.set(value, (personnel.get(value) || []).concat(record))
+    }
     for (const source of input.rows) {
         const row = { ...source }
         let person
-        if (row.personId) person = await active(db, 'personnel', identifier(row.personId))
-        else {
+        if (row.personId) {
+            person = known.get(identifier(row.personId)) || null
+            if (!person) throw new ClientError('记录不存在，请刷新', 404)
+            if (person.enabled === false) throw new ClientError('所选资料已停用，请重新选择', 400)
+        } else {
             const name = text(row.personName, 120)
             if (!name) throw new ClientError('姓名缺失，不能建立人员', 400)
-            const matches = personnel.has(name) ? personnel.get(name) : (await db.collection(collection('personnel')).where(and(db,
-                { workshopId: workshop._id },
-                db.command.or([{ name }, { code: name }, { enterpriseEmployeeNo: name }])
-            )).limit(2).get()).data || []
-            personnel.set(name, matches)
+            const matches = personnel.get(name) || []
             if (matches.length > 1) throw new ClientError(name + '存在同名人员，请在预览中选择唯一工号', 409)
             person = matches[0]
             if (person && person.enabled === false) throw new ClientError(name + '的档案已停用，请先核对人员', 409)
@@ -42,21 +51,26 @@ async function prepareScheduleImport(db, profile, input) {
                 const existing = await get(db, 'personnel', 'ops:personnel:' + code, false)
                 if (existing && (existing.enabled === false || existing.workshopId !== workshop._id || existing.name !== name)) throw new ClientError('自动人员编码已存在，请在预览中核对人员：' + name, 409)
                 person = existing || await saveCatalog(db, profile, { type: 'personnel', expectedVersion: 0, record: { code, name, workshopId: workshop._id, processIds: [], scopeRole: 'operator', uid: '', autoCreated: true, enabled: true, changeReason: '排班新人员自动建档' } })
-                personnel.set(name, [person]); created++
+                personnel.set(name, [person]); known.set(person._id, person); created++
                 if (!existing) createdPeople.push({ personId: person._id, name: person.name, code: person.code })
             }
         }
         if (person.enabled === false) throw new ClientError('人员档案已停用，请先核对：' + person.name, 409)
         if (person.workshopId !== workshop._id) throw new ClientError('人员不属于选定的车间：' + person.name, 400)
         row.personId = person._id
-        const key = 'schedule:' + digest([date(row.date), row.shiftId || '', row.processId || '', row.personId, row.kind || 'work'])
-        const old = await get(db, 'schedules', row._id || key, false)
+        rows.push(row)
+    }
+    // 已有排班按主键批量读取，逐行核对版本与完整表预览快照。
+    const keys = rows.map(row => row._id || 'schedule:' + digest([date(row.date), row.shiftId || '', row.processId || '', row.personId, row.kind || 'work']))
+    const existing = new Map()
+    for (let offset = 0; offset < keys.length; offset += 100) for (const record of await all(db, collection('schedules'), { _id: db.command.in([...new Set(keys.slice(offset, offset + 100))]) }, 500)) existing.set(record._id, record)
+    for (let index = 0; index < rows.length; index++) {
+        const row = rows[index], key = keys[index], old = existing.get(row._id || key) || null
         if (old && old.enabled !== false && input.replaceDay) {
             const preview = (input.previousRows || []).find(item => item.id === old._id)
             if (!preview || preview.version !== old.version) throw new ClientError('已有排班在预览后发生变化，请重新生成预览', 409)
         }
         row._id = old ? old._id : key; row.expectedVersion = old ? old.version : 0
-        rows.push(row)
     }
     return { rows, created, createdPeople }
 }

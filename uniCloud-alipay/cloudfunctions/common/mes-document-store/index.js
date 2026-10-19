@@ -24,8 +24,8 @@ async function saveVersioned(db, options) {
     const { collection, versions, id, key, record, uid, expectedVersion, signature = stableKey } = options
     if (expectedVersion !== undefined && (!Number.isInteger(expectedVersion) || expectedVersion < 0)) throw new ClientError('版本号非法', 400)
     for (let attempt = 0; attempt < 4; attempt++) {
-        const rows = (await db.collection(collection).doc(id).get()).data || []
-        const old = rows[0] || null
+        // 批量导入已经预取到当前记录，首次尝试不再重复读取；重试仍回源，保证并发下的版本正确。
+        const old = attempt === 0 && options.current !== undefined ? options.current : ((await db.collection(collection).doc(id).get()).data || [])[0] || null
         const previousVersion = old ? Number(old.version) || 1 : 0
         if (expectedVersion !== undefined && expectedVersion !== previousVersion) throw new ClientError('数据已被修改，请重新加载并核对后保存', 409)
         if (options.authorizeChange) options.authorizeChange(old, record)
@@ -36,7 +36,7 @@ async function saveVersioned(db, options) {
         if (!old) {
             try {
                 await db.collection(collection).add({ ...data, _id: id })
-                return { _id: id, version, unchanged: false }
+                return { _id: id, version, unchanged: false, record: { ...data, _id: id } }
             } catch (error) {
                 if (!/duplicate|exist|already/i.test(String(error.message || error.errMsg || error))) throw error
                 if (expectedVersion !== undefined) throw new ClientError('此编码已存在，请重新加载并核对后保存', 409)
@@ -53,7 +53,7 @@ async function saveVersioned(db, options) {
         })
         if (stableKey(archived.snapshot) !== stableKey(old)) throw new ClientError('历史版本与当前记录不一致，请重新加载后核对', 409)
         const where = { _id: id, version: old.version === undefined ? db.command.exists(false) : old.version }
-        if (updatedCount(await db.collection(collection).where(where).update(data))) return { _id: id, version, unchanged: false }
+        if (updatedCount(await db.collection(collection).where(where).update(data))) return { _id: id, version, unchanged: false, record: { ...data, _id: id } }
         if (expectedVersion !== undefined) throw new ClientError('数据已被修改，请重新加载并核对后保存', 409)
     }
     throw new ClientError('并发保存冲突，请稍后重试', 409)

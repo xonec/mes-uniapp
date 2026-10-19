@@ -1,7 +1,8 @@
 'use strict'
 const { ClientError, batchIsValid, scheduleBatchIsValid } = require('mes-common')
 const { getOrderByBatch } = require('mes-document-store/order-trace')
-const { collection, digest, identifier, batch, date, time, expectedVersion, requestId, text, get, all, and, list, save, stableKey, withScheduleLock } = require('./shared')
+const { collection, digest, digestText, identifier, batch, date, time, expectedVersion, requestId, text, get, all, and, list, save, stableKey, withScheduleLock, acquireScheduleLock } = require('./shared')
+const { createImportCache } = require('./import-cache')
 const { shiftPeriod } = require('./shift-time')
 const { syncPersonAttendance } = require('./attendance')
 const { active, where, visible, requireSupervisor, admin } = require('./scope')
@@ -55,8 +56,37 @@ function scheduleImportSource(source) {
     }
     return record
 }
+/** 预取命中时用缓存的目录资料，未命中回退单条读取，错误口径保持一致。 */
+async function cachedActive(db, cache, type, id) {
+    if (cache) {
+        const found = cache.catalog(type, id)
+        if (found.hit) {
+            if (!found.record) throw new ClientError('记录不存在，请刷新', 404)
+            if (found.record.enabled === false) throw new ClientError('所选资料已停用，请重新选择', 400)
+            return found.record
+        }
+    }
+    return active(db, type, id)
+}
+/** 预取命中时不再重复读取已有排班。 */
+async function cachedSchedule(db, cache, id) {
+    if (cache) { const found = cache.schedule(id); if (found.hit) return found.record }
+    return get(db, 'schedules', id, false)
+}
+/** 预取命中时复用批次订单，重复批号仍旧报错。 */
+async function cachedOrder(db, cache, batchNo) {
+    if (cache) {
+        const found = cache.orders(batchNo)
+        if (found) {
+            if (found.length > 1) throw new ClientError('此批号关联多个早期订单，请管理员先核对', 409)
+            return found[0] || null
+        }
+    }
+    return getOrderByBatch(db, batchNo)
+}
 /** 保存排班引用和冻结名称；人员、工序必须属于同一车间。 */
-async function saveSchedule(db, profile, input, importMeta, replacement = []) {
+async function saveSchedule(db, profile, input, importMeta, replacement = [], batch = null) {
+    const cache = batch ? batch.cache : null
     const source = input.record || {}
     const version = expectedVersion(input.expectedVersion)
     const kind = source.kind || 'work'
@@ -67,13 +97,13 @@ async function saveSchedule(db, profile, input, importMeta, replacement = []) {
         absenceType: kind === 'rest' && source.absenceType === 'leave' ? 'leave' : kind === 'rest' ? 'rest' : ''
     }
     const id = source._id ? identifier(source._id) : 'schedule:' + digest([record.date, record.shiftId, record.processId, record.personId, kind])
-    const old = await get(db, 'schedules', id, false)
+    const old = await cachedSchedule(db, cache, id)
     if (old) visible(profile, 'schedules', old)
     if (kind === 'rest' && source.absenceType == null && old) record.absenceType = old.absenceType || 'rest'
-    const person = await active(db, 'personnel', record.personId)
-    const process = record.processId ? await active(db, 'processes', record.processId) : null
-    const shift = record.shiftId ? await active(db, 'shifts', record.shiftId) : null
-    const workshop = await active(db, 'workshops', person.workshopId)
+    const person = await cachedActive(db, cache, 'personnel', record.personId)
+    const process = record.processId ? await cachedActive(db, cache, 'processes', record.processId) : null
+    const shift = record.shiftId ? await cachedActive(db, cache, 'shifts', record.shiftId) : null
+    const workshop = await cachedActive(db, cache, 'workshops', person.workshopId)
     if ((process && process.workshopId !== workshop._id) || person.workshopId !== workshop._id) throw new ClientError('人员、工序必须属于同一车间', 400)
     record.workshopId = workshop._id; record.workshopName = workshop.name
     record.personName = person.name; record.processName = process ? process.name : ''; record.shiftName = shift ? shift.name : ''
@@ -90,7 +120,7 @@ async function saveSchedule(db, profile, input, importMeta, replacement = []) {
     record.batchLinks = []
     for (const batchNo of record.batchNos) {
         const normalized = batchNo.toUpperCase()
-        const order = batchIsValid(normalized) ? await getOrderByBatch(db, normalized) : null
+        const order = batchIsValid(normalized) ? await cachedOrder(db, cache, normalized) : null
         const linked = order && order.enabled !== false && order.orderStatus === 'confirmed'
         record.batchLinks.push({ batchNo, status: linked ? 'linked' : 'pending', orderNo: linked ? order.orderNo : '', orderVersion: linked ? Number(order.version) || 1 : null })
     }
@@ -100,16 +130,18 @@ async function saveSchedule(db, profile, input, importMeta, replacement = []) {
     if (importMeta) record.importMeta = importMeta
     if (old && old.importMeta && importMeta && old.importMeta.requestId === importMeta.requestId && old.importMeta.row === importMeta.row) {
         if (old.importMeta.signature !== importMeta.signature) throw new ClientError('同一导入标识中的行内容已改变，请重新导入', 409)
+        if (batch) { batch.attendance.add(record.personId + '\u0000' + record.date); return old }
         await withScheduleLock(db, record.personId, () => syncPersonAttendance(db, profile, record.personId, record.date))
         return old
     }
     if (version !== (old ? old.version : 0)) throw new ClientError('排班已存在或被修改，请重新加载并核对', 409)
-    return withScheduleLock(db, record.personId, async () => {
+    const write = async () => {
         if (record.enabled) {
             const around = new Date(record.date + 'T00:00:00Z')
             const before = new Date(around.getTime() - 86400000).toISOString().slice(0, 10)
             const after = new Date(around.getTime() + 86400000).toISOString().slice(0, 10)
-            const others = await all(db, collection('schedules'), { personId: record.personId, enabled: db.command.neq(false), date: db.command.gte(before).and(db.command.lte(after)) }, 1000)
+            const window = cache ? cache.personSchedules(record.personId) : null
+            const others = window ? window.filter(row => row.date >= before && row.date <= after) : await all(db, collection('schedules'), { personId: record.personId, enabled: db.command.neq(false), date: db.command.gte(before).and(db.command.lte(after)) }, 1000)
             // 完整表只暂时排除同范围、预览版本未改变的旧排班；其余排班仍检查重叠。
             const excluded = new Set()
             for (const selected of replacement) {
@@ -136,11 +168,49 @@ async function saveSchedule(db, profile, input, importMeta, replacement = []) {
         }
         const result = await save(db, 'schedules', id, record, profile, version, source.changeReason || (importMeta ? '排班表导入' : ''), previous => {
             if (previous) { visible(profile, 'schedules', previous); requireSupervisor(profile, previous) }
-        })
+        }, batch ? { current: old || null, skipReread: true } : undefined)
+        if (cache) cache.putSchedule(result)
+        // 批量导入把考勤同步收敛到每人员每日一次，避免同一人当天多工序反复重算。
+        if (batch) {
+            if (old && old.date !== record.date) batch.attendance.add(record.personId + '\u0000' + old.date)
+            batch.attendance.add(record.personId + '\u0000' + record.date)
+            return result
+        }
         if (old && old.date !== record.date) await syncPersonAttendance(db, profile, record.personId, old.date)
         await syncPersonAttendance(db, profile, record.personId, record.date)
         return result
-    })
+    }
+    if (!batch) return withScheduleLock(db, record.personId, write)
+    if (!batch.locks.has(record.personId)) batch.locks.set(record.personId, await acquireScheduleLock(db, record.personId))
+    return write()
+}
+/** 预取本次导入涉及的人员/日期考勤，供每日一次同步直接复用；超限时回退逐人查询。 */
+async function prefetchAttendance(db, cache, keys) {
+    const result = new Map()
+    if (!keys.length) return result
+    const pairs = keys.map(item => { const separator = item.indexOf('\u0000'); return { key: item, personId: item.slice(0, separator), date: item.slice(separator + 1) } })
+    const buckets = new Map(pairs.map(pair => [pair.key, { schedules: null, manual: [], existing: [], byId: new Map() }]))
+    const personIds = [...new Set(pairs.map(pair => pair.personId))]
+    const dates = pairs.map(pair => pair.date).sort()
+    let rows = []
+    try {
+        rows = await all(db, 'mes_ops_attendance', { personId: db.command.in(personIds), date: db.command.gte(dates[0]).and(db.command.lte(dates[dates.length - 1])) }, 4000)
+    } catch (error) { if (!(error && error.code === 413)) throw error; return result }
+    for (const row of rows) {
+        const bucket = buckets.get(row.personId + '\u0000' + row.date)
+        if (!bucket) continue
+        bucket.byId.set(row._id, row)
+        if (row.source === 'schedule') bucket.existing.push(row)
+        else if (row.source === 'manual') bucket.manual.push(row)
+    }
+    for (const pair of pairs) {
+        const window = cache.personSchedules(pair.personId)
+        if (!window) continue
+        const bucket = buckets.get(pair.key)
+        bucket.schedules = window.filter(row => row.date === pair.date)
+        result.set(pair.key, bucket)
+    }
+    return result
 }
 /** 批量导入逐行反馈，重试沿用同一请求标识，不隐藏部分成功。 */
 async function importSchedules(db, profile, input) {
@@ -151,22 +221,38 @@ async function importSchedules(db, profile, input) {
     if (!Array.isArray(replacement) || replacement.length > 2000) throw new ClientError('完整表旧排班快照格式不正确', 400)
     if (replacement.length) admin(profile)
     for (const row of replacement) { identifier(row.id); expectedVersion(row.version) }
+    // 一次预取：目录资料、已有排班、人员排班窗口、批次订单都只查询一次；租约按人复用，考勤按人员/日期收敛。
+    const batch = { cache: await createImportCache(db, { rows: input.rows }), locks: new Map(), attendance: new Set() }
+    // 同一请求内旧排班快照相同，按原摘要口径预计算一次，避免逐行序列化大数组。
+    const replacementKey = stableKey(replacement), sessionKey = stableKey(sessionId)
     const results = []
-    for (let index = 0; index < input.rows.length; index++) {
-        const source = input.rows[index] || {}
-        try {
-            const meta = { requestId: id, row: index + 1, signature: digest({ source, replacement, sessionId }), actorId: profile.uid, sessionId }
-            const rest = source.kind === 'rest'
-            const generated = 'schedule:' + digest([date(source.date), identifier(source.shiftId, '班次', !rest), identifier(source.processId, '工序', !rest), identifier(source.personId), source.kind || 'work'])
-            const old = await get(db, 'schedules', source._id || generated, false)
-            // 已有排班只能在传入当前版本后修改，不能由导入悄悄覆盖。
-            const version = source.expectedVersion !== undefined ? source.expectedVersion : old && old.importMeta && old.importMeta.requestId === id && old.importMeta.row === index + 1 ? old.version : 0
-            const record = await saveSchedule(db, profile, { record: source, expectedVersion: version }, meta, replacement)
-            results.push({ row: index + 1, ok: true, record })
-        } catch (error) {
-            if (!(error instanceof ClientError)) throw error
-            results.push({ row: index + 1, ok: false, message: error.message, code: error.code })
+    try {
+        for (let index = 0; index < input.rows.length; index++) {
+            const source = input.rows[index] || {}
+            try {
+                const meta = { requestId: id, row: index + 1, signature: digestText('{"replacement":' + replacementKey + ',"sessionId":' + sessionKey + ',"source":' + stableKey(source) + '}'), actorId: profile.uid, sessionId }
+                const rest = source.kind === 'rest'
+                const generated = 'schedule:' + digest([date(source.date), identifier(source.shiftId, '班次', !rest), identifier(source.processId, '工序', !rest), identifier(source.personId), source.kind || 'work'])
+                const old = await cachedSchedule(db, batch.cache, source._id || generated)
+                // 已有排班只能在传入当前版本后修改，不能由导入悄悄覆盖。
+                const version = source.expectedVersion !== undefined ? source.expectedVersion : old && old.importMeta && old.importMeta.requestId === id && old.importMeta.row === index + 1 ? old.version : 0
+                const record = await saveSchedule(db, profile, { record: source, expectedVersion: version }, meta, replacement, batch)
+                results.push({ row: index + 1, ok: true, record })
+            } catch (error) {
+                if (!(error instanceof ClientError)) throw error
+                results.push({ row: index + 1, ok: false, message: error.message, code: error.code })
+            }
         }
+        // 同一人员同一生产日的多道工序只重算一次考勤，结果与逐行同步一致。
+        const preloads = await prefetchAttendance(db, batch.cache, [...batch.attendance])
+        for (const item of batch.attendance) {
+            const separator = item.indexOf('\u0000')
+            const personId = item.slice(0, separator), productionDate = item.slice(separator + 1)
+            if (!batch.locks.has(personId)) batch.locks.set(personId, await acquireScheduleLock(db, personId))
+            await syncPersonAttendance(db, profile, personId, productionDate, preloads.get(item) || null)
+        }
+    } finally {
+        for (const release of batch.locks.values()) await release()
     }
     const successCount = results.filter(result => result.ok).length
     return { results, successCount, failureCount: results.length - successCount }
