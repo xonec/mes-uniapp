@@ -1,12 +1,16 @@
 <template>
-    <view class="fw-page op-page">
+    <view class="vk-shell">
+        <!-- P2 批 2：tab 壳页。开关 true 时渲染 vk 组件，false 时渲染旧内容；tabBar 不动。 -->
+        <WorkbenchPage v-if="vkEnabled" :show-tick="vkShowTick" :refresh-tick="vkRefreshTick" />
+        <template v-else>
+            <view class="fw-page op-page">
         <PageHead :subtitle="today + ' · ' + (profile.name || '生产助手')" refresh more @refresh="refresh" @more="openTools" />
         <view v-if="error" class="fw-notice error">{{ error }}</view>
         <StateView v-if="loading && !dashboard" state="loading" />
         <template v-if="dashboard">
             <MetricStrip :items="metrics" @select="onMetric" />
             <view class="fw-card">
-                <view class="fw-heading"><text class="fw-heading-title">今日任务</text><text class="fw-link" @tap="go('jobs', true)">全部 ›</text></view>
+                <view class="fw-heading"><text class="fw-heading-title">今日任务</text><text class="fw-link" @tap="go('jobs')">全部 ›</text></view>
                 <view class="row-list">
                     <ListRow class="row-list-item" v-for="job in taskJobs" :key="job._id" :title="job.productName" :code="job.batchNo" :meta="jobMeta(job)" :badge="states[job.state]" :badge-tone="stateTone(job.state)" @select="openJob(job)" />
                 </view>
@@ -29,20 +33,29 @@
                 </view>
             </view>
         </template>
+            </view>
+        </template>
     </view>
 </template>
 <script>
 import { callOperations, operationDate, operationsPage, loadOperations, operationName, JOB_STATES, loadBootstrap } from '@/utils/operations-api.js'
+import { openPage, PAGE_SWITCH } from '@/utils/vk-migration.js'
+import WorkbenchPage from '@/components/vk/pages/WorkbenchPage.vue'
 import PageHead from '@/components/ui/PageHead.vue'
 import MetricStrip from '@/components/ui/MetricStrip.vue'
 import ListRow from '@/components/ui/ListRow.vue'
 import StateView from '@/components/ui/StateView.vue'
 
 export default {
-    components: { PageHead, MetricStrip, ListRow, StateView },
+    components: { PageHead, MetricStrip, ListRow, StateView, WorkbenchPage },
     mixins: [operationsPage],
     data() {
         return {
+            /** tab 壳开关：true = vk 组件，false = 旧内容（默认关） */
+            vkEnabled: PAGE_SWITCH['operations.workbench'],
+            vkShowTick: 0,
+            vkRefreshTick: 0,
+            vkFirstShow: true,
             today: operationDate(),
             dashboard: null,
             profile: {},
@@ -69,8 +82,22 @@ export default {
         taskJobs() { return ((this.dashboard && this.dashboard.jobs) || []).slice(0, 3) },
         shiftRows() { return ((this.dashboard && this.dashboard.schedules) || []).slice(0, 2) }
     },
-    onShow() { this.today = operationDate(); this.load() },
-    onPullDownRefresh() { this.refresh() },
+    onShow() {
+        if (this.vkEnabled) {
+            // 首屏由组件 mounted 取数；之后每次进入 tab 通过 tick 触发刷新
+            if (this.vkFirstShow) { this.vkFirstShow = false; return }
+            this.vkShowTick += 1
+            return
+        }
+        this.today = operationDate(); this.load()
+    },
+    onPullDownRefresh() {
+        if (this.vkEnabled) {
+            this.vkRefreshTick += 1
+            return
+        }
+        this.refresh()
+    },
     methods: {
         /** 串行取数：先复用共享 bootstrap，再发主请求，避免同时触发多个冷启动。 */
         load() { return loadOperations(this, async () => { const base = await loadBootstrap(); const dashboard = await callOperations('dashboard', { date: this.today }); return [base, dashboard] }, ([base, dashboard]) => { this.profile = base.profile; this.catalogs = base.catalogs; this.dashboard = dashboard }) },
@@ -87,13 +114,13 @@ export default {
                 success: result => {
                     if (result.tapIndex === 0) uni.navigateTo({ url: '/pages/materials/materials' })
                     if (result.tapIndex === 1) uni.navigateTo({ url: '/pages/operations/tools' })
-                    if (result.tapIndex === 2) uni.navigateTo({ url: '/pages/operations/trace' })
+                    if (result.tapIndex === 2) openPage('operations.trace')
                 }
             })
         },
-        /** tab 页只能 switchTab（工单列表），普通页（排班/交接班等）用 navigateTo 保留返回。 */
-        go(page, tab = false) { return uni[tab ? 'switchTab' : 'navigateTo']({ url: '/pages/operations/' + page }) },
-        openJob(job) { uni.navigateTo({ url: '/pages/operations/job-detail?id=' + encodeURIComponent(job._id) }) }
+        /** 入口统一走 vk-migration：tab 页 switchTab，普通页 navigateTo，迁移后按开关切新页。 */
+        go(page) { return openPage('operations.' + page) },
+        openJob(job) { openPage('operations.job-detail', { id: job._id }) }
     }
 }
 </script>

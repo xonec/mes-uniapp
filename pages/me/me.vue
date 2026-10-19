@@ -1,5 +1,9 @@
 <template>
-    <view class="fw-page">
+    <view class="vk-shell">
+        <!-- P2 批 2：tab 壳页。开关 true 时渲染 vk 组件，false 时渲染旧内容；tabBar 不动。 -->
+        <MyPage v-if="vkEnabled" :show-tick="vkShowTick" :refresh-tick="vkRefreshTick" />
+        <template v-else>
+            <view class="fw-page">
         <view class="profile fw-card"><view class="avatar">{{ avatarChar }}</view><view class="profile-info"><text class="profile-name">{{ me.nickname || me.username || '未登录' }}</text><text class="fw-badge">{{ checking ? '确认身份中…' : roleText }}</text></view></view>
         <view v-if="profileError" class="fw-notice warning">{{ profileError }}<text class="retry" @tap="refreshProfile">重新确认</text></view>
         <view class="menu-group"><text class="menu-title">个人出勤</text><view class="fw-card menu-card"><view class="menu-cell" @tap="goAttendance"><view><text>我的考勤</text><text class="cell-note">查看出勤明细与统计</text></view><uni-icons class="menu-arrow" type="right" size="14" color="#77827D"></uni-icons></view></view></view>
@@ -8,17 +12,47 @@
         <view class="menu-group"><text class="menu-title">录入工具</text><view class="fw-card menu-card"><view class="menu-cell" @tap="goOrderSheet"><view><text>指令单录入</text><text class="cell-note">拍照识别指令单，录入生产订单与产品资料</text></view><uni-icons type="right" size="14" color="#77827D"></uni-icons></view></view></view>
         <view v-if="isAdmin" class="menu-group"><text class="menu-title">管理工具</text><view class="fw-card menu-card"><view class="menu-cell" @tap="goUserManage"><text>用户管理</text><uni-icons type="right" size="14" color="#77827D"></uni-icons></view></view></view>
         <button class="logout-button" @tap="doLogout">退出登录</button>
+            </view>
+        </template>
     </view>
 </template>
 <script>
 import { getUser, logout, checkLogin, isLoggedIn } from '@/utils/auth.js'
+import { PAGE_SWITCH } from '@/utils/vk-migration.js'
+import MyPage from '@/components/vk/pages/MyPage.vue'
 export default {
-    data() { return { me: getUser() || {}, isAdmin: false, checking: false, profileError: '' } },
+    components: { MyPage },
+    data() {
+        return {
+            vkEnabled: PAGE_SWITCH['me'],
+            vkShowTick: 0,
+            vkRefreshTick: 0,
+            vkFirstShow: true,
+            me: getUser() || {},
+            isAdmin: false,
+            checking: false,
+            profileError: ''
+        }
+    },
     computed: {
         avatarChar() { return String(this.me.nickname || this.me.username || '?').slice(0, 1).toUpperCase() },
         roleText() { return this.profileError ? '身份待确认' : this.isAdmin ? '管理员' : '现场用户' }
     },
-    onShow() { if (!isLoggedIn()) { uni.reLaunch({ url: '/pages/login/login' }); return }; this.me = getUser() || {}; this.refreshProfile() },
+    onShow() {
+        if (this.vkEnabled) {
+            // 首屏由组件 mounted 取数；之后每次进入 tab 通过 tick 触发刷新
+            if (this.vkFirstShow) { this.vkFirstShow = false; return }
+            this.vkShowTick += 1
+            return
+        }
+        if (!isLoggedIn()) { uni.reLaunch({ url: '/pages/login/login' }); return }
+        this.me = getUser() || {}
+        this.refreshProfile()
+    },
+    onPullDownRefresh() {
+        if (this.vkEnabled) { this.vkRefreshTick += 1; return }
+        uni.stopPullDownRefresh()
+    },
     methods: {
         async refreshProfile() {
             if (this.checking) return
