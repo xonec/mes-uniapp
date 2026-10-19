@@ -1,6 +1,6 @@
 <template>
     <view class="fw-page op-page">
-        <view class="fw-header"><text class="fw-subtitle">日期为生产日；八小时夜班从次日零点开始。</text></view>
+        <view class="fw-header"><text class="fw-subtitle">日期为生产日；日历只显示本人班次，选中有排班的日期查看当天安排。</text></view>
 
         <view class="fw-card cal-card">
             <view class="cal-top">
@@ -24,38 +24,39 @@
 
             <view v-else-if="mode === 'week'" class="week-row">
                 <view v-for="cell in weekDays" :key="cell.key" class="week-cell"
-                      :class="{ today: cell.today, selected: cell.date === selectedDate }"
+                      :class="{ today: cell.today, selected: cell.date === selectedDate, off: cell.dayInfo && cell.dayInfo.mine && cell.dayInfo.mine.kind !== 'work' }"
                       @tap="selectDay(cell)">
                     <text class="week-day">{{ cell.day }}</text>
-                    <text v-if="cell.summary && cell.summary.shifts.length" class="week-shift">{{ shiftMarker(cell.summary) }}</text>
-                    <text v-else-if="cell.summary && cell.summary.rest" class="week-rest">休{{ cell.summary.rest }}</text>
-                    <text v-else-if="cell.summary && cell.summary.leave" class="week-leave">假{{ cell.summary.leave }}</text>
-                    <text v-if="cell.summary && cell.summary.mine" class="cal-mine-dot" aria-label="本人有排班"></text>
+                    <text v-if="shiftLabel(cell.dayInfo)" class="cell-shift">{{ shiftLabel(cell.dayInfo) }}</text>
+                    <view v-else-if="absenceOf(cell.dayInfo)" class="cell-dot" :class="absenceOf(cell.dayInfo)" />
                 </view>
             </view>
 
             <view v-else class="cal-grid">
                 <view v-for="cell in monthCells" :key="cell.key" class="cal-cell"
-                      :class="{ outside: cell.outside, today: cell.today, selected: cell.date === selectedDate, mine: cell.summary && cell.summary.mine }"
+                      :class="{ outside: cell.outside, today: cell.today, selected: cell.date === selectedDate, off: cell.dayInfo && cell.dayInfo.mine && cell.dayInfo.mine.kind !== 'work' }"
                       @tap="selectDay(cell)">
                     <text class="cal-day">{{ cell.day }}</text>
-                    <text v-if="cell.summary && cell.summary.work" class="cal-count">{{ cell.summary.work }}人</text>
-                    <text v-else-if="cell.summary && cell.summary.rest" class="cal-rest">休{{ cell.summary.rest }}</text>
-                    <text v-else-if="cell.summary && cell.summary.leave" class="cal-leave">假{{ cell.summary.leave }}</text>
-                    <text v-if="cell.summary && cell.summary.mine" class="cal-mine-dot" aria-label="本人有排班"></text>
+                    <text v-if="shiftLabel(cell.dayInfo)" class="cell-shift">{{ shiftLabel(cell.dayInfo) }}</text>
+                    <view v-else-if="absenceOf(cell.dayInfo)" class="cell-dot" :class="absenceOf(cell.dayInfo)" />
                 </view>
             </view>
-            <text v-if="!loading && marksReady && !marks.length" class="fw-note cal-empty">{{ mode === 'week' ? '本周暂无排班。' : '本月暂无排班。' }}</text>
+            <text v-if="!loading && marksReady && !days.length" class="fw-note cal-empty">{{ mode === 'week' ? '本周暂无排班。' : '本月暂无排班。' }}</text>
+            <view class="cal-legend">
+                <text class="legend-item"><text class="legend-dot rest" />休息</text>
+                <text class="legend-item"><text class="legend-dot leave" />请假</text>
+                <text class="legend-item">班次字＝本人班次</text>
+            </view>
         </view>
 
         <view class="fw-card plan-card">
             <view class="fw-heading"><text class="fw-heading-title">当日安排</text><text class="fw-badge">登录隔离</text></view>
             <text class="op-meta">{{ selectedDateText }} · 只显示本人或有权限范围内的排班。</text>
             <view class="filter-row">
-                <picker :range="processNames" :value="processIndex" :disabled="loadingDetail" @change="changeProcess">
+                <picker :range="processNames" :value="processIndex" :disabled="loadingDay" @change="changeProcess">
                     <view class="fw-button secondary filter-button">{{ processNames[processIndex] }} ▾</view>
                 </picker>
-                <picker :range="shiftNames" :value="shiftIndex" :disabled="loadingDetail" @change="changeShift">
+                <picker :range="shiftNames" :value="shiftIndex" :disabled="loadingDay" @change="changeShift">
                     <view class="fw-button secondary filter-button">{{ shiftNames[shiftIndex] }} ▾</view>
                 </picker>
             </view>
@@ -64,39 +65,39 @@
                 <text class="chip">{{ personCount }} 人</text>
             </view>
 
-            <view v-if="loadingDetail && !list.length" class="fw-note">正在加载当天安排…</view>
+            <view v-if="loadingDay && !groups.length" class="fw-note">正在加载当天安排…</view>
             <view class="plan-columns">
-                <view class="plan-col">
-                    <view class="plan-title"><text>具体批号</text><text>{{ batchCount }} 个</text></view>
+                <view class="plan-col plan-col-batch">
+                    <view class="plan-title"><text>具体批号</text><text class="plan-count">{{ batchCount }} 个</text></view>
                     <view v-for="row in batchRows" :key="row.batchNo" class="plan-row" @tap="openTrace(row.batchNo)">
                         <text class="plan-code">{{ row.batchNo }}</text>
-                        <text class="op-meta">{{ row.detail }}</text>
+                        <text class="op-meta plan-meta">{{ row.detail }}</text>
                     </view>
-                    <text v-if="!batchRows.length && !loadingDetail" class="op-meta">当天暂无批号。</text>
-                    <text v-else-if="!batchRows.length" class="op-meta">加载中…</text>
+                    <text v-if="!batchRows.length && !loadingDay" class="op-meta plan-meta">本组暂无批号</text>
                 </view>
-                <view class="plan-col">
-                    <view class="plan-title"><text>人员与岗位</text><text>{{ personCount }} 人</text></view>
-                    <view v-for="row in personRows" :key="row.key" class="plan-row">
-                        <text class="plan-person">{{ row.name }}</text>
-                        <text class="op-meta">{{ row.detail }}</text>
+                <view class="plan-col plan-col-person">
+                    <view class="plan-title"><text>人员与岗位</text><text class="plan-count">{{ personCount }} 人</text></view>
+                    <view v-for="row in personRows" :key="row.personId" class="plan-row" :class="{ me: row.isMe }">
+                        <text class="plan-person">{{ row.name }}<text v-if="row.isMe" class="me-tag">我</text></text>
+                        <text class="op-meta plan-meta" :class="{ pending: !row.post }">{{ row.post || '待分配' }}</text>
                     </view>
-                    <text v-if="!personRows.length && !loadingDetail" class="op-meta">当天暂无排班人员。</text>
-                    <text v-else-if="!personRows.length" class="op-meta">加载中…</text>
+                    <text v-if="!personRows.length && !loadingDay" class="op-meta plan-meta">当天这一组暂无排班人员。</text>
                 </view>
             </view>
             <text v-if="filtersActive" class="fw-note">已按{{ processNames[processIndex] }}{{ shiftNames[shiftIndex] }}筛选；统计与两栏都随筛选变化。</text>
-            <text v-if="detailTotal > list.length" class="fw-note">当天共 {{ detailTotal }} 条，仅显示前 {{ list.length }} 条；其余请在后台查看。</text>
+            <text v-if="!groups.length && !loadingDay" class="fw-note">当天没有排班或休息。</text>
         </view>
 
-        <button class="fw-button secondary" @tap="goAttendance">查看我的考勤记录</button>
+        <button class="fw-button secondary attendance-entry" @tap="goAttendance">查看我的考勤记录</button>
     </view>
 </template>
 <script>
-import { callOperations, operationsPage, loadOperations, operationDate, operationName } from '@/utils/operations-api.js'
+import { callOperations, operationsPage, loadOperations, operationDate } from '@/utils/operations-api.js'
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
-const MAX_DAY_ROWS = 250
+
+/** 排班页展示规则：只显示 11 位、同时含字母和数字的批号；带后缀/长度不符的一律不展示（比 BATCH_PATTERN 更严）。 */
+const DISPLAY_BATCH_PATTERN = /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/
 
 function pad(value) { return String(value).padStart(2, '0') }
 function keyOf(date) { return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) }
@@ -119,29 +120,28 @@ export default {
             mode: 'week',
             today: operationDate(),
             selectedDate: operationDate(),
-            marks: [],
+            days: [],
             marksReady: false,
-            list: [],
-            catalogs: {},
-            detailTotal: 0,
+            day: { date: '', mine: null, groups: [] },
+            loadingDay: false,
             detailEpoch: 0,
-            loadingDetail: false,
+            catalogs: {},
             processIndex: 0,
             shiftIndex: 0
         }
     },
     computed: {
-        markMap() { return new Map(this.marks.map(day => [day.date, day])) },
+        markMap() { return new Map(this.days.map(day => [day.date, day])) },
         weekStart() { const date = dateOf(this.selectedDate); return addDays(this.selectedDate, -date.getDay()) },
         weekDays() {
-            const summary = this.markMap
+            const marks = this.markMap
             return Array.from({ length: 7 }, (_, index) => {
                 const date = addDays(this.weekStart, index)
-                return { key: date, date, day: dateOf(date).getDate(), today: date === this.today, summary: summary.get(date) || null }
+                return { key: date, date, day: dateOf(date).getDate(), today: date === this.today, dayInfo: marks.get(date) || null }
             })
         },
         monthCells() {
-            const summary = this.markMap
+            const marks = this.markMap
             const [year, month] = monthOf(this.selectedDate).split('-').map(Number)
             const first = new Date(year, month - 1, 1)
             const lead = first.getDay()
@@ -150,7 +150,7 @@ export default {
             for (let index = 0; index < 42; index++) {
                 const date = new Date(year, month - 1, 1 + index - lead)
                 const key = keyOf(date)
-                cells.push({ key, date: key, day: date.getDate(), outside: date.getMonth() !== month - 1, today: key === this.today, summary: summary.get(key) || null })
+                cells.push({ key, date: key, day: date.getDate(), outside: date.getMonth() !== month - 1, today: key === this.today, dayInfo: marks.get(key) || null })
                 if (index >= lead + days - 1 && (index + 1) % 7 === 0) break
             }
             return cells
@@ -169,100 +169,102 @@ export default {
             const date = dateOf(this.selectedDate)
             return date.getFullYear() + '年' + (date.getMonth() + 1) + '月' + date.getDate() + '日 · 星期' + WEEKDAYS[date.getDay()]
         },
+        groups() { return this.day.groups || [] },
         processOptions() { return this.catalogs.processes || [] },
         shiftOptions() { return this.catalogs.shifts || [] },
         processNames() { return ['全部工序'].concat(this.processOptions.map(row => row.name)) },
         shiftNames() { return ['全部班次'].concat(this.shiftOptions.map(row => row.name)) },
         filtersActive() { return this.processIndex > 0 || this.shiftIndex > 0 },
-        filteredRows() {
-            const processId = this.processIndex > 0 ? (this.processOptions[this.processIndex - 1] || {})._id : ''
-            const shiftId = this.shiftIndex > 0 ? (this.shiftOptions[this.shiftIndex - 1] || {})._id : ''
-            // 休息/请假行没有工序和班次，带筛选时不参与统计。
-            return this.list.filter(row => {
-                if (processId && row.processId !== processId) return false
-                if (shiftId && (row.kind === 'rest' || row.shiftId !== shiftId)) return false
-                return true
-            })
+        /** 右栏按「同工序+同班次」这一组显示：有筛选取对应组，全部时合并当天所有组。 */
+        filteredGroups() {
+            const process = this.processIndex > 0 ? (this.processOptions[this.processIndex - 1] || {}) : null
+            const shift = this.shiftIndex > 0 ? (this.shiftOptions[this.shiftIndex - 1] || {}) : null
+            return this.groups.filter(group => (!process || group.processId === process._id) && (!shift || group.shiftId === shift._id))
         },
+        /** 只保留 11 位合规批号；不合规的不占位，计数同步按过滤后算。 */
         batchRows() {
             const batches = new Map()
-            for (const row of this.filteredRows) {
-                for (const batchNo of row.batchNos || []) {
-                    if (!batches.has(batchNo)) batches.set(batchNo, { batchNo, processes: new Set(), shifts: new Set() })
-                    const item = batches.get(batchNo)
-                    if (row.processName) item.processes.add(row.processName)
-                    if (row.shiftName) item.shifts.add(row.shiftName)
+            for (const group of this.filteredGroups) {
+                for (const raw of group.batchNos || []) {
+                    const batchNo = String(raw || '').trim().toUpperCase()
+                    if (!DISPLAY_BATCH_PATTERN.test(batchNo)) continue
+                    if (!batches.has(batchNo)) batches.set(batchNo, { batchNo, details: new Set() })
+                    batches.get(batchNo).details.add([group.processName, group.shiftName].filter(Boolean).join(' · '))
                 }
             }
-            return [...batches.values()].sort((left, right) => left.batchNo.localeCompare(right.batchNo)).map(item => ({
-                batchNo: item.batchNo,
-                detail: [...item.processes, ...item.shifts].filter(Boolean).join(' · ') || '点击查看批次追溯'
-            }))
+            return [...batches.values()].sort((left, right) => left.batchNo.localeCompare(right.batchNo)).map(item => ({ batchNo: item.batchNo, detail: [...item.details].filter(Boolean).join('；') || '点击查看批次追溯' }))
         },
         personRows() {
             const people = new Map()
-            for (const row of this.filteredRows) {
-                const key = row.personId || row.personName || row._id
-                if (!people.has(key)) people.set(key, { key, name: row.personName || '未命名', details: [] })
-                const item = people.get(key)
-                const detail = row.kind === 'rest' ? (row.absenceType === 'leave' ? '请假' : '休息') : [row.post || '岗位待定', this.timeLabel(row)].filter(Boolean).join(' · ')
-                if (!item.details.includes(detail)) item.details.push(detail)
+            for (const group of this.filteredGroups) {
+                for (const member of group.members || []) {
+                    if (!people.has(member.personId)) people.set(member.personId, { personId: member.personId, name: member.name, posts: new Set(), isMe: false })
+                    const item = people.get(member.personId)
+                    if (member.post) item.posts.add(member.post)
+                    if (member.isMe) item.isMe = true
+                }
             }
-            return [...people.values()].sort((left, right) => left.name.localeCompare(right.name)).map(item => ({ key: item.key, name: item.name, detail: item.details.join('；') }))
+            return [...people.values()]
+                .sort((left, right) => Number(right.isMe) - Number(left.isMe) || left.name.localeCompare(right.name))
+                .map(item => ({ personId: item.personId, name: item.name, isMe: item.isMe, post: [...item.posts].join(' / ') }))
         },
         batchCount() { return this.batchRows.length },
         personCount() { return this.personRows.length }
     },
     onShow() { this.load() },
     methods: {
-        name: operationName,
+        /** 日历 + 当天组信息一次拉取；切日期只调 myScheduleDay。 */
         load() {
+            const range = this.mode === 'week'
+                ? { dateFrom: this.weekStart, dateTo: addDays(this.weekStart, 6) }
+                : { month: monthOf(this.selectedDate) }
             return loadOperations(this, () => Promise.all([
                 callOperations('bootstrap'),
-                this.mode === 'week'
-                    ? callOperations('scheduleCalendar', { dateFrom: this.weekStart, dateTo: addDays(this.weekStart, 6) })
-                    : callOperations('scheduleCalendar', { month: monthOf(this.selectedDate) })
+                callOperations('scheduleCalendar', { ...range, date: this.selectedDate })
             ]), ([base, calendar]) => {
-                this.catalogs = base.catalogs
-                this.marks = calendar.days || []
-                this.marksReady = true
+                this.catalogs = (base && base.catalogs) || {}
                 this.processIndex = Math.min(this.processIndex, this.processNames.length - 1)
                 this.shiftIndex = Math.min(this.shiftIndex, this.shiftNames.length - 1)
-                return this.loadDay()
+                this.days = calendar.days || []
+                this.marksReady = true
+                const selected = this.days.find(day => day.date === this.selectedDate) || { mine: null, groups: [] }
+                this.applyDay({ date: this.selectedDate, mine: selected.mine || null, groups: selected.groups || [] })
             })
         },
-        /** 当天明细走现有 listSchedules；按 50 条分页拉取，避免大车间当天超过一页被截断。 */
+        applyDay(day) { this.day = { date: day.date, mine: day.mine || null, groups: day.groups || [] } },
         async loadDay() {
+            if (this.loadingDay) return
             const epoch = ++this.detailEpoch
-            const pageEpoch = this.loadEpoch
-            const current = () => this.detailEpoch === epoch && this.loadEpoch === pageEpoch
-            this.loadingDetail = true
+            this.loadingDay = true
             try {
-                const rows = []
-                let total = 0
-                for (let page = 1; page <= Math.ceil(MAX_DAY_ROWS / 50); page++) {
-                    const result = await callOperations('listSchedules', { dateFrom: this.selectedDate, dateTo: this.selectedDate, page, pageSize: 50 })
-                    if (!current()) return
-                    total = result.total || 0
-                    rows.push(...(result.list || []))
-                    if (rows.length >= total || !(result.list || []).length) break
-                }
-                this.list = rows
-                this.detailTotal = total
+                const day = await callOperations('myScheduleDay', { date: this.selectedDate })
+                if (this.detailEpoch !== epoch) return
+                this.applyDay({ date: day.date || this.selectedDate, mine: day.mine || null, groups: day.groups || [] })
             } catch (error) {
-                if (current()) { this.error = error.message || '加载失败，请重试'; this.list = []; this.detailTotal = 0 }
+                if (this.detailEpoch === epoch) { this.error = error.message || '加载当天安排失败'; this.applyDay({ date: this.selectedDate, mine: null, groups: [] }) }
             } finally {
-                if (current()) this.loadingDetail = false
+                if (this.detailEpoch === epoch) this.loadingDay = false
             }
         },
-        shiftMarker(summary) {
-            const names = (summary.shifts || []).map(item => item.name).slice(0, 2)
-            if (!names.length) return ''
-            return names.join('/') + ((summary.shifts || []).length > 2 ? '+' : '')
+        shiftLabel(dayInfo) {
+            if (!dayInfo || !dayInfo.mine || dayInfo.mine.kind !== 'work') return ''
+            const name = String(dayInfo.mine.shiftName || '').replace(/[（(].*$/, '')
+            if (/夜/.test(name)) return '夜'
+            if (/早/.test(name)) return '早'
+            if (/中/.test(name)) return '中'
+            if (/晚/.test(name)) return '晚'
+            return name.slice(0, 2)
+        },
+        absenceOf(dayInfo) {
+            if (!dayInfo || !dayInfo.mine) return ''
+            if (dayInfo.mine.kind === 'leave') return 'leave'
+            if (dayInfo.mine.kind === 'rest') return 'rest'
+            return ''
         },
         switchMode(mode) {
             if (this.mode === mode) return
-            this.mode = mode; this.marks = []; this.marksReady = false; this.list = []; this.detailTotal = 0
+            this.mode = mode; this.days = []; this.marksReady = false
+            this.applyDay({ date: this.selectedDate, mine: null, groups: [] })
             this.load()
         },
         prevPeriod() { this.shiftPeriod(-1) },
@@ -271,31 +273,29 @@ export default {
             const step = Number(delta)
             if (!Number.isFinite(step) || !step) return
             this.selectedDate = this.mode === 'week' ? addDays(this.selectedDate, step * 7) : shiftMonthKey(this.selectedDate, step)
-            this.marks = []; this.marksReady = false; this.list = []; this.detailTotal = 0; this.processIndex = 0; this.shiftIndex = 0
+            this.days = []; this.marksReady = false
+            this.processIndex = 0; this.shiftIndex = 0
+            this.applyDay({ date: this.selectedDate, mine: null, groups: [] })
             this.load()
         },
         goCurrent() {
             this.selectedDate = this.today
-            this.marks = []; this.marksReady = false; this.list = []; this.detailTotal = 0
+            this.days = []; this.marksReady = false
+            this.processIndex = 0; this.shiftIndex = 0
+            this.applyDay({ date: this.selectedDate, mine: null, groups: [] })
             this.load()
         },
         selectDay(cell) {
             if (cell.date === this.selectedDate) return
-            this.selectedDate = cell.date; this.list = []; this.detailTotal = 0
-            if (cell.outside) { this.marksReady = false; this.marks = []; this.load(); return }
+            this.selectedDate = cell.date
+            if (cell.outside) { this.days = []; this.marksReady = false; this.load(); return }
             this.loadDay()
         },
         changeProcess(event) { this.processIndex = Number(event.detail.value) || 0 },
         changeShift(event) { this.shiftIndex = Number(event.detail.value) || 0 },
-        timeLabel(row) {
-            if (row.kind === 'rest') return ''
-            const start = Number(row.startDayOffset) || 0
-            const end = row.endDayOffset == null ? start + (row.endTime <= row.startTime ? 1 : 0) : Number(row.endDayOffset)
-            return (start ? '次日 ' : '当天 ') + row.startTime + '–' + (end ? '次日 ' : '当天 ') + row.endTime
-        },
         openTrace(batchNo) { uni.navigateTo({ url: '/pages/operations/trace?batchNo=' + encodeURIComponent(batchNo) }) },
         goAttendance() { uni.switchTab({ url: '/pages/operations/attendance' }) },
-        clearLoaded() { this.list = []; this.detailTotal = 0 }
+        clearLoaded() { this.days = []; this.marksReady = false; this.applyDay({ date: this.selectedDate, mine: null, groups: [] }) }
     }
 }
 </script>
@@ -317,39 +317,48 @@ export default {
 .cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; margin-bottom: 6rpx; }
 .cal-weekday { text-align: center; color: $muted; font-size: 22rpx; }
 .week-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; }
-.week-cell { position: relative; box-sizing: border-box; min-height: 108rpx; padding: 10rpx 4rpx; border-radius: 12rpx; border: 1rpx solid $line; background: $surface; display: flex; flex-direction: column; align-items: center; }
+.week-cell { position: relative; box-sizing: border-box; min-height: 108rpx; padding: 10rpx 4rpx; border-radius: 12rpx; border: 1rpx solid $line; background: $surface; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+.week-cell.off { background: $canvas; }
 .week-cell.today { border-color: $primary; }
 .week-cell.selected { background: $primary-soft; border-color: $primary; }
 .week-day { font-size: 26rpx; font-weight: 600; line-height: 1.3; }
-.week-shift { margin-top: 4rpx; font-size: 18rpx; color: $primary; line-height: 1.3; text-align: center; word-break: break-all; }
-.week-rest { margin-top: 4rpx; font-size: 18rpx; color: $warning; line-height: 1.3; }
-.week-leave { margin-top: 4rpx; font-size: 18rpx; color: $muted; line-height: 1.3; }
+.cell-shift { margin-top: 6rpx; font-size: 24rpx; font-weight: 600; color: $primary; line-height: 1.3; }
+.cell-dot { width: 14rpx; height: 14rpx; margin-top: 8rpx; border-radius: 50%; background: $muted; }
+.cell-dot.leave { background: $warning; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; }
 .cal-cell { position: relative; box-sizing: border-box; min-height: 92rpx; padding: 6rpx 4rpx; border-radius: 12rpx; background: $surface; border: 1rpx solid $line; display: flex; flex-direction: column; align-items: center; }
 .cal-cell.outside { opacity: .35; }
+.cal-cell.off { background: $canvas; }
 .cal-cell.today { border-color: $primary; }
 .cal-cell.selected { background: $primary-soft; border-color: $primary; }
-.cal-cell.mine { border-width: 2rpx; }
 .cal-day { font-size: 26rpx; font-weight: 600; line-height: 1.3; }
-.cal-count { font-size: 20rpx; color: $primary; line-height: 1.4; margin-top: 2rpx; }
-.cal-rest { font-size: 18rpx; color: $warning; line-height: 1.4; margin-top: 2rpx; }
-.cal-leave { font-size: 18rpx; color: $muted; line-height: 1.4; margin-top: 2rpx; }
-.cal-mine-dot { position: absolute; left: 50%; bottom: 6rpx; margin-left: -4rpx; width: 8rpx; height: 8rpx; border-radius: 50%; background: $primary; }
 .cal-empty { display: block; padding: 12rpx 0 0; text-align: center; }
 .cal-skeleton { padding: 6rpx 0; }
 .cal-skeleton-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; margin-bottom: 6rpx; }
 .cal-skeleton-cell { height: 92rpx; border-radius: 12rpx; background: $canvas; }
 .cal-skeleton-note { display: block; text-align: center; padding-top: 12rpx; }
+.cal-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12rpx; padding-top: 8rpx; color: $muted; font-size: 20rpx; }
+.legend-item { display: flex; align-items: center; gap: 4rpx; }
+.legend-dot { display: inline-block; width: 12rpx; height: 12rpx; border-radius: 50%; background: $muted; margin-right: 2rpx; }
+.legend-dot.leave { background: $warning; }
 .plan-card { margin-top: 16rpx; }
 .filter-row { display: flex; flex-wrap: wrap; gap: 12rpx; margin: 12rpx 0; }
 .filter-button { margin: 0; padding: 0 20rpx; min-height: 64rpx; line-height: 64rpx; font-size: 24rpx; }
 .chips { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 12rpx; }
 .chip { display: inline-block; font-size: 22rpx; color: $primary; background: $primary-soft; padding: 6rpx 12rpx; border-radius: 12rpx; }
-.plan-columns { display: flex; flex-wrap: wrap; gap: 20rpx; }
-.plan-col { flex: 1 1 300rpx; min-width: 0; }
-.plan-title { display: flex; align-items: center; justify-content: space-between; font-size: 28rpx; font-weight: 700; padding: 12rpx 0; border-bottom: 1rpx solid $line; }
-.plan-row { display: flex; flex-direction: column; gap: 4rpx; padding: 12rpx 0; border-bottom: 1rpx solid $line; }
+.plan-columns { display: grid; grid-template-columns: 40% minmax(0, 1fr); gap: 16rpx; align-items: start; }
+.plan-col { min-width: 0; }
+.plan-col-person { padding-left: 16rpx; border-left: 1rpx solid $line; }
+.plan-title { display: flex; align-items: center; justify-content: space-between; gap: 8rpx; font-size: 26rpx; font-weight: 700; padding: 12rpx 0; border-bottom: 1rpx solid $line; white-space: nowrap; }
+.plan-count { font-size: 20rpx; font-weight: 400; color: $muted; }
+.plan-row { display: flex; flex-direction: column; gap: 4rpx; padding: 12rpx 0; border-bottom: 1rpx solid $line; min-width: 0; }
 .plan-row:last-child { border-bottom: 0; }
-.plan-code { font-family: monospace; font-size: 26rpx; color: $primary; }
-.plan-person { font-size: 28rpx; font-weight: 600; }
+.plan-row.me { background: $primary-soft; border-radius: 8rpx; padding-left: 8rpx; padding-right: 8rpx; }
+.plan-code { font-family: monospace; font-size: 24rpx; line-height: 1.35; color: $primary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-person { font-size: 26rpx; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-row .plan-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-row.me .plan-person { font-weight: 700; color: $primary; }
+.me-tag { margin-left: 6rpx; padding: 0 8rpx; border-radius: 4rpx; background: $primary; color: $surface; font-size: 18rpx; font-weight: normal; }
+.op-meta.pending { color: $warning; }
+.attendance-entry { margin-top: 16rpx; width: 100%; }
 </style>
