@@ -2,6 +2,7 @@
     <view class="ui-list-row" hover-class="list-row-hover" @tap="$emit('select')">
         <view class="list-row-main">
             <view class="list-row-title-line">
+                <text v-if="tag" class="list-row-tag">{{ tag }}</text>
                 <text class="list-row-title">{{ title }}</text>
                 <text v-if="badge" class="fw-badge" :class="'tone-' + (badgeTone || 'neutral')">{{ badge }}</text>
             </view>
@@ -16,22 +17,30 @@
                 </view>
                 <text class="list-row-progress-text">{{ progressText }}</text>
             </view>
+            <text v-if="preview" class="list-row-preview">{{ preview }}</text>
+            <text v-if="action" class="list-row-action">{{ action }}</text>
         </view>
     </view>
 </template>
 <script>
-/** 列表行：主标题 + 一行元信息（批号 mono · 工序车间）+ 右侧状态徽标 + 可选进度条。整行可点。 */
+/**
+ * 列表行：主标题（可带 tag 小标签）+ 一行元信息（批号 mono · 工序车间）
+ * + 右侧状态徽标 + 可选进度条 / 两行摘要 preview / 行内动作提示 action。整行可点。
+ */
 export default {
     name: 'ListRow',
     props: {
         title: { type: String, default: '' },
+        tag: { type: String, default: '' },
         code: { type: String, default: '' },
         meta: { type: String, default: '' },
         badge: { type: String, default: '' },
         badgeTone: { type: String, default: 'neutral' },
         progress: { type: Number, default: null },
         progressText: { type: String, default: '' },
-        progressTone: { type: String, default: 'primary' }
+        progressTone: { type: String, default: 'primary' },
+        preview: { type: String, default: '' },
+        action: { type: String, default: '' }
     }
 }
 </script>
@@ -42,6 +51,7 @@ export default {
 .list-row-hover { background: $primary-soft; }
 .list-row-main { min-width: 0; }
 .list-row-title-line { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-12, 12rpx); }
+.list-row-tag { flex-shrink: 0; padding: 2rpx var(--sp-8, 8rpx); border-radius: var(--radius-badge, 8rpx); background: $primary-soft; color: $primary; font-size: var(--fs-22, 22rpx); line-height: 1.4; }
 .list-row-title { flex: 1; min-width: 0; font-size: var(--fs-28, 28rpx); font-weight: 600; line-height: 1.4; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .list-row-meta-line { display: flex; align-items: baseline; gap: var(--sp-8, 8rpx); margin-top: 2rpx; min-width: 0; }
 .list-row-code { flex-shrink: 0; font-family: monospace; font-size: var(--fs-24, 24rpx); color: $muted; }
@@ -54,4 +64,6 @@ export default {
 .list-row-bar.tone-neutral { background: $muted; }
 .list-row-bar.tone-danger { background: $danger; }
 .list-row-progress-text { flex-shrink: 0; color: $muted; font-size: var(--fs-22, 22rpx); }
+.list-row-preview { display: -webkit-box; margin-top: var(--sp-4, 4rpx); overflow: hidden; color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.5; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.list-row-action { display: block; margin-top: var(--sp-4, 4rpx); text-align: right; color: $primary; font-size: var(--fs-24, 24rpx); }
 </style>

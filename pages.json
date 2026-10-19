@@ -197,7 +197,9 @@
         {
             "path": "pages/operations/handovers",
             "style": {
-                "navigationBarTitleText": "交接班"
+                "navigationBarTitleText": "交接班",
+                "enablePullDownRefresh": true,
+                "backgroundTextStyle": "dark"
             }
         },
         {
