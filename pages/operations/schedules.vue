@@ -93,6 +93,7 @@
 </template>
 <script>
 import { callOperations, operationsPage, loadOperations, operationDate, loadBootstrap } from '@/utils/operations-api.js'
+import { openPage } from '@/utils/vk-migration.js'
 import { displayBatchNo } from '@/utils/batch-display.js'
 
 // 月历 7 列宽度见 style：calc((100% - 42rpx) / 7)，容器负边距补偿第 7 个 margin
@@ -295,7 +296,7 @@ export default {
         },
         changeProcess(event) { this.processIndex = Number(event.detail.value) || 0 },
         changeShift(event) { this.shiftIndex = Number(event.detail.value) || 0 },
-        openTrace(batchNo) { uni.navigateTo({ url: '/pages/operations/trace?batchNo=' + encodeURIComponent(batchNo) }) },
+        openTrace(batchNo) { openPage('operations.trace', { batchNo }) },
         goAttendance() { uni.switchTab({ url: '/pages/operations/attendance' }) },
         clearLoaded() { this.days = []; this.marksReady = false; this.applyDay({ date: this.selectedDate, mine: null, groups: [] }) }
     }

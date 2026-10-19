@@ -17,6 +17,7 @@
 import OpsSelect from '@/components/operations/OpsSelect.vue'
 import { getUser } from '@/utils/auth.js'
 import { callOperations, operationsPage, loadOperations, operationDate, operationRequest, openJobCalculation, operationName, JOB_STATES, OPERATION_UNITS, EVENT_NAMES, loadBootstrap } from '@/utils/operations-api.js'
+import { openPage } from '@/utils/vk-migration.js'
 export default {
     components: { OpsSelect }, mixins: [operationsPage],
     data() { return { id: '', job: null, events: [], catalogs: {}, profile: {}, states: JOB_STATES, units: OPERATION_UNITS, eventNames: EVENT_NAMES, start: { equipmentId: '', mouldId: '', parameters: '', note: '' }, report: { date: operationDate(), shiftId: '', goodQty: '', defectQty: '', workHours: '', note: '' }, inbound: { qty: '', documentNo: '', note: '' }, stateNote: '' } },
@@ -34,7 +35,7 @@ export default {
         clearLoaded() { this.job = null; this.events = []; this.catalogs = {}; this.profile = {} }, name: operationName,
         time(value) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—' },
         calculate() { openJobCalculation(this.job) },
-        trace() { uni.navigateTo({ url: '/pages/operations/trace?batchNo=' + this.job.batchNo }) },
+        trace() { openPage('operations.trace', { batchNo: this.job.batchNo }) },
         exception() { uni.navigateTo({ url: '/pages/operations/exceptions?jobId=' + encodeURIComponent(this.job._id) }) },
         async command(command, payload) {
             if (this.saving || this.loading || !getUser()) return

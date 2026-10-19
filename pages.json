@@ -237,6 +237,26 @@
             "style": {
                 "navigationBarTitleText": "批次追溯"
             }
+        },
+        {
+            "path": "pages/vk/operations/trace",
+            "style": {
+                "navigationBarTitleText": "批次追溯"
+            }
+        },
+        {
+            "path": "pages/vk/operations/reports",
+            "style": {
+                "navigationBarTitleText": "班次报表"
+            }
+        },
+        {
+            "path": "pages/vk/operations/handovers",
+            "style": {
+                "navigationBarTitleText": "交接班",
+                "enablePullDownRefresh": true,
+                "backgroundTextStyle": "dark"
+            }
         }
     ],
     "globalStyle": {
