@@ -221,6 +221,12 @@
             }
         },
         {
+            "path": "pages/vk-pilot/attendance",
+            "style": {
+                "navigationBarTitleText": "vk 地基验证"
+            }
+        },
+        {
             "path": "pages/operations/tools",
             "style": {
                 "navigationBarTitleText": "标准差计算"
