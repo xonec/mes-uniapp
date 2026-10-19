@@ -1,17 +1,21 @@
 <template>
     <view class="ui-action-bar">
-        <button v-if="secondary" class="action-btn secondary" :disabled="busy || secondaryDisabled" @tap="$emit('secondary')">{{ secondary }}</button>
-        <button class="action-btn primary" :disabled="busy || primaryDisabled" @tap="$emit('primary')">{{ primary }}</button>
-        <button v-if="more" class="action-more" :disabled="busy" aria-label="更多" @tap="$emit('more')">⋯</button>
+        <text v-if="note" class="action-note">{{ note }}</text>
+        <view class="action-row">
+            <button v-if="secondary" class="action-btn secondary" :disabled="busy || secondaryDisabled" @tap="$emit('secondary')">{{ secondary }}</button>
+            <button class="action-btn primary" :disabled="busy || primaryDisabled" @tap="$emit('primary')">{{ primary }}</button>
+            <button v-if="more" class="action-more" :disabled="busy" aria-label="更多" @tap="$emit('more')">⋯</button>
+        </view>
     </view>
 </template>
 <script>
-/** 底部固定操作区：1 主 1 次 + 更多；页面根节点加 has-action-bar 自动预留 padding-bottom。 */
+/** 底部固定操作区：可选一行提示 + 1 主 1 次 + 更多；页面根节点加 has-action-bar 自动预留 padding-bottom。 */
 export default {
     name: 'ActionBar',
     props: {
         primary: { type: String, default: '' },
         secondary: { type: String, default: '' },
+        note: { type: String, default: '' },
         primaryDisabled: { type: Boolean, default: false },
         secondaryDisabled: { type: Boolean, default: false },
         more: { type: Boolean, default: false },
@@ -22,7 +26,9 @@ export default {
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
 
-.ui-action-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; display: flex; align-items: center; gap: var(--sp-12, 12rpx); padding: var(--sp-12, 12rpx) var(--sp-24, 24rpx) calc(var(--sp-12, 12rpx) + env(safe-area-inset-bottom)); background: $surface; border-top: 1px solid $line; }
+.ui-action-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; padding: var(--sp-8, 8rpx) var(--sp-24, 24rpx) calc(var(--sp-12, 12rpx) + env(safe-area-inset-bottom)); background: $surface; border-top: 1px solid $line; }
+.action-note { display: block; margin-bottom: var(--sp-6, 6rpx); color: $muted; font-size: var(--fs-22, 22rpx); line-height: 1.4; }
+.action-row { display: flex; align-items: center; gap: var(--sp-12, 12rpx); }
 .action-btn { margin: 0; height: 80rpx; line-height: 80rpx; padding: 0 var(--sp-24, 24rpx); border-radius: var(--radius-button, 12rpx); font-size: var(--fs-28, 28rpx); font-weight: 600; }
 .action-btn::after { border: 0; }
 .action-btn.primary { flex: 1; background: $primary; color: $surface; }

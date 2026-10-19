@@ -1,53 +1,82 @@
 <template>
     <view class="fw-page entry-page">
+        <StepBar :steps="steps" :current="stepIndex" @select="onStepSelect" />
         <view class="fw-header">
             <text class="fw-subtitle">{{ purpose === 'bom' ? '以产品编码建档，保留固定规格和材料清单。' : '同一份指令单解析后录入生产订单；产品尚未建档时可一并建立产品资料。' }}</text>
         </view>
-        <view class="steps">
-            <view v-for="(label, index) in ['选照片', '识别', '核对保存']" :key="label" class="step" :class="{ active: stageIndex === index, complete: stageIndex > index }">
-                <text class="step-number">{{ stageIndex > index ? '✓' : index + 1 }}</text><text>{{ label }}</text>
-            </view>
-        </view>
-        <view v-if="error || savedMessage || conflicted" id="entry-feedback">
+        <view v-if="uiStage !== 'recognize' && (error || savedMessage || conflicted)" id="entry-feedback">
             <view v-if="error" class="fw-notice error">{{ error }}</view>
             <button v-if="conflicted" class="fw-button secondary" :disabled="busy" @tap="reloadLatest">重新加载最新记录</button>
             <view v-if="savedMessage" class="fw-notice">{{ savedMessage }}</view>
         </view>
-        <view v-if="uiStage !== 'review'" class="fw-card">
-            <view class="fw-heading"><text class="fw-heading-title">指令单照片</text><text class="fw-badge muted">{{ images.length }} / 6 张</text></view>
-            <view v-if="!images.length" class="photo-empty">
-                <text class="photo-symbol">▤</text><text class="photo-empty-title">拍下首页，再补充材料清单</text>
-                <text class="fw-note">同一份指令单可选多页，产品编码要清晰。</text>
-            </view>
-            <view v-else class="photos">
-                <view v-for="(photo, index) in imageItems" :key="photo.key" class="photo-item">
-                    <image :src="photo.path" mode="aspectFill" @tap="preview(index)" />
-                    <text class="photo-page">{{ index === 0 ? '首页' : '第 ' + (index + 1) + ' 页' }}</text>
-                    <button class="photo-remove" :disabled="busy" @tap="removePhoto(index)" :aria-label="'删除第' + (index + 1) + '张照片'">×</button>
-                    <button v-if="index > 0" class="photo-first" :disabled="busy" @tap="makeFirst(index)">设为首页</button>
+
+        <!-- 第一步：拍照 / 相册 -->
+        <template v-if="uiStage === 'photos'">
+            <view class="fw-card">
+                <view class="fw-heading"><text class="fw-heading-title">指令单照片</text><text class="fw-badge muted">{{ images.length }} / 6 张</text></view>
+                <view v-if="!images.length" class="photo-empty">
+                    <text class="photo-symbol">▤</text><text class="photo-empty-title">拍下首页，再补充材料清单</text>
+                    <text class="fw-note">同一份指令单可选多页，产品编码要清晰。</text>
                 </view>
+                <view v-else class="photos">
+                    <view v-for="(photo, index) in imageItems" :key="photo.key" class="photo-item">
+                        <image :src="photo.path" mode="aspectFill" @tap="preview(index)" />
+                        <text class="photo-page">{{ index === 0 ? '首页' : '第 ' + (index + 1) + ' 页' }}</text>
+                        <button class="photo-remove" :disabled="busy" @tap="removePhoto(index)" :aria-label="'删除第' + (index + 1) + '张照片'">×</button>
+                        <button v-if="index > 0" class="photo-first" :disabled="busy" @tap="makeFirst(index)">设为首页</button>
+                    </view>
+                </view>
+                <view class="photo-actions">
+                    <button class="fw-button photo-btn" :disabled="busy || images.length >= 6" @tap="choose(['camera'])">拍照</button>
+                    <button class="fw-button photo-btn" :disabled="busy || images.length >= 6" @tap="choose(['album'])">相册选图</button>
+                </view>
+                <view v-if="images.length" class="photo-clear-row"><text class="photo-clear" @tap="clearPhotos">清空全部照片</text></view>
+                <view v-if="images.length" class="flow-line">
+                    <text class="fw-note">{{ flowMode === 'model-first' ? '大模型优先，失败自动用免费 OCR 兜底' : '免费 OCR 先提取编码，再由大模型补全' }}</text>
+                    <text class="fw-badge" :class="flowMode === 'model-first' ? 'tone-primary' : 'tone-neutral'">{{ flowMode === 'model-first' ? '大模型优先' : 'OCR 优先' }}</text>
+                </view>
+                <view v-if="form" class="draft-line">
+                    <text class="fw-note">已有核对内容</text>
+                    <text class="draft-link" @tap="uiStage = 'review'">继续核对 ›</text>
+                </view>
+                <button v-if="!form && !recordKey" class="manual-entry" :disabled="busy" @tap="startManual">没有照片？手动录入或载入档案 ›</button>
+                <view v-if="draftRestored" class="draft-line"><text class="draft-link" @tap="clearDraftAndRestart">清除草稿，重新开始</text></view>
             </view>
-            <view class="photo-actions">
-                <button class="fw-button photo-btn" :disabled="busy || images.length >= 6" @tap="choose(['camera'])">拍照</button>
-                <button class="fw-button photo-btn" :disabled="busy || images.length >= 6" @tap="choose(['album'])">相册选图</button>
+        </template>
+
+        <!-- 第二步：识别进展 / 失败出口 / 编码确认 -->
+        <template v-else-if="uiStage === 'recognize'">
+            <view class="fw-card recognize-card">
+                <template v-if="recognizing">
+                    <view class="recognize-head"><text class="recognize-title">正在识别指令单</text><text class="recognize-elapsed">已用时 {{ elapsedLabel }}</text></view>
+                    <text class="fw-note">{{ recognizeStageText }}</text>
+                    <view class="recognize-track"><view class="recognize-bar" /></view>
+                    <text class="fw-note">识别在后台进行，可继续等待或取消回到照片步；取消不会丢失已选照片。</text>
+                </template>
+                <template v-else-if="needsProductCodeConfirmation">
+                    <view class="recognize-head"><text class="recognize-title">未能确认产品编码</text><text class="fw-badge tone-warning">需确认</text></view>
+                    <text class="fw-note">可核对首页后填写 10 位编码继续，或用原图完整识别。</text>
+                    <view class="fw-field"><text class="fw-label">确认产品编码</text><input class="fw-input" v-model="confirmedProductCode" :disabled="busy || !!recordKey" type="number" maxlength="10" placeholder="10 位数字" /></view>
+                </template>
+                <template v-else-if="error">
+                    <view class="recognize-head"><text class="recognize-title">识别未完成</text><text class="fw-badge tone-danger">失败</text></view>
+                    <text class="recognize-error">{{ error }}</text>
+                    <text v-if="leaseCountdown > 0" class="recognize-lease">{{ leaseCountdown }} 秒后自动重试一次；相同照片仍在服务端处理，请勿重复上传。</text>
+                    <text class="fw-note">{{ leaseCountdown > 0 ? '倒计时结束后会自动重试，请等待结果，不要重复点识别。' : '可用免费 OCR 兜底重试，或改为手动录入（照片和订单信息不会丢）。' }}</text>
+                </template>
+                <template v-else-if="form">
+                    <view class="recognize-head"><text class="recognize-title">识别完成</text><text class="fw-badge tone-primary">可核对</text></view>
+                    <text class="fw-note">{{ recognitionMessage || '识别结果已填入核对表单，请逐项核对后保存。' }}</text>
+                </template>
+                <template v-else>
+                    <view class="recognize-head"><text class="recognize-title">准备识别</text></view>
+                    <text class="fw-note">已选 {{ images.length }} 张照片，点击下方「开始识别」。</text>
+                </template>
             </view>
-            <view v-if="images.length" class="photo-clear-row"><text class="photo-clear" @tap="clearPhotos">清空全部照片</text></view>
-            <view class="fw-note">重复照片自动去重。优先大模型识别，失败时自动用免费 OCR 兜底。</view>
-            <button v-if="!form && !recordKey" class="manual-entry" :disabled="busy" @tap="startManual">没有照片？手动录入或载入档案 ›</button>
-        </view>
-        <view v-if="uiStage !== 'review' && images.length" class="fw-card">
-            <view class="fw-heading"><text class="fw-heading-title">选择识别方式</text><text class="fw-badge">{{ flowMode === 'model-first' ? '大模型优先' : 'OCR 优先' }}</text></view>
-            <text class="fw-note">{{ flowMode === 'model-first' ? '大模型优先识别；失败或额度不足时自动用免费 OCR 兜底，结果需人工核对。订单材料仍需按本单核对。' : '先提取编码查询档案，新产品再使用大模型。订单材料仍需按本单核对。' }}</text>
-            <button v-if="flowMode !== 'model-first'" class="model-action" :disabled="busy" @tap="recognize('', true)"><text>用原图完整识别</text><text class="model-cost">使用模型额度 ›</text></button>
-            <view v-if="recognitionMessage" class="recognition-note">{{ recognitionMessage }}</view>
-            <view v-if="needsProductCodeConfirmation" class="code-confirmation">
-                <view class="fw-heading-title">未能确认产品编码</view>
-                <text class="fw-note">可完整识别原图，也可核对首页后填写编码继续。</text>
-                <view class="fw-field"><text class="fw-label">确认产品编码</text><input class="fw-input" v-model="confirmedProductCode" :disabled="busy || !!recordKey" type="number" maxlength="10" placeholder="10 位数字" /></view>
-                <button class="fw-button" :disabled="busy" @tap="confirmProductCode">确认编码并继续</button>
-            </view>
-        </view>
-        <view v-if="form && uiStage === 'review'">
+        </template>
+
+        <!-- 第三步：核对保存 -->
+        <template v-else-if="form">
             <view class="review-summary fw-card">
                 <view><text class="fw-heading-title">核对录入内容</text><text class="fw-subtitle">{{ images.length ? images.length + ' 张本次识别照片' : form.sourceDocumentId ? '已关联原始单据' : '手动录入' }}</text></view>
                 <button class="fw-button secondary" :disabled="busy" @tap="uiStage = 'photos'">{{ images.length ? '查看照片' : '使用照片' }}</button>
@@ -100,15 +129,9 @@
                 </view>
                 <view v-if="productArchiveMessage" class="recognition-note">{{ productArchiveMessage }}</view>
             </view>
-        </view>
-        <view v-if="!keyboardVisible" class="fw-footer">
-            <view class="fw-footer-note">{{ footerNote }}</view>
-            <view class="fw-actions">
-                <button v-if="form && uiStage !== 'review' && !needsProductCodeConfirmation" class="fw-button secondary" :disabled="busy" @tap="uiStage = 'review'">返回核对</button>
-                <button v-if="uiStage === 'review'" class="fw-button primary" :disabled="busy || needsProductCodeConfirmation" @tap="save">{{ saving ? '保存中…' : purpose === 'order' ? form.orderStatus === 'confirmed' ? '确认并保存订单' : '保存订单草稿' : '核对完成，保存档案' }}</button>
-                <button v-else class="fw-button primary" :disabled="busy || !images.length || needsProductCodeConfirmation || photosRecognized" @tap="recognize()">{{ recognizing ? '正在识别…' : needsProductCodeConfirmation ? '请确认编码或完整识别' : photosRecognized ? '识别完成' : flowMode === 'model-first' ? '识别并核对' : '识别并载入档案' }}</button>
-            </view>
-        </view>
+        </template>
+
+        <ActionBar v-if="!keyboardVisible" :primary="actionPrimary" :secondary="actionSecondary" :note="footerNote" :primary-disabled="actionPrimaryDisabled" :secondary-disabled="actionSecondaryDisabled" @primary="onActionPrimary" @secondary="onActionSecondary" />
     </view>
 </template>
 <script>
@@ -120,11 +143,53 @@ import { batchIsValid } from '@/utils/shared/batch.js'
 import MaterialListEditor from '@/components/material-list-editor/MaterialListEditor.vue'
 import PackagingSelection from '@/components/traceability/PackagingSelection.vue'
 import PalletEditor from '@/components/traceability/PalletEditor.vue'
+import StepBar from '@/components/ui/StepBar.vue'
+import ActionBar from '@/components/ui/ActionBar.vue'
 import { getUser } from '@/utils/auth.js'
 const FIELD_NAMES = { orderNo: '订单号', batchNo: '批号', productCode: '产品编码', productName: '产品名称', packSpec: '包装规格', plannedQty: '计划产量', sampleCount: '取样数', materials: '包装材料清单' }
 export default {
-    components: { MaterialListEditor, PackagingSelection, PalletEditor },
-    data() { return { uiStage: 'photos', keyboardVisible: false, selectionLoading: false, formEpoch: 0, purpose: 'bom', recordKey: '', choosing: false, recognizing: false, saving: false, conflicted: false, images: [], lastRecognizedImages: [], needsProductCodeConfirmation: false, canUseModelFallback: false, confirmedProductCode: '', recognitionMessage: '', formSource: 'manual', flowMode: '', fallbackInfo: null, fallbackExpanded: false, form: null, error: '', savedMessage: '', observedKey: '', observedVersion: null, archivedProductCode: '', productArchiveMessage: '' } },
+    components: { MaterialListEditor, PackagingSelection, PalletEditor, StepBar, ActionBar },
+    data() {
+        return {
+            steps: ['拍照', '识别', '核对保存'],
+            uiStage: 'photos',
+            keyboardVisible: false,
+            selectionLoading: false,
+            formEpoch: 0,
+            purpose: 'bom',
+            recordKey: '',
+            choosing: false,
+            recognizing: false,
+            saving: false,
+            conflicted: false,
+            images: [],
+            lastRecognizedImages: [],
+            needsProductCodeConfirmation: false,
+            canUseModelFallback: false,
+            confirmedProductCode: '',
+            recognitionMessage: '',
+            formSource: 'manual',
+            flowMode: '',
+            fallbackInfo: null,
+            fallbackExpanded: false,
+            form: null,
+            error: '',
+            savedMessage: '',
+            observedKey: '',
+            observedVersion: null,
+            archivedProductCode: '',
+            productArchiveMessage: '',
+            recognizeEpoch: 0,
+            leaseCountdown: 0,
+            leaseTimer: null,
+            leaseAutoRetried: false,
+            recognizeStartedAt: 0,
+            recognizeElapsed: 0,
+            recognizeTimer: null,
+            draftTimer: null,
+            draftRestored: false
+        }
+    },
     computed: {
         /** 非 H5 平台的 :key 不支持表达式，这里给每张照片预计算稳定 key。 */
         imageItems() { return (this.images || []).map((photo, index) => ({ ...photo, key: photo.originalHash || photo.path || ('photo-' + index) })) },
@@ -133,19 +198,78 @@ export default {
             return text.length > 160 ? text.slice(0, 160) + '…' : text
         },
         busy() { return this.choosing || this.recognizing || this.saving || this.selectionLoading },
-        stageIndex() { return this.uiStage === 'review' ? 2 : this.recognizing || this.needsProductCodeConfirmation ? 1 : 0 },
+        stepIndex() { return this.uiStage === 'review' ? 2 : this.uiStage === 'recognize' ? 1 : 0 },
+        elapsedLabel() { const seconds = Math.max(0, Math.floor(this.recognizeElapsed)); return seconds < 60 ? seconds + ' 秒' : Math.floor(seconds / 60) + ' 分 ' + (seconds % 60) + ' 秒' },
+        recognizeStageText() {
+            const seconds = Math.floor(this.recognizeElapsed)
+            if (seconds < 3) return '正在上传照片并检查识别缓存…'
+            if (seconds < 20) return '大模型正在解析指令单，失败会自动用免费 OCR 兜底…'
+            return '识别耗时较长，仍在后台处理，可继续等待或取消。'
+        },
         footerNote() {
             if (this.selectionLoading) return '正在载入客户方案，请稍候。'
             if (this.recognizing) return '识别完成后请逐项核对，再保存。'
-            if (this.uiStage !== 'review') return this.flowMode === 'model-first' ? '照片会先上传原图并调用大模型识别；失败时自动用免费 OCR 兜底。' : '先免费识别产品编码再载入档案，也可选择用原图完整识别。'
+            if (this.uiStage === 'photos') return this.images.length ? '照片会先上传原图并调用识别；结果需人工核对。' : '先拍照或从相册选择指令单照片。'
+            if (this.uiStage === 'recognize') {
+                if (this.leaseCountdown > 0) return this.leaseCountdown + ' 秒后自动重试；相同照片仍在服务端处理，请勿重复上传。'
+                return this.needsProductCodeConfirmation ? '确认编码后继续识别，或改用原图完整识别。' : '识别失败不会丢失照片，可兜底重试或手动录入。'
+            }
             if (this.purpose === 'order' && (!this.form.pallet || this.form.pallet.status !== 'confirmed')) return '上托要求待补充；保存后暂不计算托数。'
             return '请核对产品编码、包装规格和每一项材料。'
+        },
+        actionPrimary() {
+            if (this.uiStage === 'review') return this.saving ? '保存中…' : this.purpose === 'order' ? (this.form.orderStatus === 'confirmed' ? '确认并保存订单' : '保存订单草稿') : '核对完成，保存档案'
+            if (this.uiStage === 'recognize') {
+                if (this.recognizing) return '继续等待'
+                if (this.needsProductCodeConfirmation) return '确认编码并继续'
+                if (this.error) {
+                    if (this.leaseCountdown > 0) return this.leaseCountdown + ' 秒后自动重试'
+                    if (this.isLeaseError(this.error)) return '立即重试'
+                    return '用 OCR 兜底重试'
+                }
+                if (this.form) return '去核对'
+                return '开始识别'
+            }
+            if (this.photosRecognized && this.form) return '去核对'
+            return '开始识别'
+        },
+        actionSecondary() {
+            if (this.uiStage === 'review') return '上一步'
+            if (this.uiStage === 'recognize') {
+                if (this.recognizing) return '取消识别'
+                if (this.needsProductCodeConfirmation && this.canUseModelFallback) return '用原图完整识别'
+                if (this.error) return '手动录入'
+                if (this.form) return '重新识别'
+                return ''
+            }
+            return this.form ? '查看核对内容' : ''
+        },
+        actionPrimaryDisabled() {
+            if (this.uiStage === 'review') return this.busy || this.needsProductCodeConfirmation
+            if (this.uiStage === 'recognize') {
+                if (this.recognizing) return false
+                if (this.needsProductCodeConfirmation) return this.busy || !/^\d{10}$/.test(String(this.confirmedProductCode || '').trim())
+                if (this.error) return this.busy || this.leaseCountdown > 0 || !this.images.length
+                if (this.form) return false
+                return this.busy || !this.images.length
+            }
+            return this.busy || !this.images.length || this.needsProductCodeConfirmation
+        },
+        actionSecondaryDisabled() {
+            if (this.uiStage === 'recognize' && this.recognizing) return false
+            return this.busy
         },
         photosRecognized() { return this.lastRecognizedImages.length > 0 && this.images.length === this.lastRecognizedImages.length && this.images.every((image, index) => ocrImageIdentity(image) === this.lastRecognizedImages[index]) },
         productArchiveExists() { return !!this.archivedProductCode && this.archivedProductCode === String(this.form && this.form.productCode || '').trim() },
         uncertainText() { return ((this.form && this.form.uncertain) || []).map(key => FIELD_NAMES[key] || '包装材料明细').join('、') }
     },
-    watch: { error(message) { if (message) this.$nextTick(() => uni.pageScrollTo({ selector: '#entry-feedback', duration: 200 })); }, 'form.productCode'(code, previous) { if (String(code || '').trim() !== String(previous || '').trim()) this.productArchiveMessage = '' } },
+    watch: {
+        error(message) { if (message) this.$nextTick(() => uni.pageScrollTo({ selector: '#entry-feedback', duration: 200 })) },
+        'form.productCode'(code, previous) { if (String(code || '').trim() !== String(previous || '').trim()) this.productArchiveMessage = '' },
+        form: { deep: true, handler() { this.queueDraft() } },
+        images: { deep: true, handler() { this.queueDraft() } },
+        uiStage() { this.queueDraft() }
+    },
     async onLoad(options) {
         if (!getUser()) { uni.reLaunch({ url: '/pages/login/login' }); return }
         this.keyboardHandler = event => { this.keyboardVisible = Number(event.height) > 0 }
@@ -168,12 +292,90 @@ export default {
                 this.observedKey = record.productCode; this.observedVersion = Number(record.version) || 1
             } catch (error) { this.error = error.message }
             finally { this.choosing = false }
+            return
         }
+        if (this.restoreDraft()) uni.showToast({ title: '已恢复上次未完成的录入', icon: 'none' })
     },
-    onUnload() { if (uni.offKeyboardHeightChange && this.keyboardHandler) uni.offKeyboardHeightChange(this.keyboardHandler) },
+    onHide() { this.saveDraft() },
+    onUnload() {
+        this.saveDraft()
+        this.clearLeaseRetry()
+        this.stopRecognizeTimer()
+        if (uni.offKeyboardHeightChange && this.keyboardHandler) uni.offKeyboardHeightChange(this.keyboardHandler)
+    },
     methods: {
         callCloud,
         isUncertain(key) { return ((this.form && this.form.uncertain) || []).includes(key) },
+        /** 三步条回退：只允许退回已完成步骤，照片与识别结果保留。 */
+        onStepSelect(index) {
+            if (index >= this.stepIndex) return
+            if (this.recognizing) this.cancelRecognition()
+            this.uiStage = index === 0 ? 'photos' : 'recognize'
+        },
+        startRecognize() {
+            if (this.busy) return
+            if (!this.images.length) { this.error = '请先拍照或选择相册照片'; return }
+            this.uiStage = 'recognize'
+            return this.recognize()
+        },
+        /** 取消只停止等待并回照片步；后台结果通过 epoch 丢弃，不影响已选照片。 */
+        cancelRecognition() {
+            this.clearLeaseRetry()
+            this.recognizeEpoch++
+            this.recognizing = false
+            this.stopRecognizeTimer()
+            this.uiStage = 'photos'
+            uni.showToast({ title: '已取消等待，可重新识别', icon: 'none' })
+        },
+        keepWaiting() { uni.showToast({ title: '识别仍在进行，请稍候', icon: 'none' }) },
+        /** 服务端租约/正在处理类错误：倒计时 12 秒后自动重试一次，避免用户连点撞租约。 */
+        isLeaseError(message) { return /(正在处理|正在识别|无需重复上传|稍后读取已有结果|租约|already exists)/i.test(String(message || '')) },
+        clearLeaseRetry() {
+            if (this.leaseTimer) { clearInterval(this.leaseTimer); this.leaseTimer = null }
+            this.leaseCountdown = 0
+        },
+        scheduleLeaseRetry() {
+            this.clearLeaseRetry()
+            this.leaseAutoRetried = true
+            this.leaseCountdown = 12
+            this.leaseTimer = setInterval(() => {
+                if (this.leaseCountdown > 0) this.leaseCountdown -= 1
+                if (this.leaseCountdown > 0) return
+                this.clearLeaseRetry()
+                if (this.uiStage === 'recognize' && !this.recognizing && this.images.length) this.recognize('', false, true)
+            }, 1000)
+        },
+        retryWithOcr() { if (!this.busy) return this.recognize() },
+        startRecognizeTimer() {
+            this.recognizeStartedAt = Date.now()
+            this.recognizeElapsed = 0
+            this.stopRecognizeTimer()
+            this.recognizeTimer = setInterval(() => { this.recognizeElapsed = (Date.now() - this.recognizeStartedAt) / 1000 }, 1000)
+        },
+        stopRecognizeTimer() { if (this.recognizeTimer) { clearInterval(this.recognizeTimer); this.recognizeTimer = null } },
+        onActionPrimary() {
+            if (this.uiStage === 'review') return this.save()
+            if (this.uiStage === 'recognize') {
+                if (this.recognizing) return this.keepWaiting()
+                if (this.needsProductCodeConfirmation) return this.confirmProductCode()
+                if (this.error) return this.retryWithOcr()
+                if (this.form) { this.uiStage = 'review'; return }
+                return this.startRecognize()
+            }
+            if (this.photosRecognized && this.form) { this.uiStage = 'review'; return }
+            return this.startRecognize()
+        },
+        onActionSecondary() {
+            if (this.uiStage === 'review') { this.uiStage = 'photos'; return }
+            if (this.uiStage === 'recognize') {
+                if (this.recognizing) return this.cancelRecognition()
+                if (this.needsProductCodeConfirmation && this.canUseModelFallback) return this.recognizeWithModel()
+                if (this.error) return this.startManual()
+                if (this.form) return this.recognize()
+                return
+            }
+            if (this.form) this.uiStage = 'review'
+        },
         resetRecognition() { this.lastRecognizedImages = []; this.needsProductCodeConfirmation = false; this.canUseModelFallback = false; this.confirmedProductCode = ''; this.recognitionMessage = ''; this.fallbackInfo = null; this.fallbackExpanded = false },
         /** 照片改变后整组清除旧表单及来源，防止新照片与旧识别结果混用。 */
         async replacePhotos(next) {
@@ -191,9 +393,73 @@ export default {
         makeFirst(index) { if (!this.busy && index > 0) return this.replacePhotos([this.images[index], ...this.images.filter((photo, i) => i !== index)]) },
         startManual() {
             if (this.busy) return
+            this.clearLeaseRetry()
             this.images = []; this.resetRecognition()
             this.form = { productCode: '', productName: '', packSpec: '', materials: [], orderNo: '', batchNo: '', plannedQty: '', sampleCount: '', uncertain: [], enabled: true, orderStatus: 'draft', customerId: '', pallet: {}, changeReason: '' }
             this.uiStage = 'review'; this.formEpoch++; this.formSource = 'manual'; this.error = ''; this.savedMessage = ''; this.observedKey = ''; this.observedVersion = null; this.archivedProductCode = ''; this.productArchiveMessage = ''
+        },
+        /** 当前会话草稿：内存级（App globalData），返回/重进页面可恢复；不写数据库、不落云端。 */
+        queueDraft() {
+            if (this.draftTimer) clearTimeout(this.draftTimer)
+            this.draftTimer = setTimeout(() => this.saveDraft(), 300)
+        },
+        saveDraft() {
+            const app = getApp()
+            if (!app) return
+            if (!app.globalData) app.globalData = {}
+            if (!this.form && !this.images.length && this.uiStage === 'photos') { app.globalData.mesEntryDraft = null; return }
+            app.globalData.mesEntryDraft = {
+                purpose: this.purpose,
+                recordKey: this.recordKey,
+                uiStage: this.uiStage,
+                images: this.images,
+                form: this.form,
+                formSource: this.formSource,
+                recognitionMessage: this.recognitionMessage,
+                fallbackInfo: this.fallbackInfo,
+                needsProductCodeConfirmation: this.needsProductCodeConfirmation,
+                confirmedProductCode: this.confirmedProductCode,
+                canUseModelFallback: this.canUseModelFallback,
+                observedKey: this.observedKey,
+                observedVersion: this.observedVersion,
+                archivedProductCode: this.archivedProductCode,
+                productArchiveMessage: this.productArchiveMessage,
+                savedMessage: this.savedMessage,
+                conflicted: this.conflicted
+            }
+        },
+        restoreDraft() {
+            const app = getApp()
+            const draft = app && app.globalData && app.globalData.mesEntryDraft
+            if (!draft || draft.recordKey || this.recordKey || draft.purpose !== this.purpose) return false
+            this.images = draft.images || []
+            this.form = draft.form || null
+            this.uiStage = ['photos', 'recognize', 'review'].includes(draft.uiStage) ? draft.uiStage : 'photos'
+            if (this.uiStage === 'recognize') this.uiStage = 'photos'
+            if (this.uiStage === 'review' && !this.form) this.uiStage = 'photos'
+            this.formSource = draft.formSource || 'manual'
+            this.recognitionMessage = draft.recognitionMessage || ''
+            this.fallbackInfo = draft.fallbackInfo || null
+            this.needsProductCodeConfirmation = draft.needsProductCodeConfirmation === true
+            this.confirmedProductCode = draft.confirmedProductCode || ''
+            this.canUseModelFallback = draft.canUseModelFallback === true
+            this.observedKey = draft.observedKey || ''
+            this.observedVersion = draft.observedVersion
+            this.archivedProductCode = draft.archivedProductCode || ''
+            this.productArchiveMessage = draft.productArchiveMessage || ''
+            this.savedMessage = draft.savedMessage || ''
+            this.conflicted = draft.conflicted === true
+            this.lastRecognizedImages = this.form && this.form.sourceDocumentId ? this.images.map(ocrImageIdentity) : []
+            this.draftRestored = true
+            return true
+        },
+        clearDraftAndRestart() {
+            this.clearLeaseRetry()
+            const app = getApp()
+            if (app && app.globalData) app.globalData.mesEntryDraft = null
+            this.images = []; this.form = null; this.formEpoch++; this.uiStage = 'photos'; this.formSource = 'manual'
+            this.resetRecognition(); this.draftRestored = false; this.error = ''; this.savedMessage = ''; this.conflicted = false
+            this.observedKey = ''; this.observedVersion = null; this.archivedProductCode = ''; this.productArchiveMessage = ''
         },
         async loadArchive() {
             if (this.busy) return
@@ -239,8 +505,9 @@ export default {
             if (this.busy || !this.canUseModelFallback || !this.needsProductCodeConfirmation) return
             await this.recognize('', true)
         },
-        async recognize(confirmedProductCode = '', useModel = false) {
+        async recognize(confirmedProductCode = '', useModel = false, autoRetry = false) {
             const code = String(confirmedProductCode || '').trim()
+            if (!autoRetry) { this.leaseAutoRetried = false; this.clearLeaseRetry() }
             // model-first：用户不需要先确认编码，直接走「原图上传 → 模型 → 免费 OCR 兜底」。
             const modelFirst = this.flowMode === 'model-first'
             if (modelFirst && !code) useModel = true
@@ -250,10 +517,14 @@ export default {
                 const yes = await new Promise(resolve => uni.showModal({ title: '完整识别原图', content: '将用本组照片的识别结果替换当前核对内容。已有结果会复用，没有结果时使用模型额度。', confirmText: '开始识别', success: result => resolve(result.confirm), fail: () => resolve(false) }))
                 if (!yes) return
             }
+            const epoch = ++this.recognizeEpoch
+            if (this.uiStage !== 'recognize') this.uiStage = 'recognize'
             this.recognizing = true; this.error = ''; this.savedMessage = ''
             this.fallbackInfo = null; this.fallbackExpanded = false
+            this.startRecognizeTimer()
             try {
                 const result = await recognizeOcr(callCloud, this.images, this.purpose, { ...(useModel ? { useModel: true } : {}), ...(code ? { confirmedProductCode: code } : {}), ...(this.purpose === 'bom' && this.recordKey ? { expectedProductCode: this.recordKey } : {}) })
+                if (epoch !== this.recognizeEpoch) return
                 this.recognitionMessage = typeof result.message === 'string' ? result.message : ''
                 this.fallbackInfo = result.fallback ? {
                     engine: result.fallback.engine,
@@ -270,7 +541,7 @@ export default {
                     return
                 }
                 this.form = { orderStatus: 'draft', customerId: this.form && this.form.customerId || '', customerName: this.form && this.form.customerName || '', pallet: {}, changeReason: '', ...result, materials: Array.isArray(result.materials) ? result.materials : [], enabled: result.enabled !== false }
-                this.formEpoch++; this.uiStage = this.needsProductCodeConfirmation ? 'photos' : 'review'
+                this.formEpoch++; this.uiStage = this.needsProductCodeConfirmation ? 'recognize' : 'review'
                 this.archivedProductCode = result.archiveMatched ? result.productCode : ''; this.productArchiveMessage = ''
                 this.observedKey = ''; this.observedVersion = null
                 let existing = null
@@ -279,13 +550,22 @@ export default {
                     this.observedKey = result.productCode
                     this.observedVersion = Number(result.version) || 1
                 } else existing = await this.observeExisting()
+                if (epoch !== this.recognizeEpoch) return
                 this.conflicted = false
                 this.formSource = this.purpose === 'bom' && result.archiveMatched ? result.source || (existing && existing.source) || 'manual' : 'photo'
                 this.lastRecognizedImages = !this.needsProductCodeConfirmation && (result.archiveMatched || result.modelUsed || result.recognitionSource === 'cache') ? this.images.map(ocrImageIdentity) : []
                 const title = result.fallback ? '大模型未成功，已用免费 OCR 提取文本' : this.needsProductCodeConfirmation ? (this.canUseModelFallback ? '可使用大模型或确认编码' : '请确认产品编码后继续') : result.archiveMatched ? (result.modelUsed ? '本单完整识别完成' : '已载入产品信息，未调用大模型') : result.recognitionSource === 'cache' ? '已复用识别结果，请核对' : result.modelUsed ? '识别完成，请核对' : '识别完成，请核对'
                 uni.showToast({ title, icon: 'none' })
-            } catch (error) { this.error = error.message || '识别失败，请重试' }
-            finally { this.recognizing = false }
+            } catch (error) {
+                if (epoch !== this.recognizeEpoch) return
+                this.error = error.message || '识别失败，请重试'
+                // 服务端仍持有同批照片的租约时只自动重试一次，其他错误保持人工出口。
+                if (this.isLeaseError(this.error) && !this.leaseAutoRetried) this.scheduleLeaseRetry()
+            } finally {
+                if (epoch === this.recognizeEpoch) this.recognizing = false
+                this.stopRecognizeTimer()
+                if (epoch === this.recognizeEpoch && !this.leaseAutoRetried) this.clearLeaseRetry()
+            }
         },
         /** 页面标题改由原生导航栏显示，状态变化时同步，避免与页内标题重复。 */
         syncNavTitle() {
@@ -370,15 +650,11 @@ export default {
 </script>
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
-.entry-page { padding-bottom: calc(176rpx + env(safe-area-inset-bottom)); }
+.entry-page { padding-bottom: calc(190rpx + env(safe-area-inset-bottom)); }
 .status-options { display: flex; padding: 6rpx; gap: 6rpx; border-radius: 22.4rpx; background: $line; margin-bottom: 20rpx; }
 .status-options button { flex: 1; margin: 0; padding: 12rpx 6rpx; font-size: 28.8rpx; line-height: 1.5; background: transparent; color: $muted; border-radius: 16rpx; }
 .status-options button::after { border: 0; }
 .status-options button.active { background: $surface; color: $primary; font-weight: 600; }
-.steps { display: flex; justify-content: space-between; gap: 6rpx; padding: 2rpx 0 24rpx; }
-.step { display: flex; align-items: center; gap: 8rpx; font-size: 25.6rpx; color: $muted; }
-.step-number { width: 49.6rpx; height: 49.6rpx; line-height: 49.6rpx; text-align: center; background: $line; border-radius: 50%; }
-.step.active { color: $primary; font-weight: 600; }.step.active .step-number { background: $primary; color: $surface; }.step.complete .step-number { color: $primary; background: $primary-soft; }
 .photo-empty { display: flex; flex-direction: column; align-items: center; gap: 12rpx; padding: 32rpx 12rpx; background: $canvas; border: 1px dashed $line; border-radius: 20.8rpx; }
 .photo-symbol { color: $primary; font-size: 64rpx; }.photo-empty-title { font-size: 30.4rpx; font-weight: 600; }
 .photos { display: flex; flex-wrap: wrap; gap: 12rpx; }.photo-item { position: relative; width: calc((100% - 24rpx) / 3); min-width: 0; padding-bottom: 24rpx; }
@@ -387,8 +663,19 @@ export default {
 .photo-remove { position: absolute; right: -6.4rpx; top: -6.4rpx; margin: 0; padding: 0; width: 64rpx; height: 64rpx; font-size: 40rpx; line-height: 64rpx; border-radius: 50%; background: $ink; color: $surface; }
 .photo-remove::after, .photo-first::after { border: 0; }.photo-first { margin: 0; padding: 4rpx 0; font-size: 22.4rpx; line-height: 1.8; color: $primary; background: $primary-soft; border-radius: 9.6rpx; }
 .photo-actions { display: flex; gap: 12rpx; margin: 20rpx 0 0; }.photo-btn { flex: 1 1 0; min-width: 120rpx; }.photo-clear-row { display: flex; justify-content: flex-end; margin: 2rpx 0 2rpx; }.photo-clear { font-size: 24rpx; color: $muted; padding: 8rpx 0 8rpx 16rpx; }
+.flow-line { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-8, 8rpx); margin-top: var(--sp-12, 12rpx); padding-top: var(--sp-12, 12rpx); border-top: 1px solid $line; }
+.draft-line { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-8, 8rpx); margin-top: var(--sp-8, 8rpx); }
+.draft-link { color: $primary; font-size: var(--fs-24, 24rpx); padding: var(--sp-8, 8rpx) 0 var(--sp-8, 8rpx) var(--sp-12, 12rpx); }
 .manual-entry { margin: 20rpx 0 0; width: 100%; font-size: 25.6rpx; line-height: 80rpx; background: $surface; color: $primary; padding: 0; border-top: 1px solid $line; border-radius: 0; }.manual-entry::after { border: 0; }
-.model-action { margin: 20rpx 0 0; padding: 18rpx 16rpx; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12rpx; background: $canvas; border-radius: 16rpx; font-size: 27.2rpx; line-height: 1.6; }.model-action::after { border: 0; }.model-cost { font-size: 22.4rpx; color: $warning; }
+.recognize-card { display: flex; flex-direction: column; gap: var(--sp-8, 8rpx); }
+.recognize-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-8, 8rpx); }
+.recognize-title { font-size: var(--fs-30, 30rpx); font-weight: 700; }
+.recognize-elapsed { color: $primary; font-size: var(--fs-24, 24rpx); font-weight: 600; }
+.recognize-track { height: 8rpx; border-radius: 999rpx; background: $canvas; overflow: hidden; }
+.recognize-bar { height: 100%; width: 40%; border-radius: 999rpx; background: $primary; animation: recognize-slide 1.2s ease-in-out infinite; }
+@keyframes recognize-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+.recognize-error { color: $danger; font-size: var(--fs-24, 24rpx); line-height: 1.5; }
+.recognize-lease { color: $warning; font-size: var(--fs-24, 24rpx); line-height: 1.5; }
 .recognition-note { margin-top: 16rpx; color: $primary; font-size: 25.6rpx; line-height: 1.6; }.code-confirmation { margin-top: 20rpx; padding-top: 20rpx; border-top: 1px solid $line; }.code-confirmation .fw-field { margin-top: 16rpx; }
 .review-summary { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }.review-summary .fw-button { flex-shrink: 0; font-size: 25.6rpx; padding: 0 14rpx; }
 .code-row { display: flex; align-items: flex-end; gap: 12rpx; margin-bottom: 20rpx; }.code-row .fw-field { flex: 1; min-width: 0; margin-bottom: 0; }.code-row .fw-button { min-height: 92.8rpx; line-height: 92.8rpx; }
