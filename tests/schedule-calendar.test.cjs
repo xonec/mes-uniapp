@@ -229,6 +229,16 @@ function baseData() {
         assert.deepEqual(result.days, [])
     })
 
+    await test('空月份带选中日（前端必传 date）：不塞无数据占位记录', async () => {
+        const handled = makeDb(baseData())
+        const fakeDb = { command: handled.command, collection: handled.collection }
+        const result = await scheduleCalendar(fakeDb, { isAdmin: false, personId: 'p1' }, { month: '2026-09', date: '2026-09-15' })
+        assert.deepEqual(result.days, [], '空月份 + 选中日都应返回空数组，前端才能显示「本月暂无排班」')
+        const june = await scheduleCalendar(fakeDb, { isAdmin: false, personId: 'p1' }, { month: '2026-06', date: '2026-06-15' })
+        assert.equal(june.days.some(day => day.date === '2026-06-15'), false, '选中日无排班时同样不占位')
+        assert.equal(june.days.length, 1)
+    })
+
     await test('非法 month / 日期范围返回 400', async () => {
         const handled = makeDb(baseData())
         const fakeDb = { command: handled.command, collection: handled.collection }

@@ -1,8 +1,48 @@
 import { callCloud } from '@/utils/cloud-call.js'
-import { getUser } from '@/utils/auth.js'
+import { getUser, getToken } from '@/utils/auth.js'
+
+/** 只读 action：冷启动超时/网络失败自动重试一次；写 action 保持单次，避免重复提交。 */
+const RETRY_ACTIONS = new Set([
+    'bootstrap', 'dashboard', 'scheduleCalendar', 'myScheduleDay',
+    'myAttendance', 'attendanceSummary', 'attendanceHistory', 'listAttendance',
+    'listJobs', 'getJob', 'listHandovers', 'getHandover', 'listExceptions',
+    'listSchedules', 'scheduleImportScope', 'report', 'trace', 'audit'
+])
 
 /** 调用同一空间内生产执行服务，由服务端决定人员数据范围。 */
-export function callOperations(action, payload = {}) { return callCloud('production-operations', action, payload) }
+export function callOperations(action, payload = {}, options = {}) {
+    const retry = typeof options.retry === 'boolean' ? options.retry : RETRY_ACTIONS.has(action)
+    return callCloud('production-operations', action, payload, { retry })
+}
+
+/**
+ * bootstrap 共享缓存（按 token 隔离，TTL 2 分钟）：
+ * 工作台/排班/考勤等页面先复用同一份基础数据，只有一个页面真正发请求，其余等它的结果，
+ * 避免多个页面/多个请求同时触发云函数冷启动。
+ */
+const BOOTSTRAP_TTL = 120000
+let bootstrapCache = { token: '', at: 0, data: null, pending: null }
+
+export function loadBootstrap() {
+    const token = getToken() || ''
+    const fresh = bootstrapCache.data && bootstrapCache.token === token && Date.now() - bootstrapCache.at < BOOTSTRAP_TTL
+    if (fresh) return Promise.resolve(bootstrapCache.data)
+    if (bootstrapCache.pending) return bootstrapCache.pending
+    const pending = callOperations('bootstrap').then(data => {
+        bootstrapCache = { token, at: Date.now(), data, pending: null }
+        return data
+    }, error => {
+        bootstrapCache = { token: '', at: 0, data: null, pending: null }
+        throw error
+    })
+    bootstrapCache.pending = pending
+    return pending
+}
+
+/** 退出登录/切换账号后清空基础数据缓存。 */
+export function clearBootstrapCache() {
+    bootstrapCache = { token: '', at: 0, data: null, pending: null }
+}
 /** 使用本地日期，避免夜班跨 UTC 日期造成排班错日。 */
 export function operationDate(date = new Date()) { return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-') }
 /** 为重试保留同一请求编号；修改内容后产生新编号。 */

@@ -76,6 +76,34 @@ await test('成功时返回 data 并自动附带 token', async () => {
     assert.equal(calls[calls.length - 1].data.uniIdToken, 'test-token')
 })
 
+await test('只读请求首次超时后自动重试一次并成功', async () => {
+    let count = 0
+    scripted = async () => {
+        count++
+        if (count === 1) { const error = new Error('request:fail timeout'); error.errMsg = 'request:fail timeout'; throw error }
+        return { result: { code: 0, data: { ok: 1, attempt: count } } }
+    }
+    const data = await callCloud('production-operations', 'bootstrap', {}, { retry: true })
+    assert.deepEqual(data, { ok: 1, attempt: 2 })
+    assert.equal(count, 2)
+})
+
+await test('写请求（未开 retry）超时只调用一次、不重试', async () => {
+    let count = 0
+    scripted = async () => { count++; const error = new Error('request:fail timeout'); error.errMsg = 'request:fail timeout'; throw error }
+    const error = await callCloud('production-operations', 'saveAttendance', {}, { retry: false }).then(() => null, value => value)
+    assert.ok(error, '应当抛错')
+    assert.equal(count, 1, '写请求不能自动重试')
+})
+
+await test('业务错误不重试（code 非 0 直接抛）', async () => {
+    let count = 0
+    scripted = async () => { count++; return { result: { code: 503, message: '函数请求已收到但未执行' } } }
+    const error = await callCloud('production-operations', 'dashboard', {}, { retry: true }).then(() => null, value => value)
+    assert.equal(error.message, '函数请求已收到但未执行')
+    assert.equal(count, 1, '业务错误不属于冷启动重试范围')
+})
+
 console.log('')
 if (failed) { console.error('cloud-call: ' + failed + ' failed'); process.exitCode = 1 }
 else console.log('cloud-call: ' + passed + ' passed, 0 failed')

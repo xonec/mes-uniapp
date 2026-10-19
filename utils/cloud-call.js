@@ -39,23 +39,36 @@ function transportError(name, action, error, elapsedMs) {
     return failure
 }
 
-export async function callCloud(name, action, payload = {}) {
+/** 冷启动重试间隔：首次超时/网络失败后等待 1.2s 再试一次（只对只读请求启用）。 */
+const RETRY_DELAY = 1200
+
+export async function callCloud(name, action, payload = {}, options = {}) {
     if (typeof uniCloud === 'undefined' || !uniCloud.callFunction) {
         throw new Error('uniCloud 未初始化（检查 manifest 的云服务空间配置）')
     }
     const timeout = name === 'doc-ocr' && action === 'recognize'
         ? OCR_RECOGNIZE_TIMEOUT
         : (name === 'production-orders' && action === 'commitSourceImages' ? LONG_CALL_TIMEOUT : CALL_TIMEOUT)
-    const startedAt = Date.now()
+    const attempts = options.retry ? 2 : 1
     let res
-    try {
-        res = await uniCloud.callFunction({
-            name,
-            timeout,
-            data: Object.assign({ action, uniIdToken: getToken() }, payload)
-        })
-    } catch (error) {
-        throw transportError(name, action, error, Date.now() - startedAt)
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+        const startedAt = Date.now()
+        try {
+            res = await uniCloud.callFunction({
+                name,
+                timeout,
+                data: Object.assign({ action, uniIdToken: getToken() }, payload)
+            })
+            break
+        } catch (error) {
+            const failure = transportError(name, action, error, Date.now() - startedAt)
+            // 仅超时/网络类失败重试；业务错误（code 非 0）不重试，避免重复写。
+            if (attempt < attempts && failure.kind === 'timeout') {
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+                continue
+            }
+            throw failure
+        }
     }
     const r = res && res.result
     if (!r || typeof r.code === 'undefined') {

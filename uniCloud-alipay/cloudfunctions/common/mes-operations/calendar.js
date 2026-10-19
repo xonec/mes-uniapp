@@ -231,8 +231,10 @@ async function scheduleCalendar(db, profile, input) {
     if (selectedDate) {
         const selected = await scheduleDayOf(db, profile, selectedDate)
         const existing = resultDays.find(item => item.date === selectedDate)
-        if (existing) existing.groups = selected.groups
-        else resultDays.push({ date: selectedDate, work: 0, rest: 0, leave: 0, shifts: [], mine: selected.mine, groupCount: (selected.groups || []).length ? Math.max(...(selected.groups || []).map(group => group.members.length)) : 0, groups: selected.groups })
+        const selectedGroups = selected.groups || []
+        if (existing) existing.groups = selectedGroups
+        // 选中日没有任何排班/组数据时不占位，避免空月份 days.length 恒 ≥ 1、前端空态永远不显示。
+        else if (selected.mine || selectedGroups.length) resultDays.push({ date: selectedDate, work: 0, rest: 0, leave: 0, shifts: [], mine: selected.mine, groupCount: selectedGroups.length ? Math.max(...selectedGroups.map(group => group.members.length)) : 0, groups: selectedGroups })
         resultDays.sort((left, right) => left.date.localeCompare(right.date))
     }
     return { days: resultDays }
