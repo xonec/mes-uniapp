@@ -51,25 +51,29 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
+.data-grid { display: flex; flex-wrap: wrap; margin: 0 -6rpx; }
+.data-grid .data-cell { box-sizing: border-box; flex: 0 0 calc(50% - 12rpx); margin: 0 6rpx 12rpx; }
 .data-cell { background: $canvas; border-radius: 12rpx; padding: 16rpx; min-height: 112rpx; display: flex; flex-direction: column; justify-content: center; }
 .dlbl { font-size: 24rpx; color: $muted; }
 .dinp { margin-top: 4rpx; font-size: 28.8rpx; background: transparent; height: 73.6rpx; }
 .dval { margin-top: 4rpx; font-size: 32rpx; font-weight: 700; color: $primary; }
 // 安卓 App 恢复原有三列生产数据布局。
 .legacy-layout {
-    .data-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .data-grid .data-cell { flex-basis: calc(33.333% - 12rpx); }
     .data-cell { min-width: 0; padding: 10rpx; min-height: 88rpx; }
     .dlbl { font-size: 20rpx; }
     .dinp { min-width: 0; height: 40rpx; font-size: 26rpx; }
     .dval { font-size: 28rpx; }
 }
-.seg-row { display: flex; align-items: center; gap: 12rpx; margin: 6rpx 0 12rpx; }
-.seg { flex: 1; display: flex; background: $canvas; border-radius: 12rpx; padding: 4rpx; gap: 4rpx; }
+.seg-row { display: flex; align-items: center; margin: 6rpx 0 12rpx; }
+.seg-row .seg { margin-left: 12rpx; }
+.seg { flex: 1; display: flex; background: $canvas; border-radius: 12rpx; padding: 4rpx; }
+.seg .seg-item + .seg-item { margin-left: 4rpx; }
 .seg-item { flex: 1; text-align: center; font-size: 24rpx; color: $muted; padding: 14rpx 0; border-radius: 10rpx; }
 .seg-item.active { background: $primary; color: $surface; font-weight: 700; }
 .sync-line { font-size: 24rpx; color: $muted; margin: 12rpx 0; }
-.btn-row { display: flex; gap: 12rpx; }
+.btn-row { display: flex; }
+.btn-row .btn + .btn { margin-left: 12rpx; }
 .btn-row .btn { flex: 1; }
 .btn { font-size: 24rpx; border-radius: 12rpx; padding: 0 12rpx; height: 64rpx; line-height: 64rpx; background: $canvas; color: $ink; }
 .btn.primary { background: $primary; color: $surface; }

@@ -9,10 +9,13 @@
 .fw-header .fw-subtitle { font-size: var(--fs-22, 22rpx); line-height: 1.5; margin-top: 0; }
 .fw-subtitle { display: block; color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.5; margin-top: var(--sp-8, 8rpx); }
 .fw-card { padding: var(--sp-20, 20rpx); margin-bottom: var(--sp-12, 12rpx); border-radius: var(--radius-card, 16rpx); background: $surface; }
-.fw-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-16, 16rpx); margin-bottom: var(--sp-12, 12rpx); }
+/* 旧版微信 WebView 不支持 flex gap：用子元素 margin 等价替换（原来 gap 16rpx，最后一个子元素不加） */
+.fw-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-12, 12rpx); }
+.fw-heading > .fw-link, .fw-heading > .fw-badge, .fw-heading > .fw-button, .fw-heading > .fw-note { margin-left: var(--sp-16, 16rpx); }
 .fw-heading-title { font-size: var(--fs-30, 30rpx); font-weight: 700; }
 .fw-note { color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.5; }
-.fw-actions { display: flex; flex-wrap: wrap; gap: var(--sp-12, 12rpx); }
+.fw-actions { display: flex; flex-wrap: wrap; }
+.fw-actions > .fw-button + .fw-button { margin-left: var(--sp-12, 12rpx); }
 .fw-button { box-sizing: border-box; margin: 0; min-height: 80rpx; line-height: 80rpx; padding: 0 var(--sp-24, 24rpx); border-radius: var(--radius-button, 12rpx); font-size: var(--fs-28, 28rpx); font-weight: 600; background: $primary-soft; color: $primary; }
 .fw-button::after { border: 0; }
 .fw-button.primary { background: $primary; color: $surface; }
@@ -31,7 +34,8 @@
 .fw-label { display: block; font-size: var(--fs-24, 24rpx); color: $muted; margin-bottom: 6rpx; }
 .fw-input, .fw-textarea { box-sizing: border-box; width: 100%; font-size: var(--fs-28, 28rpx); min-height: 80rpx; padding: var(--sp-12, 12rpx) var(--sp-16, 16rpx); background: $canvas; border: 1px solid transparent; border-radius: var(--radius-button, 12rpx); line-height: 1.45; }
 .fw-field.warn .fw-input, .fw-field.warn .fw-textarea { border-color: $warning; background: mix($warning, $surface, 5%); }
-.fw-field-grid { display: flex; flex-wrap: wrap; gap: var(--sp-12, 12rpx); }
+.fw-field-grid { display: flex; flex-wrap: wrap; margin: 0 -6rpx -12rpx; }
+.fw-field-grid .fw-field { margin-left: 6rpx; margin-right: 6rpx; margin-bottom: calc(var(--sp-12, 12rpx) + var(--sp-16, 16rpx)); }
 .fw-field-grid .fw-field { flex: 1 1 216rpx; min-width: 0; }
 .fw-notice { border-radius: var(--radius-button, 12rpx); padding: 14rpx 18rpx; font-size: 26rpx; line-height: 1.5; background: $primary-soft; color: $primary; margin-bottom: var(--sp-12, 12rpx); overflow-wrap: anywhere; }
 .fw-notice.warning { color: $warning; background: mix($warning, $surface, 10%); }
@@ -39,9 +43,9 @@
 .fw-empty { padding: 48rpx var(--sp-24, 24rpx); text-align: center; }
 .fw-empty-title { display: block; font-size: var(--fs-28, 28rpx); font-weight: 600; margin-bottom: var(--sp-12, 12rpx); }
 .fw-empty .fw-button { margin: var(--sp-20, 20rpx) auto 0; display: inline-block; }
-.fw-search { display: flex; align-items: center; gap: var(--sp-12, 12rpx); background: $surface; border-radius: var(--radius-button, 12rpx); padding: 2rpx 14rpx; margin-bottom: var(--sp-12, 12rpx); border: 1px solid $line; }
+.fw-search { display: flex; align-items: center; background: $surface; border-radius: var(--radius-button, 12rpx); padding: 2rpx 14rpx; margin-bottom: var(--sp-12, 12rpx); border: 1px solid $line; }
 .fw-search input { min-width: 0; flex: 1; height: 68rpx; font-size: 27rpx; }
-.fw-search-clear { color: $muted; font-size: var(--fs-24, 24rpx); padding: 14rpx 0 14rpx var(--sp-12, 12rpx); }
+.fw-search-clear { margin-left: var(--sp-12, 12rpx); color: $muted; font-size: var(--fs-24, 24rpx); padding: 14rpx 0 14rpx var(--sp-12, 12rpx); }
 .fw-footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: var(--sp-12, 12rpx) var(--sp-24, 24rpx) calc(var(--sp-12, 12rpx) + env(safe-area-inset-bottom)); background: $surface; border-top: 1px solid $line; }
 .fw-footer .fw-actions { flex-wrap: nowrap; }
 .fw-footer .fw-button { flex: 1; min-width: 0; }

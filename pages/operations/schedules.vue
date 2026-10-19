@@ -10,8 +10,8 @@
                 </view>
                 <view class="cal-actions">
                     <button class="cal-none" :disabled="loading" @tap="goCurrent">{{ mode === 'week' ? '本周' : '本月' }}</button>
-                    <button class="cal-nav" :disabled="loading" @tap.stop="prevPeriod" aria-label="上一周期">‹</button>
-                    <button class="cal-nav" :disabled="loading" @tap.stop="nextPeriod" aria-label="下一周期">›</button>
+                    <button class="cal-nav" :disabled="loading" @tap.stop="prevPeriod" aria-label="上一周期"><uni-icons type="back" size="16" color="#008577"></uni-icons></button>
+                    <button class="cal-nav" :disabled="loading" @tap.stop="nextPeriod" aria-label="下一周期"><uni-icons type="forward" size="16" color="#008577"></uni-icons></button>
                 </view>
             </view>
             <text class="cal-title">{{ periodTitle }}</text>
@@ -50,14 +50,14 @@
         </view>
 
         <view class="fw-card plan-card">
-            <view class="fw-heading"><text class="fw-heading-title">当日安排</text><text class="fw-badge">登录隔离</text></view>
+            <view class="fw-heading"><text class="fw-heading-title">当日安排</text><text class="fw-badge">本人范围</text></view>
             <text class="op-meta">{{ selectedDateText }} · 只显示本人或有权限范围内的排班。</text>
             <view class="filter-row">
                 <picker :range="processNames" :value="processIndex" :disabled="loadingDay" @change="changeProcess">
-                    <view class="fw-button secondary filter-button">{{ processNames[processIndex] }} ▾</view>
+                    <view class="fw-button secondary filter-button">{{ processNames[processIndex] }}<view class="filter-caret"><uni-icons type="bottom" size="10" color="#77827D"></uni-icons></view></view>
                 </picker>
                 <picker :range="shiftNames" :value="shiftIndex" :disabled="loadingDay" @change="changeShift">
-                    <view class="fw-button secondary filter-button">{{ shiftNames[shiftIndex] }} ▾</view>
+                    <view class="fw-button secondary filter-button">{{ shiftNames[shiftIndex] }}<view class="filter-caret"><uni-icons type="bottom" size="10" color="#77827D"></uni-icons></view></view>
                 </picker>
             </view>
             <view class="chips">
@@ -92,14 +92,15 @@
     </view>
 </template>
 <script>
-import { callOperations, operationsPage, loadOperations, operationDate } from '@/utils/operations-api.js'
+import { callOperations, operationsPage, loadOperations, operationDate, loadBootstrap } from '@/utils/operations-api.js'
+import { displayBatchNo } from '@/utils/batch-display.js'
 
+// 月历 7 列宽度见 style：calc((100% - 42rpx) / 7)，容器负边距补偿第 7 个 margin
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 
-/** 排班页展示规则：只显示 11 位、同时含字母和数字的批号；带后缀/长度不符的一律不展示（比 BATCH_PATTERN 更严）。 */
-const DISPLAY_BATCH_PATTERN = /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11}$/
-
 function pad(value) { return String(value).padStart(2, '0') }
+/** 班次短名：去掉「（8小时）」这类说明后缀，避免左列批号副标题被截断。 */
+function shortShiftName(name) { return String(name || '').replace(/[（(].*$/, '') }
 function keyOf(date) { return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) }
 function dateOf(key) { const [year, month, day] = key.split('-').map(Number); return new Date(year, month - 1, day) }
 function addDays(key, days) { const date = dateOf(key); date.setDate(date.getDate() + days); return keyOf(date) }
@@ -186,10 +187,10 @@ export default {
             const batches = new Map()
             for (const group of this.filteredGroups) {
                 for (const raw of group.batchNos || []) {
-                    const batchNo = String(raw || '').trim().toUpperCase()
-                    if (!DISPLAY_BATCH_PATTERN.test(batchNo)) continue
+                    const batchNo = displayBatchNo(raw)
+                    if (!batchNo) continue
                     if (!batches.has(batchNo)) batches.set(batchNo, { batchNo, details: new Set() })
-                    batches.get(batchNo).details.add([group.processName, group.shiftName].filter(Boolean).join(' · '))
+                    batches.get(batchNo).details.add([group.processName, shortShiftName(group.shiftName)].filter(Boolean).join(' · '))
                 }
             }
             return [...batches.values()].sort((left, right) => left.batchNo.localeCompare(right.batchNo)).map(item => ({ batchNo: item.batchNo, detail: [...item.details].filter(Boolean).join('；') || '点击查看批次追溯' }))
@@ -218,10 +219,11 @@ export default {
             const range = this.mode === 'week'
                 ? { dateFrom: this.weekStart, dateTo: addDays(this.weekStart, 6) }
                 : { month: monthOf(this.selectedDate) }
-            return loadOperations(this, () => Promise.all([
-                callOperations('bootstrap'),
-                callOperations('scheduleCalendar', { ...range, date: this.selectedDate })
-            ]), ([base, calendar]) => {
+            return loadOperations(this, async () => {
+                const base = await loadBootstrap()
+                const calendar = await callOperations('scheduleCalendar', { ...range, date: this.selectedDate })
+                return [base, calendar]
+            }, ([base, calendar]) => {
                 this.catalogs = (base && base.catalogs) || {}
                 this.processIndex = Math.min(this.processIndex, this.processNames.length - 1)
                 this.shiftIndex = Math.min(this.shiftIndex, this.shiftNames.length - 1)
@@ -248,7 +250,7 @@ export default {
         },
         shiftLabel(dayInfo) {
             if (!dayInfo || !dayInfo.mine || dayInfo.mine.kind !== 'work') return ''
-            const name = String(dayInfo.mine.shiftName || '').replace(/[（(].*$/, '')
+            const name = shortShiftName(dayInfo.mine.shiftName)
             if (/夜/.test(name)) return '夜'
             if (/早/.test(name)) return '早'
             if (/中/.test(name)) return '中'
@@ -303,21 +305,22 @@ export default {
 @import '@/styles/operations.scss';
 
 .cal-card { padding: 16rpx 20rpx; }
-.cal-top { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; flex-wrap: wrap; }
+.cal-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .cal-segmented { display: flex; padding: 4rpx; border-radius: 16rpx; background: $canvas; }
 .cal-seg { margin: 0; padding: 0 16rpx; min-height: 56rpx; line-height: 56rpx; font-size: 26rpx; border-radius: 12rpx; background: transparent; color: $muted; }
 .cal-seg::after { border: 0; }
 .cal-seg.active { background: $surface; color: $primary; font-weight: 600; }
-.cal-actions { display: flex; align-items: center; gap: 6rpx; }
+.cal-actions { display: flex; align-items: center; margin-left: 12rpx; }
+.cal-actions .cal-none, .cal-actions .cal-nav { margin-right: 6rpx; }
 .cal-none { margin: 0; padding: 0 12rpx; min-height: 56rpx; line-height: 56rpx; font-size: 24rpx; border-radius: 12rpx; background: $canvas; color: $primary; }
 .cal-none::after { border: 0; }
-.cal-nav { margin: 0; padding: 0; width: 56rpx; height: 56rpx; line-height: 56rpx; text-align: center; border-radius: 12rpx; background: $canvas; color: $primary; font-size: 32rpx; }
+.cal-nav { margin: 0; padding: 0; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; border-radius: 12rpx; background: $canvas; }
 .cal-nav::after { border: 0; }
 .cal-title { display: block; font-size: 30rpx; font-weight: 700; margin: 12rpx 0 12rpx; }
-.cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; margin-bottom: 6rpx; }
-.cal-weekday { text-align: center; color: $muted; font-size: 22rpx; }
-.week-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; }
-.week-cell { position: relative; box-sizing: border-box; min-height: 108rpx; padding: 10rpx 4rpx; border-radius: 12rpx; border: 1rpx solid $line; background: $surface; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+.cal-week { display: flex; margin-right: -6rpx; margin-bottom: 6rpx; }
+.cal-weekday { flex: 1 1 0; min-width: 0; margin-right: 6rpx; text-align: center; color: $muted; font-size: 22rpx; }
+.week-row { display: flex; margin-right: -6rpx; }
+.week-cell { flex: 1 1 0; min-width: 0; margin-right: 6rpx; position: relative; box-sizing: border-box; min-height: 108rpx; padding: 10rpx 4rpx; border-radius: 12rpx; border: 1rpx solid $line; background: $surface; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
 .week-cell.off { background: $canvas; }
 .week-cell.today { border-color: $primary; }
 .week-cell.selected { background: $primary-soft; border-color: $primary; }
@@ -325,8 +328,9 @@ export default {
 .cell-shift { margin-top: 6rpx; font-size: 24rpx; font-weight: 600; color: $primary; line-height: 1.3; }
 .cell-dot { width: 14rpx; height: 14rpx; margin-top: 8rpx; border-radius: 50%; background: $muted; }
 .cell-dot.leave { background: $warning; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; }
-.cal-cell { position: relative; box-sizing: border-box; min-height: 92rpx; padding: 6rpx 4rpx; border-radius: 12rpx; background: $surface; border: 1rpx solid $line; display: flex; flex-direction: column; align-items: center; }
+.cal-grid { display: flex; flex-wrap: wrap; margin-right: -6rpx; }
+/* 7 列固定：7×(基宽-容器负边距补偿) + 7×margin 恰好等于容器宽，flex-wrap 保证每行 7 个 */
+.cal-cell { flex: 0 0 calc((100% - 42rpx) / 7); min-width: 0; margin-right: 6rpx; margin-bottom: 6rpx; position: relative; box-sizing: border-box; min-height: 92rpx; padding: 6rpx 4rpx; border-radius: 12rpx; background: $surface; border: 1rpx solid $line; display: flex; flex-direction: column; align-items: center; }
 .cal-cell.outside { opacity: .35; }
 .cal-cell.off { background: $canvas; }
 .cal-cell.today { border-color: $primary; }
@@ -334,24 +338,32 @@ export default {
 .cal-day { font-size: 26rpx; font-weight: 600; line-height: 1.3; }
 .cal-empty { display: block; padding: 12rpx 0 0; text-align: center; }
 .cal-skeleton { padding: 6rpx 0; }
-.cal-skeleton-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6rpx; margin-bottom: 6rpx; }
-.cal-skeleton-cell { height: 92rpx; border-radius: 12rpx; background: $canvas; }
+.cal-skeleton-row { display: flex; margin-right: -6rpx; margin-bottom: 6rpx; }
+.cal-skeleton-cell { flex: 1 1 0; min-width: 0; margin-right: 6rpx; height: 92rpx; border-radius: 12rpx; background: $canvas; }
 .cal-skeleton-note { display: block; text-align: center; padding-top: 12rpx; }
-.cal-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12rpx; padding-top: 8rpx; color: $muted; font-size: 20rpx; }
-.legend-item { display: flex; align-items: center; gap: 4rpx; }
-.legend-dot { display: inline-block; width: 12rpx; height: 12rpx; border-radius: 50%; background: $muted; margin-right: 2rpx; }
+.cal-legend { display: flex; flex-wrap: wrap; align-items: center; padding-top: 8rpx; color: $muted; font-size: 20rpx; }
+.cal-legend .legend-item { margin-right: 12rpx; }
+.legend-item { display: flex; align-items: center; }
+.legend-dot { display: inline-block; width: 12rpx; height: 12rpx; border-radius: 50%; background: $muted; margin-right: 4rpx; }
 .legend-dot.leave { background: $warning; }
 .plan-card { margin-top: 16rpx; }
-.filter-row { display: flex; flex-wrap: wrap; gap: 12rpx; margin: 12rpx 0; }
-.filter-button { margin: 0; padding: 0 20rpx; min-height: 64rpx; line-height: 64rpx; font-size: 24rpx; }
-.chips { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 12rpx; }
+.filter-row { display: flex; flex-wrap: wrap; margin: 12rpx 0; }
+.filter-row .filter-button { margin-right: 12rpx; }
+.filter-button { margin: 0; padding: 0 20rpx; min-height: 64rpx; line-height: 64rpx; font-size: 24rpx; display: flex; align-items: center; }
+.filter-caret { display: flex; align-items: center; margin-left: 4rpx; }
+.chips { display: flex; flex-wrap: wrap; margin-bottom: 12rpx; }
+.chips .chip { margin-right: 12rpx; }
 .chip { display: inline-block; font-size: 22rpx; color: $primary; background: $primary-soft; padding: 6rpx 12rpx; border-radius: 12rpx; }
-.plan-columns { display: grid; grid-template-columns: 40% minmax(0, 1fr); gap: 16rpx; align-items: start; }
+.plan-columns { display: flex; align-items: flex-start; }
+.plan-col-batch { flex: 0 0 40%; max-width: 40%; margin-right: 16rpx; }
+.plan-col-person { flex: 1 1 0; min-width: 0; }
 .plan-col { min-width: 0; }
 .plan-col-person { padding-left: 16rpx; border-left: 1rpx solid $line; }
-.plan-title { display: flex; align-items: center; justify-content: space-between; gap: 8rpx; font-size: 26rpx; font-weight: 700; padding: 12rpx 0; border-bottom: 1rpx solid $line; white-space: nowrap; }
+.plan-title { display: flex; align-items: center; justify-content: space-between; font-size: 26rpx; font-weight: 700; padding: 12rpx 0; border-bottom: 1rpx solid $line; white-space: nowrap; }
+.plan-title .plan-count { margin-left: 8rpx; }
 .plan-count { font-size: 20rpx; font-weight: 400; color: $muted; }
-.plan-row { display: flex; flex-direction: column; gap: 4rpx; padding: 12rpx 0; border-bottom: 1rpx solid $line; min-width: 0; }
+.plan-row { display: flex; flex-direction: column; padding: 12rpx 0; border-bottom: 1rpx solid $line; min-width: 0; }
+.plan-row .plan-meta { margin-top: 4rpx; }
 .plan-row:last-child { border-bottom: 0; }
 .plan-row.me { background: $primary-soft; border-radius: 8rpx; padding-left: 8rpx; padding-right: 8rpx; }
 .plan-code { font-family: monospace; font-size: 24rpx; line-height: 1.35; color: $primary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

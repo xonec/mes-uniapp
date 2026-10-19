@@ -1,9 +1,9 @@
 <template>
   <view class="selection">
     <view class="selection-heading"><text class="selection-title">客户与包装方案</text><text class="selection-badge">{{ loading ? '载入中…' : value.planVersionId ? 'V' + value.planVersion : '按本单录入' }}</text></view>
-    <view v-if="error" class="selection-error">{{ error }}<button :disabled="disabled || loading" @tap="load">重试</button></view>
-    <view class="selection-field"><text>客户 *</text><picker :range="customerOptions" range-key="text" :value="customerIndex" :disabled="disabled || loading" @change="chooseCustomer"><view class="selection-picker"><text>{{ customerOptions[customerIndex].text }}</text><text>›</text></view></picker></view>
-    <view class="selection-field"><text>包装方案</text><picker :range="planOptions" range-key="text" :value="planIndex" :disabled="disabled || loading || !value.customerId" @change="choosePlan"><view class="selection-picker" :class="{ muted: !value.customerId }"><text>{{ value.customerId ? planOptions[planIndex].text : '先选择客户' }}</text><text>›</text></view></picker></view>
+    <view v-if="error" class="selection-error">{{ error }}<button class="selection-retry" :disabled="disabled || loading" @tap="load">重试</button></view>
+    <view class="selection-field"><text class="selection-label">客户 *</text><picker :range="customerOptions" range-key="text" :value="customerIndex" :disabled="disabled || loading" @change="chooseCustomer"><view class="selection-picker"><text class="selection-value">{{ customerOptions[customerIndex].text }}</text><text class="selection-arrow">›</text></view></picker></view>
+    <view class="selection-field"><text class="selection-label">包装方案</text><picker :range="planOptions" range-key="text" :value="planIndex" :disabled="disabled || loading || !value.customerId" @change="choosePlan"><view class="selection-picker" :class="{ muted: !value.customerId }"><text class="selection-value">{{ value.customerId ? planOptions[planIndex].text : '先选择客户' }}</text><text class="selection-arrow">›</text></view></picker></view>
     <view class="selection-note">{{ value.planVersionId ? '已采用该版本的材料和上托要求，请按本次指令单复核。' : '没有可用方案时，可按本次指令单填写材料。' }}</view>
   </view>
 </template>
@@ -77,8 +77,10 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.selection-heading { display: flex; justify-content: space-between; align-items: center; gap: 12rpx; margin-bottom: 20rpx; }.selection-title { font-weight: 700; font-size: 32rpx; }.selection-badge { font-size: 23rpx; color: $primary; background: $primary-soft; padding: 6rpx 12rpx; border-radius: 11.2rpx; }
-.selection-field { margin-bottom: 18rpx; }.selection-field > text { display: block; color: $muted; font-size: 25.6rpx; margin-bottom: 8rpx; }
-.selection-picker { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; background: $canvas; padding: 16rpx; border-radius: 16rpx; font-size: 28.8rpx; min-height: 44.8rpx; }.selection-picker text:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }.selection-picker text:last-child { color: $primary; }.selection-picker.muted { color: $muted; }
-.selection-note { color: $muted; line-height: 1.6; margin-top: 12rpx; font-size: 25.6rpx; }.selection-error { color: $danger; margin-bottom: 16rpx; font-size: 25.6rpx; line-height: 1.6; }.selection-error button { display: inline; margin: 0; padding: 4rpx 12rpx; line-height: 1.6; font-size: 25.6rpx; background: $surface; color: $primary; }.selection-error button::after { border: 0; }
+/* 微信小程序组件 wxss 不允许标签选择器：这里统一用 class，避免样式被整段丢弃 */
+/* 旧版微信 WebView 不支持 flex gap：统一用 margin 保持视觉不变 */
+.selection-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }.selection-title { font-weight: 700; font-size: 32rpx; }.selection-badge { margin-left: 12rpx; font-size: 23rpx; color: $primary; background: $primary-soft; padding: 6rpx 12rpx; border-radius: 11.2rpx; }
+.selection-field { margin-bottom: 18rpx; }.selection-label { display: block; color: $muted; font-size: 25.6rpx; margin-bottom: 8rpx; }
+.selection-picker { display: flex; align-items: center; justify-content: space-between; background: $canvas; padding: 16rpx; border-radius: 16rpx; font-size: 28.8rpx; min-height: 44.8rpx; }.selection-value { flex: 1; min-width: 0; margin-right: 12rpx; overflow-wrap: anywhere; }.selection-arrow { color: $primary; }.selection-picker.muted { color: $muted; }
+.selection-note { color: $muted; line-height: 1.6; margin-top: 12rpx; font-size: 25.6rpx; }.selection-error { color: $danger; margin-bottom: 16rpx; font-size: 25.6rpx; line-height: 1.6; }.selection-retry { display: inline; margin: 0; padding: 4rpx 12rpx; line-height: 1.6; font-size: 25.6rpx; background: $surface; color: $primary; }.selection-retry::after { border: 0; }
 </style>

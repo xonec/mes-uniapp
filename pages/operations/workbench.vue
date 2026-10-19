@@ -8,14 +8,14 @@
             <view class="fw-card">
                 <view class="fw-heading"><text class="fw-heading-title">今日任务</text><text class="fw-link" @tap="go('jobs', true)">全部 ›</text></view>
                 <view class="row-list">
-                    <ListRow v-for="job in taskJobs" :key="job._id" :title="job.productName" :code="job.batchNo" :meta="jobMeta(job)" :badge="states[job.state]" :badge-tone="stateTone(job.state)" @select="openJob(job)" />
+                    <ListRow class="row-list-item" v-for="job in taskJobs" :key="job._id" :title="job.productName" :code="job.batchNo" :meta="jobMeta(job)" :badge="states[job.state]" :badge-tone="stateTone(job.state)" @select="openJob(job)" />
                 </view>
                 <text v-if="!taskJobs.length" class="fw-note">当前范围没有工单，请由车间负责人派工。</text>
             </view>
             <view class="fw-card">
                 <view class="fw-heading"><text class="fw-heading-title">今日排班</text><text class="fw-link" @tap="go('schedules')">全部 ›</text></view>
                 <view class="row-list">
-                    <ListRow v-for="row in shiftRows" :key="row._id" :title="name(catalogs.personnel, row.personId) + ' · ' + (row.post || '岗位待安排')" :meta="scheduleMeta(row)" @select="go('schedules')" />
+                    <ListRow class="row-list-item" v-for="row in shiftRows" :key="row._id" :title="name(catalogs.personnel, row.personId) + ' · ' + (row.post || '岗位待安排')" :meta="scheduleMeta(row)" @select="go('schedules')" />
                 </view>
                 <text v-if="!shiftRows.length" class="fw-note">今日没有排班记录。</text>
             </view>
@@ -23,7 +23,7 @@
                 <view class="fw-heading"><text class="fw-heading-title">快捷入口</text></view>
                 <view class="quick-grid">
                     <view v-for="item in quickLinks" :key="item.key" class="quick-item" @tap="go(item.page, item.tab)">
-                        <text class="quick-icon">{{ item.icon }}</text>
+                        <view class="quick-icon"><uni-icons :type="item.icon" size="16" color="#008577"></uni-icons></view>
                         <text class="quick-label">{{ item.name }}</text>
                     </view>
                 </view>
@@ -32,7 +32,7 @@
     </view>
 </template>
 <script>
-import { callOperations, operationDate, operationsPage, loadOperations, operationName, JOB_STATES } from '@/utils/operations-api.js'
+import { callOperations, operationDate, operationsPage, loadOperations, operationName, JOB_STATES, loadBootstrap } from '@/utils/operations-api.js'
 import PageHead from '@/components/ui/PageHead.vue'
 import MetricStrip from '@/components/ui/MetricStrip.vue'
 import ListRow from '@/components/ui/ListRow.vue'
@@ -49,10 +49,10 @@ export default {
             catalogs: {},
             states: JOB_STATES,
             quickLinks: [
-                { key: 'schedules', name: '排班', icon: '▦', page: 'schedules' },
-                { key: 'handovers', name: '交接班', icon: '⇄', page: 'handovers' },
-                { key: 'exceptions', name: '异常', icon: '!', page: 'exceptions', tab: false },
-                { key: 'reports', name: '报表', icon: '≣', page: 'reports', tab: false }
+                { key: 'schedules', name: '排班', icon: 'calendar', page: 'schedules' },
+                { key: 'handovers', name: '交接班', icon: 'loop', page: 'handovers' },
+                { key: 'exceptions', name: '异常', icon: 'info', page: 'exceptions', tab: false },
+                { key: 'reports', name: '报表', icon: 'bars', page: 'reports', tab: false }
             ]
         }
     },
@@ -72,7 +72,8 @@ export default {
     onShow() { this.today = operationDate(); this.load() },
     onPullDownRefresh() { this.refresh() },
     methods: {
-        load() { return loadOperations(this, () => Promise.all([callOperations('bootstrap'), callOperations('dashboard', { date: this.today })]), ([base, dashboard]) => { this.profile = base.profile; this.catalogs = base.catalogs; this.dashboard = dashboard }) },
+        /** 串行取数：先复用共享 bootstrap，再发主请求，避免同时触发多个冷启动。 */
+        load() { return loadOperations(this, async () => { const base = await loadBootstrap(); const dashboard = await callOperations('dashboard', { date: this.today }); return [base, dashboard] }, ([base, dashboard]) => { this.profile = base.profile; this.catalogs = base.catalogs; this.dashboard = dashboard }) },
         refresh() { this.load().finally(() => uni.stopPullDownRefresh()) },
         clearLoaded() { this.dashboard = null; this.profile = {}; this.catalogs = {} },
         name: operationName,
@@ -99,10 +100,13 @@ export default {
 <style lang="scss" scoped>
 @import '@/styles/operations.scss';
 
-.row-list { display: flex; flex-direction: column; gap: var(--sp-8, 8rpx); }
-.quick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-12, 12rpx); }
-.quick-item { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4, 4rpx); padding: var(--sp-16, 16rpx) var(--sp-8, 8rpx); border-radius: var(--radius-button, 12rpx); background: $canvas; }
+.quick-grid { display: flex; margin-right: -12rpx; }
+.quick-item { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; margin-right: 12rpx; padding: var(--sp-16, 16rpx) var(--sp-8, 8rpx); border-radius: var(--radius-button, 12rpx); background: $canvas; }
 .quick-item:active { background: $primary-soft; }
-.quick-icon { color: $primary; font-size: var(--fs-32, 32rpx); line-height: 1.1; }
-.quick-label { color: $ink; font-size: var(--fs-24, 24rpx); line-height: 1.3; }
+.quick-icon { display: flex; align-items: center; justify-content: center; height: 36rpx; }
+.quick-label { margin-top: 4rpx; color: $ink; font-size: var(--fs-24, 24rpx); line-height: 1.3; }
+
+.row-list { display: flex; flex-direction: column; }
+.row-list-item + .row-list-item { margin-top: var(--sp-8, 8rpx); }
+
 </style>

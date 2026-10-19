@@ -21,8 +21,8 @@
                     <text v-else-if="c.key==='pallet'" class="chip">{{ palletPage }}</text>
                 </view>
                 <view class="card-tools">
-                    <text class="drag-hint">≡</text>
-                    <text class="collapse-btn" @tap.stop="toggleCard(c.key)">{{ c.collapsed ? '▸' : '▾' }}</text>
+                    <view class="drag-hint"><uni-icons type="bars" size="16" color="#77827D"></uni-icons></view>
+                    <view class="collapse-btn" @tap.stop="toggleCard(c.key)"><uni-icons :type="c.collapsed ? 'right' : 'bottom'" size="12" color="#008577"></uni-icons></view>
                 </view>
             </view>
             <view v-show="!c.collapsed" class="card-body">
@@ -637,9 +637,17 @@ export default {
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
 .page { box-sizing: border-box; padding: 20rpx 20rpx calc(176rpx + env(safe-area-inset-bottom)); color: $ink; }
-.work-header { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 0 0 20rpx; }.work-header .fw-subtitle { font-size: 24rpx; line-height: 1.5; margin-top: 0; }.share-button { font-size: 24rpx; padding: 0 16rpx; flex-shrink: 0; margin-top: 4rpx; }
-.work-entries { display: flex; gap: 14rpx; margin-bottom: 20rpx; }.work-entries button { flex: 1; min-width: 0; text-align: left; padding: 20rpx; margin: 0; background: $surface; border-radius: 24rpx; line-height: 1.5; }.work-entries button::after { border: 0; }.entry-label { display: block; font-size: 28.8rpx; font-weight: 600; color: $primary; }.entry-note { display: block; font-size: 23rpx; color: $muted; margin-top: 8rpx; }
-.order-overview { background: $surface; padding: 20rpx; border-radius: 24rpx; margin-bottom: 20rpx; border-left: 6.4rpx solid $primary; }.order-overview-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; font-size: 27.2rpx; font-weight: 600; }.order-product { display: block; font-size: 28.8rpx; line-height: 1.6; margin-top: 12rpx; }.order-tags { display: flex; flex-wrap: wrap; gap: 12rpx; font-size: 24rpx; margin-top: 12rpx; color: $muted; }.order-tags .pending { color: $warning; }
-.card { background: $surface; border-radius: 27.2rpx; margin-bottom: 18rpx; overflow: hidden; }.card-head { display: flex; align-items: center; justify-content: space-between; padding: 18rpx 20rpx; border-bottom: 1px solid $line; }.card-head-left { display: flex; flex-wrap: wrap; align-items: center; gap: 12rpx; flex: 1; min-width: 0; }.card-title { font-size: 32rpx; font-weight: 700; }.card-tools { display: flex; align-items: center; gap: 8rpx; margin-left: 6rpx; }.drag-hint { font-size: 35.2rpx; color: $muted; padding: 6rpx; }.collapse-btn { min-width: 57.6rpx; line-height: 57.6rpx; text-align: center; font-size: 27.2rpx; color: $primary; background: $canvas; border-radius: 11.2rpx; }.card-body { padding: 20rpx; }.card.dragging { opacity: .92; transform: scale(1.01); border: 1px solid $primary; }
+.work-header { display: flex; align-items: center; justify-content: space-between;  margin: 0 0 20rpx; }.work-header .fw-subtitle { font-size: 24rpx; line-height: 1.5; margin-top: 0; }.share-button { font-size: 24rpx; padding: 0 16rpx; flex-shrink: 0; margin-top: 4rpx; }
+.work-entries { display: flex;  margin-bottom: 20rpx; }.work-entries button { flex: 1; min-width: 0; text-align: left; padding: 20rpx; margin: 0; background: $surface; border-radius: 24rpx; line-height: 1.5; }.work-entries button::after { border: 0; }.entry-label { display: block; font-size: 28.8rpx; font-weight: 600; color: $primary; }.entry-note { display: block; font-size: 23rpx; color: $muted; margin-top: 8rpx; }
+.order-overview { background: $surface; padding: 20rpx; border-radius: 24rpx; margin-bottom: 20rpx; border-left: 6.4rpx solid $primary; }.order-overview-head { display: flex; align-items: center; justify-content: space-between;  font-size: 27.2rpx; font-weight: 600; }.order-product { display: block; font-size: 28.8rpx; line-height: 1.6; margin-top: 12rpx; }.order-tags { display: flex; flex-wrap: wrap;  font-size: 24rpx; margin-top: 12rpx; color: $muted; }.order-tags .pending { color: $warning; }
+.card { background: $surface; border-radius: 27.2rpx; margin-bottom: 18rpx; overflow: hidden; }.card-head { display: flex; align-items: center; justify-content: space-between; padding: 18rpx 20rpx; border-bottom: 1px solid $line; }.card-head-left { display: flex; flex-wrap: wrap; align-items: center;  flex: 1; min-width: 0; }.card-title { font-size: 32rpx; font-weight: 700; }.card-tools { display: flex; align-items: center;  margin-left: 6rpx; }.drag-hint { display: flex; align-items: center; padding: 6rpx; }.collapse-btn { min-width: 57.6rpx; min-height: 57.6rpx; display: flex; align-items: center; justify-content: center; background: $canvas; border-radius: 11.2rpx; }.card-body { padding: 20rpx; }.card.dragging { opacity: .92; transform: scale(1.01); border: 1px solid $primary; }
 .hint { font-size: 22.4rpx; color: $muted; }.chip { font-size: 22.4rpx; color: $primary; background: $primary-soft; padding: 4rpx 10rpx; border-radius: 9.6rpx; }.chip.active { background: $primary; color: $surface; }.fw-footer .fw-button.secondary { flex: 0 0 30%; padding: 0 6rpx; }
+
+.work-header .share-button { margin-left: 16rpx; }
+.work-entries button + button { margin-left: 14rpx; }
+.order-overview-head .fw-badge { margin-left: 12rpx; }
+.order-tags > text { margin-right: 12rpx; }
+.card-head-left .hint, .card-head-left .chip { margin-left: 12rpx; }
+.card-tools > view + view { margin-left: 8rpx; }
+
 </style>

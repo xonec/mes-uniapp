@@ -8,7 +8,7 @@
             <StateView v-if="!error" state="empty" title="当前筛选没有交接记录" reason="先填写交班单，提交后由接班人确认" />
         </view>
         <view v-else class="row-list">
-            <ListRow v-for="row in list" :key="row._id" :title="titleOf(row)" :meta="metaOf(row)" :preview="row.content" :badge="states[row.status]" :badge-tone="toneOf(row.status)" @select="open(row)" />
+            <ListRow class="row-item" v-for="row in list" :key="row._id" :title="titleOf(row)" :meta="metaOf(row)" :preview="row.content" :badge="states[row.status]" :badge-tone="toneOf(row.status)" @select="open(row)" />
             <StateView v-if="loadingMore" state="more" />
             <text v-else-if="list.length >= total && total" class="fw-note list-end">已全部加载 · 共 {{ total }} 条</text>
         </view>
@@ -78,6 +78,10 @@ export default {
 <style lang="scss" scoped>
 @import '@/styles/operations.scss';
 
-.row-list { display: flex; flex-direction: column; gap: var(--sp-8, 8rpx); }
+.row-list { display: flex; flex-direction: column;  }
 .list-end { display: block; text-align: center; padding: var(--sp-16, 16rpx) 0 var(--sp-8, 8rpx); }
+
+.row-list { display: flex; flex-direction: column; }
+.row-item + .row-item { margin-top: var(--sp-8, 8rpx); }
+
 </style>

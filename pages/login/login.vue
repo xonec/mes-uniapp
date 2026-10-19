@@ -17,7 +17,7 @@
             </view>
             <view class="row">
                 <view class="rm" @tap="remember = !remember">
-                    <view class="cb" :class="{ on: remember }"><text v-if="remember" class="tick">✓</text></view>
+                    <view class="cb" :class="{ on: remember }"><uni-icons v-if="remember" type="checkmarkempty" size="11" color="#FFFFFF"></uni-icons></view>
                     <text class="rm-t">记住账号密码</text>
                 </view>
                 <text class="clear" @tap="clearSaved">清空</text>
@@ -153,6 +153,9 @@ export default {
 .login-page { box-sizing: border-box; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: $canvas; padding: calc(var(--status-bar-height) + 40rpx) 24rpx calc(40rpx + env(safe-area-inset-bottom)); }.login-box { box-sizing: border-box; width: 100%; max-width: 864rpx; background: $surface; border-radius: 32rpx; padding: 40rpx 28rpx; border-top: 9.6rpx solid $primary; }
 .logo { margin-bottom: 32rpx; }.logo-mark { display: inline-block; color: $primary; background: $primary-soft; padding: 8rpx 14rpx; border-radius: 16rpx; font-size: 24rpx; font-weight: 700; letter-spacing: 2.6rpx; margin-bottom: 20rpx; }.logo-t { display: block; font-size: 51.2rpx; font-weight: 700; color: $ink; }.logo-s { display: block; margin-top: 12rpx; font-size: 25rpx; line-height: 1.6; color: $muted; }
 .field { display: flex; align-items: center; background: $canvas; border-radius: 19.2rpx; padding: 0 16rpx; min-height: 102.4rpx; margin-bottom: 16rpx; }.lbl { width: 80rpx; font-size: 27.2rpx; color: $muted; flex-shrink: 0; }.inp { flex: 1; min-width: 0; height: 102.4rpx; font-size: 30.4rpx; background: transparent; }.eye { font-size: 24rpx; color: $primary; padding: 12rpx 0 12rpx 12rpx; flex-shrink: 0; }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; margin: 4rpx 0 12rpx; }.rm { display: flex; align-items: center; padding: 12rpx 0; }.cb { width: 35.2rpx; height: 35.2rpx; border-radius: 8rpx; border: 1px solid $line; display: flex; align-items: center; justify-content: center; margin-right: 12rpx; box-sizing: border-box; }.cb.on { background: $primary; border-color: $primary; }.tick { font-size: 25.6rpx; color: $surface; line-height: 1; }.rm-t { font-size: 25.6rpx; color: $muted; }.clear { font-size: 25.6rpx; color: $muted; padding: 12rpx 0; }
+.row { display: flex; align-items: center; justify-content: space-between;  margin: 4rpx 0 12rpx; }.rm { display: flex; align-items: center; padding: 12rpx 0; }.cb { width: 35.2rpx; height: 35.2rpx; border-radius: 8rpx; border: 1px solid $line; display: flex; align-items: center; justify-content: center; margin-right: 12rpx; box-sizing: border-box; }.cb.on { background: $primary; border-color: $primary; }.rm-t { font-size: 25.6rpx; color: $muted; }.clear { font-size: 25.6rpx; color: $muted; padding: 12rpx 0; }
 .login-btn { line-height: 96rpx; border-radius: 19.2rpx; background: $primary; color: $surface; font-size: 32rpx; font-weight: 700; margin-top: 12rpx; }.login-btn::after { border: 0; }.login-btn[disabled] { opacity: .6; }.err { display: block; margin-top: 20rpx; font-size: 27.2rpx; color: $danger; line-height: 1.6; }
+
+.row .clear { margin-left: 12rpx; }
+
 </style>

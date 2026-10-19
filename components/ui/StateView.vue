@@ -37,17 +37,21 @@ export default {
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
 
-.state-skeleton { display: flex; flex-direction: column; gap: var(--sp-12, 12rpx); }
-.state-skeleton-row { display: flex; flex-direction: column; gap: var(--sp-8, 8rpx); padding: var(--sp-16, 16rpx) var(--sp-20, 20rpx); border-radius: var(--radius-card, 16rpx); background: $surface; }
+/* 旧版微信 WebView 不支持 flex gap：统一用 margin 保持视觉不变 */
+.state-skeleton { display: flex; flex-direction: column; }
+.state-skeleton-row + .state-skeleton-row { margin-top: var(--sp-12, 12rpx); }
+.state-skeleton-row { display: flex; flex-direction: column; padding: var(--sp-16, 16rpx) var(--sp-20, 20rpx); border-radius: var(--radius-card, 16rpx); background: $surface; }
+.state-skeleton-row .state-sk + .state-sk { margin-top: var(--sp-8, 8rpx); }
 .state-sk { height: var(--fs-24, 24rpx); border-radius: var(--radius-badge, 8rpx); background: $line; }
 .state-sk.w30 { width: 30%; }
 .state-sk.w45 { width: 45%; }
 .state-sk.w70 { width: 70%; }
-.state-empty { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4, 4rpx); padding: 48rpx var(--sp-24, 24rpx); background: $surface; border-radius: var(--radius-card, 16rpx); }
+.state-empty { display: flex; flex-direction: column; align-items: center; padding: 48rpx var(--sp-24, 24rpx); background: $surface; border-radius: var(--radius-card, 16rpx); }
 .state-empty-icon { width: 80rpx; height: 80rpx; margin-bottom: var(--sp-8, 8rpx); border-radius: 50%; background: $canvas; color: $muted; font-size: var(--fs-32, 32rpx); line-height: 80rpx; text-align: center; }
-.state-empty-title { font-size: var(--fs-28, 28rpx); font-weight: 600; color: $ink; }
-.state-empty-reason { font-size: var(--fs-24, 24rpx); color: $muted; line-height: 1.5; text-align: center; }
-.state-more { display: flex; align-items: center; justify-content: center; gap: var(--sp-8, 8rpx); padding: var(--sp-20, 20rpx) 0 var(--sp-8, 8rpx); }
+.state-empty-title { margin-top: var(--sp-4, 4rpx); font-size: var(--fs-28, 28rpx); font-weight: 600; color: $ink; }
+.state-empty-reason { margin-top: var(--sp-4, 4rpx); font-size: var(--fs-24, 24rpx); color: $muted; line-height: 1.5; text-align: center; }
+.state-more { display: flex; align-items: center; justify-content: center; padding: var(--sp-20, 20rpx) 0 var(--sp-8, 8rpx); }
+.state-more-dot + .state-more-dot { margin-left: var(--sp-8, 8rpx); }
 .state-more-dot { width: 8rpx; height: 8rpx; border-radius: 50%; background: $muted; opacity: .55; }
-.state-more-text { margin-left: var(--sp-4, 4rpx); font-size: var(--fs-24, 24rpx); color: $muted; }
+.state-more-text { margin-left: var(--sp-12, 12rpx); font-size: var(--fs-24, 24rpx); color: $muted; }
 </style>

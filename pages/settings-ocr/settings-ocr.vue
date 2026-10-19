@@ -296,7 +296,7 @@ export default {
 .card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 12rpx; }
 .tip { font-size: 22rpx; color: #77827D; line-height: 1.5; margin-top: 6rpx; }
 .noauth { font-size: 26rpx; color: #D9534F; text-align: center; padding: 20rpx 0; }
-.presets { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.presets { display: flex; flex-wrap: wrap;  }
 .preset { padding: 12rpx 20rpx; border-radius: 12rpx; background: #F4F7F6; font-size: 24rpx; color: #4a554f; border: 1rpx solid #E3E8E5; }
 .preset.active { background: #008577; color: #fff; border-color: #008577; }
 .preset.disabled { pointer-events: none; opacity: 0.5; }
@@ -309,4 +309,8 @@ export default {
 .btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #EEF3F1; color: #1f2622; }
 .btn.primary { background: #008577; color: #fff; font-weight: 700; }
 .btn[disabled] { opacity: 0.5; }
+
+.presets { display: flex; flex-wrap: wrap; margin: 0 -6rpx -12rpx; }
+.preset { margin: 0 6rpx 12rpx; }
+
 </style>

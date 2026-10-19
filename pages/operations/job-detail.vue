@@ -16,7 +16,7 @@
 <script>
 import OpsSelect from '@/components/operations/OpsSelect.vue'
 import { getUser } from '@/utils/auth.js'
-import { callOperations, operationsPage, loadOperations, operationDate, operationRequest, openJobCalculation, operationName, JOB_STATES, OPERATION_UNITS, EVENT_NAMES } from '@/utils/operations-api.js'
+import { callOperations, operationsPage, loadOperations, operationDate, operationRequest, openJobCalculation, operationName, JOB_STATES, OPERATION_UNITS, EVENT_NAMES, loadBootstrap } from '@/utils/operations-api.js'
 export default {
     components: { OpsSelect }, mixins: [operationsPage],
     data() { return { id: '', job: null, events: [], catalogs: {}, profile: {}, states: JOB_STATES, units: OPERATION_UNITS, eventNames: EVENT_NAMES, start: { equipmentId: '', mouldId: '', parameters: '', note: '' }, report: { date: operationDate(), shiftId: '', goodQty: '', defectQty: '', workHours: '', note: '' }, inbound: { qty: '', documentNo: '', note: '' }, stateNote: '' } },
@@ -29,7 +29,8 @@ export default {
     },
     onLoad(options) { this.id = options.id || '' }, onShow() { if (this.id) this.load(); else this.error = '缺少工单编号，请返回工单列表' },
     methods: {
-        load() { return loadOperations(this, () => Promise.all([callOperations('bootstrap'), callOperations('getJob', { id: this.id })]), ([base, result]) => { this.profile = base.profile; this.catalogs = base.catalogs; this.job = result.job; this.events = result.events || [] }) },
+        /** 串行取数：先复用共享 bootstrap，再取工单，避免并发冷启动。 */
+        load() { return loadOperations(this, async () => { const base = await loadBootstrap(); const result = await callOperations('getJob', { id: this.id }); return [base, result] }, ([base, result]) => { this.profile = base.profile; this.catalogs = base.catalogs; this.job = result.job; this.events = result.events || [] }) },
         clearLoaded() { this.job = null; this.events = []; this.catalogs = {}; this.profile = {} }, name: operationName,
         time(value) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—' },
         calculate() { openJobCalculation(this.job) },

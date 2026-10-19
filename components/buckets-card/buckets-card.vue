@@ -54,17 +54,23 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.bucket-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }.bucket { display: flex; align-items: center; gap: 12rpx; background: $canvas; padding: 12rpx 12rpx; border-radius: 17.6rpx; }.blbl { flex-shrink: 0; font-size: 25.6rpx; color: $primary; font-weight: 600; }.binp { flex: 1; min-width: 0; height: 73.6rpx; font-size: 32rpx; text-align: right; background: transparent; }.binp[disabled] { color: $muted; }
-.bucket-tail { margin-top: 16rpx; padding-top: 16rpx; border-top: 1px solid $line; }.data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }.data-cell { background: $canvas; border-radius: 16rpx; padding: 14rpx; min-height: 102.4rpx; display: flex; flex-direction: column; justify-content: center; }.dlbl { font-size: 24rpx; color: $muted; }.dinp { margin-top: 6rpx; font-size: 30.4rpx; background: transparent; height: 70.4rpx; }
+.bucket-grid { display: flex; flex-wrap: wrap; margin: 0 -6rpx; }
+.bucket-grid .bucket { flex: 0 0 calc(50% - 12rpx); margin: 0 6rpx 12rpx; }.bucket { box-sizing: border-box; display: flex; align-items: center; background: $canvas; padding: 12rpx 12rpx; border-radius: 17.6rpx; }
+.bucket .binp { margin-left: 12rpx; }.blbl { flex-shrink: 0; font-size: 25.6rpx; color: $primary; font-weight: 600; }.binp { flex: 1; min-width: 0; height: 73.6rpx; font-size: 32rpx; text-align: right; background: transparent; }.binp[disabled] { color: $muted; }
+.bucket-tail { margin-top: 16rpx; padding-top: 16rpx; border-top: 1px solid $line; }.data-grid { display: flex; flex-wrap: wrap; margin: 0 -6rpx; }
+.data-grid .data-cell { flex: 0 0 calc(50% - 12rpx); margin: 0 6rpx 12rpx; }.data-cell { box-sizing: border-box; background: $canvas; border-radius: 16rpx; padding: 14rpx; min-height: 102.4rpx; display: flex; flex-direction: column; justify-content: center; }.dlbl { font-size: 24rpx; color: $muted; }.dinp { margin-top: 6rpx; font-size: 30.4rpx; background: transparent; height: 70.4rpx; }
 // 安卓 App 恢复原有五列分桶及三列参数布局。
 .legacy-layout {
-    .bucket-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10rpx; }
-    .bucket { flex-direction: column; align-items: stretch; gap: 0; min-width: 0; padding: 0; border-radius: 0; background: transparent; }
+    .bucket-grid { display: flex; flex-wrap: wrap; margin: 0 -5rpx; }
+    .bucket-grid .bucket { flex: 0 0 calc(20% - 10rpx); margin: 0 5rpx 10rpx; }
+    .bucket .binp { margin-left: 0; }
+    .bucket { flex-direction: column; align-items: stretch; min-width: 0; padding: 0; border-radius: 0; background: transparent; }
     .blbl { margin-bottom: 4rpx; font-size: 20rpx; font-weight: normal; color: $muted; }
     .binp { flex: none; width: 100%; box-sizing: border-box; height: 60rpx; border: 1rpx solid $line; border-radius: 10rpx; font-size: 26rpx; text-align: center; background: $surface; }
     .binp[disabled] { background: $canvas; color: $muted; }
     .bucket-tail { margin-top: 12rpx; padding-top: 0; border-top: 0; }
-    .data-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12rpx; }
+    .data-grid { display: flex; flex-wrap: wrap; margin: 0 -6rpx; }
+    .data-grid .data-cell { flex: 0 0 calc(33.333% - 12rpx); margin: 0 6rpx 12rpx; }
     .data-cell { min-width: 0; min-height: 88rpx; padding: 10rpx; border-radius: 12rpx; }
     .dlbl { font-size: 20rpx; }
     .dinp { margin-top: 4rpx; height: 40rpx; font-size: 26rpx; }

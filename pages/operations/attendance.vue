@@ -2,11 +2,11 @@
     <view class="fw-page op-page att-page">
         <view class="att-head">
             <view class="att-period">
-                <button class="att-arrow" :disabled="busy" @tap="prevPeriod" aria-label="上一周期">‹</button>
+                <button class="att-arrow" :disabled="busy" @tap="prevPeriod" aria-label="上一周期"><uni-icons type="back" size="16" color="#008577"></uni-icons></button>
                 <picker mode="date" :fields="periodType" :value="calendarValue" :disabled="busy" @change="changePeriod">
-                    <view class="att-period-value">{{ periodLabel }} ▾</view>
+                    <view class="att-period-value">{{ periodLabel }}<view class="period-caret"><uni-icons type="bottom" size="10" color="#77827D"></uni-icons></view></view>
                 </picker>
-                <button class="att-arrow" :disabled="busy" @tap="nextPeriod" aria-label="下一周期">›</button>
+                <button class="att-arrow" :disabled="busy" @tap="nextPeriod" aria-label="下一周期"><uni-icons type="forward" size="16" color="#008577"></uni-icons></button>
             </view>
             <view class="att-head-right">
                 <view class="att-seg">
@@ -80,7 +80,7 @@
     </view>
 </template>
 <script>
-import { callOperations, operationsPage, loadOperations, operationDate } from '@/utils/operations-api.js'
+import { callOperations, operationsPage, loadOperations, operationDate, loadBootstrap } from '@/utils/operations-api.js'
 import StateView from '@/components/ui/StateView.vue'
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
@@ -154,10 +154,12 @@ export default {
         /** 只读页面：列表与概览都只取数，不提供任何写操作。 */
         load() {
             const query = { periodType: this.periodType, period: this.period }
-            return loadOperations(this, () => Promise.all([
-                callOperations('myAttendance', { ...query, page: this.page, pageSize: this.pageSize }),
-                callOperations('attendanceSummary', { ...query, own: true })
-            ]), ([result, summary]) => {
+            return loadOperations(this, async () => {
+                await loadBootstrap()
+                const result = await callOperations('myAttendance', { ...query, page: this.page, pageSize: this.pageSize })
+                const summary = await callOperations('attendanceSummary', { ...query, own: true })
+                return [result, summary]
+            }, ([result, summary]) => {
                 this.rows = result.list || []
                 this.total = result.total || 0
                 this.summary = summary || null
@@ -210,12 +212,14 @@ export default {
 @import '@/styles/operations.scss';
 
 .att-page { padding-bottom: calc(32rpx + env(safe-area-inset-bottom)); }
-.att-head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; margin-bottom: 20rpx; }
-.att-period { display: flex; align-items: center; gap: 6rpx; min-width: 0; }
-.att-arrow { margin: 0; padding: 0; width: 56rpx; height: 56rpx; line-height: 56rpx; text-align: center; border-radius: 12rpx; background: $canvas; color: $primary; font-size: 32rpx; }
+.att-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20rpx; }
+.att-period { display: flex; align-items: center; min-width: 0; }
+.att-arrow { margin: 0 6rpx 0 0; padding: 0; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; border-radius: 12rpx; background: $canvas; }
 .att-arrow::after { border: 0; }
-.att-period-value { font-size: 30rpx; font-weight: 700; padding: 0 6rpx; }
-.att-head-right { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; }
+.att-period-value { display: flex; align-items: center; font-size: 30rpx; font-weight: 700; padding: 0 6rpx; }
+.period-caret { display: flex; align-items: center; margin-left: 4rpx; }
+.att-head-right { display: flex; align-items: center; flex-shrink: 0; margin-left: 12rpx; }
+.att-seg { margin-right: 12rpx; }
 .att-seg { display: flex; padding: 4rpx; border-radius: 12rpx; background: $canvas; }
 .att-seg-item { margin: 0; padding: 0 12rpx; min-height: 48rpx; line-height: 48rpx; font-size: 24rpx; border-radius: 8rpx; background: transparent; color: $muted; }
 .att-seg-item::after { border: 0; }
@@ -225,40 +229,41 @@ export default {
 .att-help-card { padding: 20rpx 16rpx; margin-bottom: 20rpx; border-radius: 16rpx; background: $primary-soft; }
 .att-help-text { font-size: 24rpx; color: $ink; line-height: 1.6; }
 .att-overview { padding: 16rpx; }
-.att-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12rpx; }
-.att-metric { display: flex; flex-direction: column; align-items: center; gap: 4rpx; }
+.att-metrics { display: flex; margin-right: -12rpx; }
+.att-metric { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; margin-right: 12rpx; }
 .att-metric-value { font-size: 36rpx; font-weight: 700; }
-.att-metric-label { font-size: 22rpx; color: $muted; }
+.att-metric-label { margin-top: 4rpx; font-size: 22rpx; color: $muted; }
 .att-rate { margin-top: 20rpx; }
 .att-rate-head { display: flex; align-items: center; justify-content: space-between; font-size: 24rpx; color: $muted; margin-bottom: 6rpx; }
 .att-rate-value { color: $primary; font-weight: 700; }
 .att-rate-track { height: 12rpx; border-radius: 999rpx; background: $canvas; overflow: hidden; }
 .att-rate-bar { height: 100%; border-radius: 999rpx; background: $primary; }
-.att-processes { margin-top: 12rpx; display: flex; flex-direction: column; gap: 6rpx; }
-.att-process { display: flex; align-items: center; gap: 12rpx; }
+.att-processes { margin-top: 12rpx; margin-bottom: -6rpx; display: flex; flex-direction: column; }
+.att-process { display: flex; align-items: center; margin-bottom: 6rpx; }
 .att-process-name { width: 160rpx; font-size: 22rpx; color: $muted; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.att-process-track { flex: 1; height: 10rpx; border-radius: 999rpx; background: $canvas; overflow: hidden; }
+.att-process-track { flex: 1; height: 10rpx; margin: 0 12rpx; border-radius: 999rpx; background: $canvas; overflow: hidden; }
 .att-process-bar { height: 100%; border-radius: 999rpx; background: $primary; opacity: .7; }
 .att-process-count { width: 48rpx; text-align: right; font-size: 22rpx; color: $muted; }
-.att-conflicts { display: flex; flex-direction: column; gap: 12rpx; margin-bottom: 12rpx; }
-.att-conflict { padding: 20rpx; border-left: 6rpx solid $warning; }
+.att-conflicts { display: flex; flex-direction: column; margin-bottom: 0; }
+.att-conflict { margin-bottom: 12rpx; padding: 20rpx; border-left: 6rpx solid $warning; }
 .att-conflict-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6rpx; }
 .att-conflict-title { font-size: 28rpx; font-weight: 700; }
 .att-conflict-line { display: block; font-size: 24rpx; color: $muted; line-height: 1.5; }
 .att-conflict-note { display: block; font-size: 22rpx; color: $warning; margin-top: 6rpx; }
 .att-day { padding: 20rpx 16rpx; }
-.att-day-head { display: flex; align-items: center; gap: 12rpx; padding-bottom: 12rpx; border-bottom: 1rpx solid $line; }
+.att-day-head { display: flex; align-items: center; padding-bottom: 12rpx; border-bottom: 1rpx solid $line; }
 .att-day-date { font-size: 30rpx; font-weight: 700; }
-.att-day-week { font-size: 22rpx; color: $muted; }
-.att-day-badges { margin-left: auto; display: flex; gap: 6rpx; }
+.att-day-week { margin-left: 12rpx; font-size: 22rpx; color: $muted; }
+.att-day-badges { margin-left: auto; display: flex; }
+.att-day-badges .att-tag + .att-tag, .att-row-badges .att-tag { margin-left: 6rpx; margin-bottom: 6rpx; }
 .att-row { padding: 12rpx 0; border-bottom: 1rpx solid $line; }
 .att-row:last-child { border-bottom: 0; }
 .att-row-main { min-width: 0; }
-.att-row-line { display: flex; align-items: baseline; justify-content: space-between; gap: 12rpx; }
+.att-row-line { display: flex; align-items: baseline; justify-content: space-between; }
 .att-title { font-size: 28rpx; font-weight: 600; }
 .att-hours { flex-shrink: 0; font-size: 26rpx; font-weight: 700; color: $primary; }
 .att-row-meta { display: block; font-size: 22rpx; color: $muted; margin-top: 4rpx; }
-.att-row-badges { display: flex; flex-wrap: wrap; gap: 6rpx; margin-top: 6rpx; }
+.att-row-badges { display: flex; flex-wrap: wrap; margin: 6rpx 0 -6rpx; }
 .att-note { display: block; font-size: 20rpx; color: $muted; line-height: 1.5; margin-top: 6rpx; opacity: .85; }
 .att-tag { display: inline-block; padding: 2rpx 12rpx; border-radius: 8rpx; font-size: 20rpx; background: $canvas; color: $muted; }
 .att-tag.work { background: $primary-soft; color: $primary; }
@@ -266,7 +271,8 @@ export default {
 .att-tag.rest { background: $canvas; color: $muted; }
 .att-tag.warn { background: mix($warning, $surface, 15%); color: $warning; }
 .att-tag.light { background: $canvas; color: $muted; }
-.att-pager { display: flex; align-items: center; justify-content: center; gap: 16rpx; padding: 20rpx 0 6rpx; }
+.att-pager { display: flex; align-items: center; justify-content: center; padding: 20rpx 0 6rpx; }
+.att-pager-text { margin: 0 16rpx; }
 .att-pager-btn { margin: 0; min-height: 64rpx; line-height: 64rpx; padding: 0 16rpx; font-size: 24rpx; border-radius: 12rpx; background: $canvas; color: $primary; }
 .att-pager-btn::after { border: 0; }
 .att-pager-btn[disabled] { color: $muted; opacity: .5; }

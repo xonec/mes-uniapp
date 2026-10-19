@@ -11,7 +11,7 @@
             <StateView v-if="!error" state="empty" title="当前筛选没有工单" reason="换个状态看看，或清除筛选重新加载" />
         </view>
         <view v-else class="job-list">
-            <ListRow v-for="job in list" :key="job._id" :title="job.productName" :code="job.batchNo" :meta="jobMeta(job)" :badge="states[job.state]" :badge-tone="stateTone(job.state)" :progress="progressOf(job)" :progress-text="progressText(job)" :progress-tone="stateTone(job.state)" @select="open(job)" />
+            <ListRow class="job-item" v-for="job in list" :key="job._id" :title="job.productName" :code="job.batchNo" :meta="jobMeta(job)" :badge="states[job.state]" :badge-tone="stateTone(job.state)" :progress="progressOf(job)" :progress-text="progressText(job)" :progress-tone="stateTone(job.state)" @select="open(job)" />
             <StateView v-if="loadingMore" state="more" />
             <text v-else-if="list.length >= total && list.length > pageSize" class="fw-note jobs-end">已全部加载 · 共 {{ total }} 条</text>
         </view>
@@ -84,6 +84,10 @@ export default {
 <style lang="scss" scoped>
 @import '@/styles/operations.scss';
 
-.job-list { display: flex; flex-direction: column; gap: var(--sp-8, 8rpx); }
+.job-list { display: flex; flex-direction: column;  }
 .jobs-end { display: block; text-align: center; padding: var(--sp-16, 16rpx) 0 var(--sp-8, 8rpx); }
+
+.job-list { display: flex; flex-direction: column; }
+.job-item + .job-item { margin-top: var(--sp-8, 8rpx); }
+
 </style>

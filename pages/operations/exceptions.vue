@@ -2,7 +2,7 @@
     <view class="fw-page op-page has-action-bar">
         <view class="exc-head">
             <view class="exc-pending"><text class="exc-pending-num">{{ openCount }}</text><text class="exc-pending-label">待处理异常</text></view>
-            <view class="exc-refresh" aria-label="刷新" @tap="refresh"><text class="exc-glyph">↻</text></view>
+            <view class="exc-refresh" aria-label="刷新" @tap="refresh"><uni-icons type="refresh" size="16" color="#008577"></uni-icons></view>
         </view>
         <view v-if="error && !drawerOpen" class="fw-notice error">{{ error }}</view>
         <StateView v-if="loading && !list.length" state="loading" />
@@ -10,7 +10,7 @@
             <StateView v-if="!error" state="empty" title="当前没有异常记录" reason="生产中发现异常时，从这里登记并跟踪处理" />
         </view>
         <view v-else class="row-list">
-            <ListRow v-for="row in orderedList" :key="row._id" :tag="categoryName(row.category)" :title="row.batchNo || row.jobId" :meta="metaOf(row)" :preview="row.description" :badge="row.status === 'resolved' ? '已处理' : '待处理'" :badge-tone="row.status === 'resolved' ? 'neutral' : 'warning'" @select="openJob(row.jobId)" />
+            <ListRow class="row-item" v-for="row in orderedList" :key="row._id" :tag="categoryName(row.category)" :title="row.batchNo || row.jobId" :meta="metaOf(row)" :preview="row.description" :badge="row.status === 'resolved' ? '已处理' : '待处理'" :badge-tone="row.status === 'resolved' ? 'neutral' : 'warning'" @select="openJob(row.jobId)" />
             <StateView v-if="loadingMore" state="more" />
             <text v-else-if="list.length >= total && total" class="fw-note list-end">已全部加载 · 共 {{ total }} 条</text>
         </view>
@@ -94,10 +94,11 @@ export default {
     onReachBottom() { this.loadMore() },
     methods: {
         load() {
-            return loadOperations(this, () => Promise.all([
-                callOperations('listExceptions', { page: 1, pageSize: this.pageSize }),
-                callOperations('listExceptions', { status: 'open', page: 1, pageSize: 1 })
-            ]), ([result, open]) => {
+            return loadOperations(this, async () => {
+                const result = await callOperations('listExceptions', { page: 1, pageSize: this.pageSize })
+                const open = await callOperations('listExceptions', { status: 'open', page: 1, pageSize: 1 })
+                return [result, open]
+            }, ([result, open]) => {
                 this.list = result.list || []
                 this.total = result.total || 0
                 this.openCount = (open && open.total) || 0
@@ -188,13 +189,12 @@ export default {
 <style lang="scss" scoped>
 @import '@/styles/operations.scss';
 
-.exc-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-12, 12rpx); margin-bottom: var(--sp-12, 12rpx); }
-.exc-pending { display: flex; align-items: baseline; gap: var(--sp-8, 8rpx); }
+.exc-head { display: flex; align-items: center; justify-content: space-between;  margin-bottom: var(--sp-12, 12rpx); }
+.exc-pending { display: flex; align-items: baseline;  }
 .exc-pending-num { color: $warning; font-size: var(--fs-44, 44rpx); font-weight: 700; line-height: 1; }
 .exc-pending-label { color: $muted; font-size: var(--fs-24, 24rpx); }
 .exc-refresh { width: 60rpx; height: 60rpx; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: $surface; }
-.exc-glyph { color: $primary; font-size: var(--fs-30, 30rpx); line-height: 1; }
-.row-list { display: flex; flex-direction: column; gap: var(--sp-8, 8rpx); }
+.row-list { display: flex; flex-direction: column;  }
 .list-end { display: block; text-align: center; padding: var(--sp-16, 16rpx) 0 var(--sp-8, 8rpx); }
 .exc-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 90; display: flex; align-items: flex-end; background: rgba(31, 38, 34, .42); }
 .exc-sheet { box-sizing: border-box; width: 100%; max-height: 86vh; overflow-y: auto; padding: var(--sp-12, 12rpx) var(--sp-24, 24rpx) calc(var(--sp-20, 20rpx) + env(safe-area-inset-bottom)); border-radius: var(--radius-card, 16rpx) var(--radius-card, 16rpx) 0 0; background: $surface; }
@@ -202,13 +202,21 @@ export default {
 .exc-sheet-title { font-size: var(--fs-30, 30rpx); font-weight: 700; }
 .exc-sheet-close { padding: 0 var(--sp-8, 8rpx); color: $muted; font-size: 40rpx; line-height: 1; }
 .exc-error { display: block; margin-bottom: var(--sp-8, 8rpx); color: $danger; font-size: var(--fs-24, 24rpx); line-height: 1.5; }
-.exc-search { display: flex; align-items: center; gap: var(--sp-8, 8rpx); padding: 0 var(--sp-12, 12rpx); border-radius: var(--radius-button, 12rpx); background: $canvas; }
+.exc-search { display: flex; align-items: center;  padding: 0 var(--sp-12, 12rpx); border-radius: var(--radius-button, 12rpx); background: $canvas; }
 .exc-search input { flex: 1; min-width: 0; height: 68rpx; font-size: var(--fs-28, 28rpx); }
 .exc-search-btn { flex-shrink: 0; color: $primary; font-size: var(--fs-24, 24rpx); padding: var(--sp-12, 12rpx) 0 var(--sp-12, 12rpx) var(--sp-8, 8rpx); }
-.exc-choices { display: flex; flex-direction: column; gap: var(--sp-8, 8rpx); margin-bottom: var(--sp-12, 12rpx); }
+.exc-choices { display: flex; flex-direction: column;  margin-bottom: var(--sp-12, 12rpx); }
 .exc-choice { padding: var(--sp-12, 12rpx); border-radius: var(--radius-button, 12rpx); background: $canvas; }
 .exc-choice-title { display: block; font-size: var(--fs-28, 28rpx); font-weight: 600; }
 .exc-choice-meta { display: block; margin-top: 2rpx; color: $muted; font-size: var(--fs-24, 24rpx); }
 .exc-chips { margin: 0; }
 .exc-submit { width: 100%; margin-top: var(--sp-8, 8rpx); }
+
+.exc-head .exc-refresh { margin-left: var(--sp-12, 12rpx); }
+.exc-pending-label { margin-left: var(--sp-8, 8rpx); }
+.row-list { display: flex; flex-direction: column; }
+.row-item + .row-item { margin-top: var(--sp-8, 8rpx); }
+.exc-search-btn { margin-left: var(--sp-8, 8rpx); }
+.exc-choice + .exc-choice { margin-top: var(--sp-8, 8rpx); }
+
 </style>

@@ -1,19 +1,23 @@
 @import '@/styles/field-work.scss';
 .op-page { padding-bottom: calc(40rpx + env(safe-area-inset-bottom)); }
-.op-grid { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 16rpx; }
-.op-grid > view, .op-grid > button { flex: 1 1 40%; min-width: 0; margin: 0; box-sizing: border-box; }
+/* 旧版微信 WebView 不支持 flex/grid gap：用负边距 + 子元素 margin 等价替换 */
+.op-grid { display: flex; flex-wrap: wrap; margin: 0 -6rpx 4rpx; }
+.op-grid > view, .op-grid > button { flex: 1 1 40%; min-width: 0; margin: 0 6rpx 12rpx; box-sizing: border-box; }
 .op-number { display: block; font-size: 44rpx; font-weight: 700; margin-bottom: 4rpx; }
-.op-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 14rpx 0; border-bottom: 1px solid $line; }
+.op-row { display: flex; align-items: center; justify-content: space-between; padding: 14rpx 0; border-bottom: 1px solid $line; }
+.op-row > .fw-badge, .op-row > .fw-link, .op-row > .fw-button, .op-row > .fw-note, .op-row > .op-number, .op-row > .op-meta { margin-left: 16rpx; }
 .op-row:last-child { border-bottom: 0; }
 .op-main { min-width: 0; flex: 1; }
 .op-name { display: block; font-size: 28rpx; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
 .op-code { font-family: monospace; font-size: 26rpx; overflow-wrap: anywhere; }
 .op-meta { display: block; color: $muted; font-size: 24rpx; line-height: 1.5; overflow-wrap: anywhere; }
-.op-toolbar { display: flex; gap: 12rpx; align-items: center; margin-bottom: 16rpx; flex-wrap: wrap; }
+.op-toolbar { display: flex; align-items: center; margin-bottom: 16rpx; flex-wrap: wrap; }
+.op-toolbar > .fw-button + .fw-button { margin-left: 12rpx; }
 .op-toolbar .fw-button { flex: 1; }
 .op-event { border-left: 2px solid $line; padding: 10rpx 0 14rpx 20rpx; margin-left: 8rpx; }
 .op-event .op-name { color: $primary; }
-.op-chips { display: flex; gap: 12rpx; flex-wrap: wrap; margin: 8rpx 0 16rpx; }
+.op-chips { display: flex; flex-wrap: wrap; margin: 8rpx -6rpx 4rpx; }
+.op-chips .op-chip { margin: 0 6rpx 12rpx; }
 .op-chip { padding: 8rpx 16rpx; border-radius: 10rpx; border: 1px solid $line; font-size: 25rpx; }
 .op-chip.selected { background: $primary-soft; border-color: $primary; color: $primary; }
 .op-pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; font-size: 26rpx; }
