@@ -27,7 +27,7 @@ export default {
             catch (error) { this.profileError = '身份确认失败，管理入口暂不可用。' }
             finally { this.checking = false }
         },
-        goAttendance() { uni.navigateTo({ url: '/pages/operations/attendance' }) },
+        goAttendance() { uni.switchTab({ url: '/pages/operations/attendance' }) },
         goChangePassword() { uni.navigateTo({ url: '/pages/change-password/change-password' }) },
         goCalculation() { uni.navigateTo({ url: '/pages/materials/materials' }) },
         goHistory() { uni.navigateTo({ url: '/pages/history/history' }) },

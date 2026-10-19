@@ -22,7 +22,7 @@
 
         <view v-if="error" class="fw-notice error">{{ error }}</view>
 
-        <view class="fw-card att-overview">
+        <view v-if="hasData" class="fw-card att-overview">
             <view class="att-metrics">
                 <view class="att-metric"><text class="att-metric-value">{{ overview.attendanceDays }}</text><text class="att-metric-label">出勤天数</text></view>
                 <view class="att-metric"><text class="att-metric-value">{{ overview.hours }}</text><text class="att-metric-label">总工时</text></view>
@@ -40,7 +40,7 @@
         </view>
 
         <view v-if="conflicts.length" class="att-conflicts">
-            <view v-for="row in conflicts" :key="'conflict:' + row._id" class="fw-card att-conflict">
+            <view v-for="row in conflicts" :key="row._id" class="fw-card att-conflict">
                 <view class="att-conflict-head"><text class="att-conflict-title">{{ row.date }} · 排班已更新</text><text class="att-tag warn">待核对</text></view>
                 <text class="att-conflict-line">新排班：{{ summaryLabel(row.conflict.incoming) }}</text>
                 <text class="att-conflict-line">本人记录：{{ summaryLabel(row.conflict.retained) }}</text>
@@ -48,7 +48,7 @@
             </view>
         </view>
 
-        <view v-if="loading && !rows.length" class="fw-card fw-empty"><text class="fw-empty-title">正在读取考勤…</text></view>
+        <StateView v-if="loading && !rows.length" state="loading" />
         <view v-for="group in dayGroups" :key="group.date" class="fw-card att-day">
             <view class="att-day-head">
                 <text class="att-day-date">{{ group.date }}</text>
@@ -71,7 +71,7 @@
                 </view>
             </view>
         </view>
-        <view v-if="!rows.length && !loading && !error" class="fw-card fw-empty"><text class="fw-empty-title">该周期暂无考勤记录</text></view>
+        <StateView v-if="!rows.length && !loading && !error" state="empty" title="该周期没有考勤记录" reason="本周期还没有排班或考勤记录；如已上班请联系管理员核对" />
         <view v-if="total > pageSize" class="att-pager">
             <button class="att-pager-btn" :disabled="busy || page <= 1" @tap="changePage(-1)">上一页</button>
             <text class="att-pager-text">{{ page }} / {{ Math.ceil(total / pageSize) }}</text>
@@ -81,6 +81,7 @@
 </template>
 <script>
 import { callOperations, operationsPage, loadOperations, operationDate } from '@/utils/operations-api.js'
+import StateView from '@/components/ui/StateView.vue'
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 const STATUS_LABELS = { work: '出勤', rest: '休息', leave: '请假' }
@@ -100,6 +101,7 @@ function shiftMonth(period, delta) {
 }
 
 export default {
+    components: { StateView },
     mixins: [operationsPage],
     data() {
         return {
@@ -143,7 +145,9 @@ export default {
                 processes: processRows.map(item => ({ name: item.name, count: item.count, width: Math.round((Number(item.count) || 0) / max * 100) }))
             }
         },
-        conflicts() { return this.rows.filter(row => row.conflict) }
+        conflicts() { return this.rows.filter(row => row.conflict) },
+        /** 本周期完全没有记录时隐藏全 0 概览，只留空态，避免四个 0 + 空进度条占屏。 */
+        hasData() { const value = this.overview; return !!(this.total || value.attendanceDays || value.hours || value.restDays || value.leaveDays || value.processes.length) }
     },
     onShow() { this.load() },
     methods: {

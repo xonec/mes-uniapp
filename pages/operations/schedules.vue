@@ -294,7 +294,7 @@ export default {
             return (start ? '次日 ' : '当天 ') + row.startTime + '–' + (end ? '次日 ' : '当天 ') + row.endTime
         },
         openTrace(batchNo) { uni.navigateTo({ url: '/pages/operations/trace?batchNo=' + encodeURIComponent(batchNo) }) },
-        goAttendance() { uni.navigateTo({ url: '/pages/operations/attendance' }) },
+        goAttendance() { uni.switchTab({ url: '/pages/operations/attendance' }) },
         clearLoaded() { this.list = []; this.detailTotal = 0 }
     }
 }

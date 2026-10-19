@@ -169,13 +169,17 @@
         {
             "path": "pages/operations/workbench",
             "style": {
-                "navigationBarTitleText": "工作台"
+                "navigationBarTitleText": "工作台",
+                "enablePullDownRefresh": true,
+                "backgroundTextStyle": "dark"
             }
         },
         {
             "path": "pages/operations/jobs",
             "style": {
-                "navigationBarTitleText": "生产工单"
+                "navigationBarTitleText": "生产工单",
+                "enablePullDownRefresh": true,
+                "backgroundTextStyle": "dark"
             }
         },
         {
@@ -248,18 +252,12 @@
             {
                 "pagePath": "pages/operations/jobs",
                 "text": "生产工单",
-                "iconPath": "static/tabbar/history.png",
-                "selectedIconPath": "static/tabbar/history-active.png"
-            },
-            {
-                "pagePath": "pages/operations/schedules",
-                "text": "排班",
                 "iconPath": "static/tabbar/archive.png",
                 "selectedIconPath": "static/tabbar/archive-active.png"
             },
             {
-                "pagePath": "pages/operations/handovers",
-                "text": "交接班",
+                "pagePath": "pages/operations/attendance",
+                "text": "我的考勤",
                 "iconPath": "static/tabbar/history.png",
                 "selectedIconPath": "static/tabbar/history-active.png"
             },
