@@ -45,11 +45,11 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-.pallet-heading { display: flex; justify-content: space-between; align-items: center; gap: 25.6rpx; margin-bottom: 25.6rpx; }.pallet-title { font-weight: 700; font-size: 32rpx; }
-.pallet-state { color: $warning; background: mix($warning, $surface, 10%); padding: 8rpx 19.2rpx; border-radius: 12.8rpx; font-size: 23rpx; }.pallet-state.confirmed { color: $primary; background: $primary-soft; }
-.pallet-summary { display: flex; align-items: center; justify-content: space-between; gap: 22.4rpx; padding: 25.6rpx; border-radius: 17.6rpx; background: $canvas; }.pallet-summary > view { flex: 1; min-width: 0; }.pallet-number { display: block; font-size: 32rpx; font-weight: 600; }.pallet-description { display: block; margin-top: 11.2rpx; font-size: 25.6rpx; color: $muted; line-height: 1.5; overflow-wrap: anywhere; }.pallet-edit { flex-shrink: 0; font-size: 24rpx; color: $primary; }
-.pallet-detail { margin-top: 32rpx; }.pallet-note, .pending-note { color: $muted; font-size: 25.6rpx; margin-top: 25.6rpx; line-height: 1.6; }.pending-note { color: $warning; }
-.pallet-grid { display: flex; flex-wrap: wrap; gap: 25.6rpx; }.pallet-field { flex: 1 1 224rpx; min-width: 0; }.pallet-field.wide { flex-basis: 100%; }
-.pallet-field text { display: block; margin-bottom: 12.8rpx; color: $muted; font-size: 25.6rpx; }
-.pallet-field input, .pallet-field textarea, .pallet-picker { width: 100%; box-sizing: border-box; min-height: 86.4rpx; padding: 22.4rpx; background: $canvas; border-radius: 16rpx; font-size: 28.8rpx; }
+.pallet-heading { display: flex; justify-content: space-between; align-items: center; gap: 16rpx; margin-bottom: 16rpx; }.pallet-title { font-weight: 700; font-size: 32rpx; }
+.pallet-state { color: $warning; background: mix($warning, $surface, 10%); padding: 6rpx 12rpx; border-radius: 12.8rpx; font-size: 23rpx; }.pallet-state.confirmed { color: $primary; background: $primary-soft; }
+.pallet-summary { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; padding: 16rpx; border-radius: 17.6rpx; background: $canvas; }.pallet-summary > view { flex: 1; min-width: 0; }.pallet-number { display: block; font-size: 32rpx; font-weight: 600; }.pallet-description { display: block; margin-top: 8rpx; font-size: 25.6rpx; color: $muted; line-height: 1.5; overflow-wrap: anywhere; }.pallet-edit { flex-shrink: 0; font-size: 24rpx; color: $primary; }
+.pallet-detail { margin-top: 20rpx; }.pallet-note, .pending-note { color: $muted; font-size: 25.6rpx; margin-top: 16rpx; line-height: 1.6; }.pending-note { color: $warning; }
+.pallet-grid { display: flex; flex-wrap: wrap; gap: 16rpx; }.pallet-field { flex: 1 1 224rpx; min-width: 0; }.pallet-field.wide { flex-basis: 100%; }
+.pallet-field text { display: block; margin-bottom: 8rpx; color: $muted; font-size: 25.6rpx; }
+.pallet-field input, .pallet-field textarea, .pallet-picker { width: 100%; box-sizing: border-box; min-height: 86.4rpx; padding: 14rpx; background: $canvas; border-radius: 16rpx; font-size: 28.8rpx; }
 </style>

@@ -27,11 +27,11 @@
                     <button v-if="index > 0" class="photo-first" :disabled="busy" @tap="makeFirst(index)">设为首页</button>
                 </view>
             </view>
-            <view class="fw-actions photo-actions">
-                <button class="fw-button" :disabled="busy || images.length >= 6" @tap="choose(['camera'])">拍照</button>
-                <button class="fw-button" :disabled="busy || images.length >= 6" @tap="choose(['album'])">相册选图</button>
-                <text v-if="images.length" class="fw-link" @tap="clearPhotos">清空</text>
+            <view class="photo-actions">
+                <button class="fw-button photo-btn" :disabled="busy || images.length >= 6" @tap="choose(['camera'])">拍照</button>
+                <button class="fw-button photo-btn" :disabled="busy || images.length >= 6" @tap="choose(['album'])">相册选图</button>
             </view>
+            <view v-if="images.length" class="photo-clear-row"><text class="photo-clear" @tap="clearPhotos">清空全部照片</text></view>
             <view class="fw-note">重复照片自动去重。优先大模型识别，失败时自动用免费 OCR 兜底。</view>
             <button v-if="!form && !recordKey" class="manual-entry" :disabled="busy" @tap="startManual">没有照片？手动录入或载入档案 ›</button>
         </view>
@@ -370,31 +370,31 @@ export default {
 </script>
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
-.entry-page { padding-bottom: calc(224rpx + env(safe-area-inset-bottom)); }
-.status-options { display: flex; padding: 8rpx; gap: 9.6rpx; border-radius: 22.4rpx; background: $line; margin-bottom: 32rpx; }
-.status-options button { flex: 1; margin: 0; padding: 19.2rpx 9.6rpx; font-size: 28.8rpx; line-height: 1.5; background: transparent; color: $muted; border-radius: 16rpx; }
+.entry-page { padding-bottom: calc(176rpx + env(safe-area-inset-bottom)); }
+.status-options { display: flex; padding: 6rpx; gap: 6rpx; border-radius: 22.4rpx; background: $line; margin-bottom: 20rpx; }
+.status-options button { flex: 1; margin: 0; padding: 12rpx 6rpx; font-size: 28.8rpx; line-height: 1.5; background: transparent; color: $muted; border-radius: 16rpx; }
 .status-options button::after { border: 0; }
 .status-options button.active { background: $surface; color: $primary; font-weight: 600; }
-.steps { display: flex; justify-content: space-between; gap: 9.6rpx; padding: 3.2rpx 0 35.2rpx; }
-.step { display: flex; align-items: center; gap: 11.2rpx; font-size: 25.6rpx; color: $muted; }
+.steps { display: flex; justify-content: space-between; gap: 6rpx; padding: 2rpx 0 24rpx; }
+.step { display: flex; align-items: center; gap: 8rpx; font-size: 25.6rpx; color: $muted; }
 .step-number { width: 49.6rpx; height: 49.6rpx; line-height: 49.6rpx; text-align: center; background: $line; border-radius: 50%; }
 .step.active { color: $primary; font-weight: 600; }.step.active .step-number { background: $primary; color: $surface; }.step.complete .step-number { color: $primary; background: $primary-soft; }
-.photo-empty { display: flex; flex-direction: column; align-items: center; gap: 17.6rpx; padding: 48rpx 16rpx; background: $canvas; border: 1px dashed $line; border-radius: 20.8rpx; }
+.photo-empty { display: flex; flex-direction: column; align-items: center; gap: 12rpx; padding: 32rpx 12rpx; background: $canvas; border: 1px dashed $line; border-radius: 20.8rpx; }
 .photo-symbol { color: $primary; font-size: 64rpx; }.photo-empty-title { font-size: 30.4rpx; font-weight: 600; }
-.photos { display: flex; flex-wrap: wrap; gap: 19.2rpx; }.photo-item { position: relative; width: calc((100% - 38.4rpx) / 3); min-width: 0; padding-bottom: 35.2rpx; }
+.photos { display: flex; flex-wrap: wrap; gap: 12rpx; }.photo-item { position: relative; width: calc((100% - 24rpx) / 3); min-width: 0; padding-bottom: 24rpx; }
 .photo-item image { width: 100%; height: 256rpx; border-radius: 16rpx; background: $canvas; }
-.photo-page { display: block; text-align: center; color: $muted; font-size: 24rpx; padding: 11.2rpx 0; }
+.photo-page { display: block; text-align: center; color: $muted; font-size: 24rpx; padding: 8rpx 0; }
 .photo-remove { position: absolute; right: -6.4rpx; top: -6.4rpx; margin: 0; padding: 0; width: 64rpx; height: 64rpx; font-size: 40rpx; line-height: 64rpx; border-radius: 50%; background: $ink; color: $surface; }
-.photo-remove::after, .photo-first::after { border: 0; }.photo-first { margin: 0; padding: 6.4rpx 0; font-size: 22.4rpx; line-height: 1.8; color: $primary; background: $primary-soft; border-radius: 9.6rpx; }
-.photo-actions { margin: 32rpx 0 22.4rpx; align-items: center; }.photo-actions .fw-button { flex: 1; }
-.manual-entry { margin: 32rpx 0 0; width: 100%; font-size: 25.6rpx; line-height: 80rpx; background: $surface; color: $primary; padding: 0; border-top: 1px solid $line; border-radius: 0; }.manual-entry::after { border: 0; }
-.model-action { margin: 28.8rpx 0 0; padding: 27.2rpx 24rpx; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16rpx; background: $canvas; border-radius: 16rpx; font-size: 27.2rpx; line-height: 1.6; }.model-action::after { border: 0; }.model-cost { font-size: 22.4rpx; color: $warning; }
-.recognition-note { margin-top: 24rpx; color: $primary; font-size: 25.6rpx; line-height: 1.6; }.code-confirmation { margin-top: 32rpx; padding-top: 32rpx; border-top: 1px solid $line; }.code-confirmation .fw-field { margin-top: 24rpx; }
-.review-summary { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; }.review-summary .fw-button { flex-shrink: 0; font-size: 25.6rpx; padding: 0 22.4rpx; }
-.code-row { display: flex; align-items: flex-end; gap: 19.2rpx; margin-bottom: 28.8rpx; }.code-row .fw-field { flex: 1; min-width: 0; margin-bottom: 0; }.code-row .fw-button { min-height: 92.8rpx; line-height: 92.8rpx; }
-.status-help { display: block; font-size: 23rpx; font-weight: normal; margin-top: 8rpx; }.status-options { background: $canvas; }
-.archive-option { margin-top: 32rpx; padding-top: 32rpx; border-top: 1px solid $line; }.archive-option .fw-button { margin-top: 22.4rpx; width: 100%; }
+.photo-remove::after, .photo-first::after { border: 0; }.photo-first { margin: 0; padding: 4rpx 0; font-size: 22.4rpx; line-height: 1.8; color: $primary; background: $primary-soft; border-radius: 9.6rpx; }
+.photo-actions { display: flex; gap: 12rpx; margin: 20rpx 0 0; }.photo-btn { flex: 1 1 0; min-width: 120rpx; }.photo-clear-row { display: flex; justify-content: flex-end; margin: 2rpx 0 2rpx; }.photo-clear { font-size: 24rpx; color: $muted; padding: 8rpx 0 8rpx 16rpx; }
+.manual-entry { margin: 20rpx 0 0; width: 100%; font-size: 25.6rpx; line-height: 80rpx; background: $surface; color: $primary; padding: 0; border-top: 1px solid $line; border-radius: 0; }.manual-entry::after { border: 0; }
+.model-action { margin: 20rpx 0 0; padding: 18rpx 16rpx; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12rpx; background: $canvas; border-radius: 16rpx; font-size: 27.2rpx; line-height: 1.6; }.model-action::after { border: 0; }.model-cost { font-size: 22.4rpx; color: $warning; }
+.recognition-note { margin-top: 16rpx; color: $primary; font-size: 25.6rpx; line-height: 1.6; }.code-confirmation { margin-top: 20rpx; padding-top: 20rpx; border-top: 1px solid $line; }.code-confirmation .fw-field { margin-top: 16rpx; }
+.review-summary { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }.review-summary .fw-button { flex-shrink: 0; font-size: 25.6rpx; padding: 0 14rpx; }
+.code-row { display: flex; align-items: flex-end; gap: 12rpx; margin-bottom: 20rpx; }.code-row .fw-field { flex: 1; min-width: 0; margin-bottom: 0; }.code-row .fw-button { min-height: 92.8rpx; line-height: 92.8rpx; }
+.status-help { display: block; font-size: 23rpx; font-weight: normal; margin-top: 6rpx; }.status-options { background: $canvas; }
+.archive-option { margin-top: 20rpx; padding-top: 20rpx; border-top: 1px solid $line; }.archive-option .fw-button { margin-top: 14rpx; width: 100%; }
 .fallback-card { border-left: 6.4rpx solid #d08700; }
-.fallback-text { margin-top: 19.2rpx; padding: 19.2rpx; background: #f7f7f2; border-radius: 9.6rpx; font-size: 25.6rpx; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 192rpx; overflow: hidden; }
+.fallback-text { margin-top: 12rpx; padding: 12rpx; background: #f7f7f2; border-radius: 9.6rpx; font-size: 25.6rpx; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 192rpx; overflow: hidden; }
 .fallback-text.expanded { max-height: none; }
 </style>

@@ -291,16 +291,16 @@ export default {
 </script>
 
 <style scoped>
-.page { padding: 16rpx; min-height: 100vh; background: #F2F4F3; }
-.card { background: #fff; border-radius: 16rpx; padding: 22rpx; margin-bottom: 16rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
+.page { padding: 12rpx; min-height: 100vh; background: #F2F4F3; }
+.card { background: #fff; border-radius: 16rpx; padding: 22rpx; margin-bottom: 12rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
 .card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 12rpx; }
-.tip { font-size: 22rpx; color: #77827D; line-height: 1.5; margin-top: 8rpx; }
+.tip { font-size: 22rpx; color: #77827D; line-height: 1.5; margin-top: 6rpx; }
 .noauth { font-size: 26rpx; color: #D9534F; text-align: center; padding: 20rpx 0; }
 .presets { display: flex; flex-wrap: wrap; gap: 12rpx; }
-.preset { padding: 16rpx 20rpx; border-radius: 12rpx; background: #F4F7F6; font-size: 24rpx; color: #4a554f; border: 1rpx solid #E3E8E5; }
+.preset { padding: 12rpx 20rpx; border-radius: 12rpx; background: #F4F7F6; font-size: 24rpx; color: #4a554f; border: 1rpx solid #E3E8E5; }
 .preset.active { background: #008577; color: #fff; border-color: #008577; }
 .preset.disabled { pointer-events: none; opacity: 0.5; }
-.field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 18rpx; min-height: 84rpx; margin-bottom: 12rpx; }
+.field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 12rpx; min-height: 84rpx; margin-bottom: 12rpx; }
 .lbl { width: 170rpx; font-size: 26rpx; color: #77827D; flex-shrink: 0; }
 .inp { flex: 1; height: 84rpx; font-size: 26rpx; background: transparent; }
 .kv { display: flex; justify-content: space-between; align-items: center; padding: 12rpx 0; border-bottom: 1rpx dashed #E3E8E5; font-size: 26rpx; color: #4a554f; }

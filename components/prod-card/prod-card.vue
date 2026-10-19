@@ -52,7 +52,7 @@ export default {
 
 <style lang="scss" scoped>
 .data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }
-.data-cell { background: $canvas; border-radius: 12rpx; padding: 24rpx; min-height: 112rpx; display: flex; flex-direction: column; justify-content: center; }
+.data-cell { background: $canvas; border-radius: 12rpx; padding: 16rpx; min-height: 112rpx; display: flex; flex-direction: column; justify-content: center; }
 .dlbl { font-size: 24rpx; color: $muted; }
 .dinp { margin-top: 4rpx; font-size: 28.8rpx; background: transparent; height: 73.6rpx; }
 .dval { margin-top: 4rpx; font-size: 32rpx; font-weight: 700; color: $primary; }
@@ -71,7 +71,7 @@ export default {
 .sync-line { font-size: 24rpx; color: $muted; margin: 12rpx 0; }
 .btn-row { display: flex; gap: 12rpx; }
 .btn-row .btn { flex: 1; }
-.btn { font-size: 24rpx; border-radius: 12rpx; padding: 0 18rpx; height: 64rpx; line-height: 64rpx; background: $canvas; color: $ink; }
+.btn { font-size: 24rpx; border-radius: 12rpx; padding: 0 12rpx; height: 64rpx; line-height: 64rpx; background: $canvas; color: $ink; }
 .btn.primary { background: $primary; color: $surface; }
 .btn.danger { background: mix($danger, $surface, 8%); color: $danger; }
 </style>

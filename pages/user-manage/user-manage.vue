@@ -232,23 +232,23 @@ export default {
 </script>
 
 <style scoped>
-.page { padding: 16rpx; min-height: 100vh; background: #F2F4F3; }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 8rpx 20rpx; }
+.page { padding: 12rpx; min-height: 100vh; background: #F2F4F3; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 6rpx 20rpx; }
 .tb-title { font-size: 34rpx; font-weight: 700; color: #1f2622; }
-.tb-right { display: flex; align-items: center; gap: 16rpx; }
+.tb-right { display: flex; align-items: center; gap: 12rpx; }
 .tb-me { font-size: 24rpx; color: #77827D; }
-.tb-pwd { font-size: 24rpx; color: #008577; padding: 6rpx 16rpx; background: #E6F4F1; border-radius: 999rpx; }
-.tb-logout { font-size: 24rpx; color: #D9534F; padding: 6rpx 16rpx; background: #FBEAE9; border-radius: 999rpx; }
+.tb-pwd { font-size: 24rpx; color: #008577; padding: 6rpx 12rpx; background: #E6F4F1; border-radius: 999rpx; }
+.tb-logout { font-size: 24rpx; color: #D9534F; padding: 6rpx 12rpx; background: #FBEAE9; border-radius: 999rpx; }
 
-.card { background: #fff; border-radius: 16rpx; padding: 22rpx; margin-bottom: 16rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
-.card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 16rpx; display: flex; align-items: center; gap: 12rpx; }
+.card { background: #fff; border-radius: 16rpx; padding: 22rpx; margin-bottom: 12rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
+.card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 12rpx; display: flex; align-items: center; gap: 12rpx; }
 .count { font-size: 22rpx; color: #fff; background: #008577; border-radius: 999rpx; padding: 0 14rpx; }
 
-.field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 18rpx; height: 84rpx; margin-bottom: 14rpx; }
+.field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 12rpx; height: 84rpx; margin-bottom: 14rpx; }
 .lbl { width: 90rpx; font-size: 26rpx; color: #77827D; flex-shrink: 0; }
 .inp { flex: 1; height: 84rpx; font-size: 28rpx; background: transparent; }
 .seg { flex: 1; display: flex; background: #F2F4F3; border-radius: 12rpx; padding: 4rpx; gap: 4rpx; }
-.seg-item { flex: 1; text-align: center; font-size: 26rpx; color: #77827D; padding: 16rpx 0; border-radius: 10rpx; }
+.seg-item { flex: 1; text-align: center; font-size: 26rpx; color: #77827D; padding: 12rpx 0; border-radius: 10rpx; }
 .seg-item.active { background: #008577; color: #fff; font-weight: 700; }
 
 .btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #EEF3F1; color: #1f2622; }
@@ -259,7 +259,7 @@ export default {
 .fr-actions .btn { flex: 1; }
 .tip { margin-top: 12rpx; font-size: 22rpx; color: #77827D; line-height: 1.5; }
 
-.empty { text-align: center; color: #bbb; padding: 40rpx; font-size: 26rpx; }
+.empty { text-align: center; color: #bbb; padding: 28rpx; font-size: 26rpx; }
 
 .user-row { display: flex; align-items: center; gap: 14rpx; padding: 20rpx 6rpx; border-bottom: 1rpx solid #F0F3F1; }
 .user-row:last-child { border-bottom: none; }
@@ -273,7 +273,7 @@ export default {
 .tag.user { background: #EEF3F1; color: #4a554f; }
 .tag.on { background: #E6F4F1; color: #008577; }
 .tag.off { background: #F2F4F3; color: #bbb; }
-.u-actions { display: flex; flex-direction: column; gap: 8rpx; flex-shrink: 0; }
+.u-actions { display: flex; flex-direction: column; gap: 6rpx; flex-shrink: 0; }
 .act { font-size: 24rpx; color: #008577; text-align: center; padding: 4rpx 14rpx; background: #E8F0FE; border-radius: 10rpx; }
 .act.danger { color: #D9534F; background: #FBEAE9; }
 </style>

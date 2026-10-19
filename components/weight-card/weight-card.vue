@@ -29,5 +29,5 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 19.2rpx; }.data-cell { background: $canvas; border-radius: 16rpx; padding: 24rpx; min-height: 112rpx; display: flex; flex-direction: column; justify-content: center; }.dlbl { font-size: 24rpx; color: $muted; }.dinp { margin-top: 9.6rpx; font-size: 30.4rpx; background: transparent; height: 73.6rpx; }.dval { margin-top: 16rpx; font-size: 32rpx; font-weight: 700; color: $primary; }.weight-result { grid-column: span 2; order: 1; background: $primary-soft; }
+.data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; }.data-cell { background: $canvas; border-radius: 16rpx; padding: 16rpx; min-height: 112rpx; display: flex; flex-direction: column; justify-content: center; }.dlbl { font-size: 24rpx; color: $muted; }.dinp { margin-top: 6rpx; font-size: 30.4rpx; background: transparent; height: 73.6rpx; }.dval { margin-top: 12rpx; font-size: 32rpx; font-weight: 700; color: $primary; }.weight-result { grid-column: span 2; order: 1; background: $primary-soft; }
 </style>
