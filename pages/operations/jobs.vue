@@ -1,27 +1,89 @@
 <template>
     <view class="fw-page op-page">
-        <view class="fw-header"><text class="fw-subtitle">只显示你负责或有权限管理的工单。</text></view>
-        <view class="fw-search"><input v-model="keyword" placeholder="批号、产品或工序" confirm-type="search" @confirm="search" /><text class="fw-link" @tap="search">查询</text></view>
-        <view class="op-toolbar"><picker :range="filters" range-key="name" :value="filterIndex" :disabled="loading" @change="setFilter"><view class="fw-button secondary">{{ filters[filterIndex].name }} ▾</view></picker><button class="fw-button" :disabled="loading" @tap="search">{{ loading ? '加载中…' : '刷新' }}</button></view>
+        <FilterBar :items="filters" :value="stateValue" search @change="changeFilter" @search="toggleSearch" />
+        <view v-if="searchOpen" class="fw-search">
+            <input v-model="keyword" :focus="searchOpen" placeholder="批号、产品或工序" confirm-type="search" @confirm="search" />
+            <text class="fw-search-clear" @tap="search">查询</text>
+        </view>
         <view v-if="error" class="fw-notice error">{{ error }}</view>
-        <view class="fw-card"><view v-for="job in list" :key="job._id" class="op-row" @tap="open(job)"><view class="op-main"><text class="op-name">{{ job.productName }}</text><text class="op-code">{{ job.batchNo }}</text><text class="op-meta">{{ job.processName }} · {{ job.workshopName }}</text><text class="op-meta">合格 {{ job.goodQty || 0 }} / 目标 {{ job.targetQty }} {{ units[job.unit] }}</text></view><text class="fw-badge" :class="{ warning: job.state === 'paused' }">{{ states[job.state] }}</text></view><view v-if="!list.length && !loading" class="fw-empty"><text class="fw-empty-title">{{ error ? '工单加载失败' : '暂无工单' }}</text><text class="fw-note">排班与生产订单准备好后，由负责人在后台创建并派工。</text></view></view>
-        <view class="op-toolbar"><button class="fw-button secondary" :disabled="loading || page <= 1" @tap="turn(-1)">上一页</button><text class="fw-note">{{ page }} · 共 {{ total }} 条</text><button class="fw-button secondary" :disabled="loading || page * pageSize >= total" @tap="turn(1)">下一页</button></view>
+        <StateView v-if="loading && !list.length" state="loading" />
+        <view v-else-if="!list.length">
+            <StateView v-if="!error" state="empty" title="当前筛选没有工单" reason="换个状态看看，或清除筛选重新加载" />
+        </view>
+        <view v-else class="job-list">
+            <ListRow v-for="job in list" :key="job._id" :title="job.productName" :code="job.batchNo" :meta="jobMeta(job)" :badge="states[job.state]" :badge-tone="stateTone(job.state)" :progress="progressOf(job)" :progress-text="progressText(job)" :progress-tone="stateTone(job.state)" @select="open(job)" />
+            <StateView v-if="loadingMore" state="more" />
+            <text v-else-if="list.length >= total && list.length > pageSize" class="fw-note jobs-end">已全部加载 · 共 {{ total }} 条</text>
+        </view>
     </view>
 </template>
 <script>
 import { callOperations, operationsPage, loadOperations, JOB_STATES, OPERATION_UNITS } from '@/utils/operations-api.js'
+import FilterBar from '@/components/ui/FilterBar.vue'
+import ListRow from '@/components/ui/ListRow.vue'
+import StateView from '@/components/ui/StateView.vue'
+
 export default {
+    components: { FilterBar, ListRow, StateView },
     mixins: [operationsPage],
-    data() { return { keyword: '', list: [], total: 0, page: 1, pageSize: 20, filterIndex: 0, states: JOB_STATES, units: OPERATION_UNITS, filters: [{ name: '全部状态', value: '' }, { name: '待开工', value: 'planned' }, { name: '生产中', value: 'running' }, { name: '已暂停', value: 'paused' }, { name: '已完工', value: 'completed' }] } },
+    data() {
+        return {
+            keyword: '',
+            searchOpen: false,
+            list: [],
+            total: 0,
+            page: 1,
+            pageSize: 20,
+            loadingMore: false,
+            stateValue: '',
+            states: JOB_STATES,
+            units: OPERATION_UNITS,
+            filters: [
+                { name: '全部', value: '' },
+                { name: '进行中', value: 'running' },
+                { name: '暂停', value: 'paused' },
+                { name: '已完工', value: 'completed' }
+            ]
+        }
+    },
     onShow() { this.load() },
+    onPullDownRefresh() { this.refresh() },
+    onReachBottom() { this.loadMore() },
     methods: {
-        load() { return loadOperations(this, () => callOperations('listJobs', { page: this.page, pageSize: this.pageSize, keyword: this.keyword.trim(), state: this.filters[this.filterIndex].value }), result => { this.list = result.list; this.total = result.total }) },
+        load() { return loadOperations(this, () => this.fetch(1), result => { this.list = result.list || []; this.total = result.total || 0; this.page = 1 }) },
+        fetch(page) { return callOperations('listJobs', { page, pageSize: this.pageSize, keyword: this.keyword.trim(), state: this.stateValue }) },
+        refresh() { this.load().finally(() => uni.stopPullDownRefresh()) },
         clearLoaded() { this.list = []; this.total = 0 },
-        search() { if (this.loading) return; this.page = 1; this.load() },
-        setFilter(event) { this.filterIndex = Number(event.detail.value); this.search() },
-        turn(delta) { this.page += delta; this.load() },
+        async loadMore() {
+            if (this.loading || this.loadingMore || !this.list.length || this.list.length >= this.total) return
+            const epoch = this.loadEpoch
+            this.loadingMore = true
+            try {
+                const result = await this.fetch(this.page + 1)
+                if (this.loadEpoch !== epoch) return
+                this.list = this.list.concat(result.list || [])
+                this.total = result.total || 0
+                this.page += 1
+            } catch (error) {
+                if (this.loadEpoch === epoch) this.error = error.message || '加载失败，请重试'
+            } finally {
+                if (this.loadEpoch === epoch) this.loadingMore = false
+            }
+        },
+        changeFilter(value) { if (this.loading) return; this.stateValue = value; this.load() },
+        toggleSearch() { this.searchOpen = !this.searchOpen },
+        search() { if (this.loading) return; this.load() },
+        jobMeta(job) { return [job.processName, job.workshopName].filter(Boolean).join(' · ') },
+        stateTone(state) { return state === 'running' ? 'primary' : state === 'paused' ? 'warning' : 'neutral' },
+        progressOf(job) { const target = Number(job.targetQty) || 0; if (!target) return null; return Math.min(100, Math.round((Number(job.goodQty) || 0) / target * 100)) },
+        progressText(job) { return '合格 ' + (job.goodQty || 0) + ' / ' + (job.targetQty || 0) + ' ' + (this.units[job.unit] || '') },
         open(job) { uni.navigateTo({ url: '/pages/operations/job-detail?id=' + encodeURIComponent(job._id) }) }
     }
 }
 </script>
-<style lang="scss" scoped>@import '@/styles/operations.scss';</style>
+<style lang="scss" scoped>
+@import '@/styles/operations.scss';
+
+.job-list { display: flex; flex-direction: column; gap: var(--sp-8, 8rpx); }
+.jobs-end { display: block; text-align: center; padding: var(--sp-16, 16rpx) 0 var(--sp-8, 8rpx); }
+</style>

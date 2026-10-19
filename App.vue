@@ -56,9 +56,44 @@ export default {
 </script>
 
 <style>
+/* 设计令牌：CSS 变量必须在全局样式里声明（页面 scoped 样式无法声明 page 级变量）。
+   使用方：styles/field-work.scss、components/ui/*、现场端页面；全部带 fallback，令牌缺失也不改变现有视觉。 */
 page {
     background-color: #F2F4F3;
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', sans-serif;
     color: #1f2622;
+
+    /* 间距 8 档（rpx） */
+    --sp-4: 4rpx;
+    --sp-8: 8rpx;
+    --sp-12: 12rpx;
+    --sp-16: 16rpx;
+    --sp-20: 20rpx;
+    --sp-24: 24rpx;
+    --sp-32: 32rpx;
+    --sp-40: 40rpx;
+
+    /* 字号阶梯（rpx） */
+    --fs-44: 44rpx;
+    --fs-32: 32rpx;
+    --fs-30: 30rpx;
+    --fs-28: 28rpx;
+    --fs-24: 24rpx;
+    --fs-22: 22rpx;
+
+    /* 圆角 */
+    --radius-card: 16rpx;
+    --radius-button: 12rpx;
+    --radius-badge: 8rpx;
+
+    /* 状态色四态映射：实心 / 浅底 */
+    --state-primary: #008577;
+    --state-primary-soft: #E6F4F1;
+    --state-warning: #E8833A;
+    --state-warning-soft: #FBEEE3;
+    --state-neutral: #77827D;
+    --state-neutral-soft: #F2F4F3;
+    --state-danger: #D9534F;
+    --state-danger-soft: #FBEBEA;
 }
 </style>

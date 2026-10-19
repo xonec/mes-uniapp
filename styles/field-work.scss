@@ -1,40 +1,50 @@
 /* 现场页面共用样式，颜色沿用 uni.scss；页面独立引入并保持 scoped。
-   密度规范：4/8/12/16/20/24rpx 五档间距，页面左右留白 24rpx，卡片内边距 20rpx，信息尽量一屏多显示。 */
-.fw-page { box-sizing: border-box; min-height: 100vh; padding: 24rpx; color: $ink; background: $canvas; }
+   设计令牌：间距 4/8/12/16/20/24/32/40rpx、字号 44/32/30/28/24/22rpx、圆角 16/12/8rpx、
+   状态色四态（主色/警告/中性/危险）。令牌变量声明在 App.vue 全局样式（scoped 页面无法声明 page 级变量），
+   这里统一用 var(--token, 现有值) 引用：变量缺失时回落到原值，保证零视觉回归。
+   密度规范：5 档间距为主，页面左右留白 24rpx，卡片内边距 20rpx，信息尽量一屏多显示。 */
+.fw-page { box-sizing: border-box; min-height: 100vh; padding: var(--sp-24, 24rpx); color: $ink; background: $canvas; }
 /* 页头只保留一行小提示：标题由原生导航栏显示，避免重复。 */
-.fw-header { margin: 0 0 12rpx; }
-.fw-header .fw-subtitle { font-size: 22rpx; line-height: 1.5; margin-top: 0; }
-.fw-subtitle { display: block; color: $muted; font-size: 24rpx; line-height: 1.5; margin-top: 8rpx; }
-.fw-card { padding: 20rpx; margin-bottom: 12rpx; border-radius: 16rpx; background: $surface; }
-.fw-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-bottom: 12rpx; }
-.fw-heading-title { font-size: 30rpx; font-weight: 700; }
-.fw-note { color: $muted; font-size: 24rpx; line-height: 1.5; }
-.fw-actions { display: flex; flex-wrap: wrap; gap: 12rpx; }
-.fw-button { box-sizing: border-box; margin: 0; min-height: 80rpx; line-height: 80rpx; padding: 0 24rpx; border-radius: 12rpx; font-size: 28rpx; font-weight: 600; background: $primary-soft; color: $primary; }
+.fw-header { margin: 0 0 var(--sp-12, 12rpx); }
+.fw-header .fw-subtitle { font-size: var(--fs-22, 22rpx); line-height: 1.5; margin-top: 0; }
+.fw-subtitle { display: block; color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.5; margin-top: var(--sp-8, 8rpx); }
+.fw-card { padding: var(--sp-20, 20rpx); margin-bottom: var(--sp-12, 12rpx); border-radius: var(--radius-card, 16rpx); background: $surface; }
+.fw-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-16, 16rpx); margin-bottom: var(--sp-12, 12rpx); }
+.fw-heading-title { font-size: var(--fs-30, 30rpx); font-weight: 700; }
+.fw-note { color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.5; }
+.fw-actions { display: flex; flex-wrap: wrap; gap: var(--sp-12, 12rpx); }
+.fw-button { box-sizing: border-box; margin: 0; min-height: 80rpx; line-height: 80rpx; padding: 0 var(--sp-24, 24rpx); border-radius: var(--radius-button, 12rpx); font-size: var(--fs-28, 28rpx); font-weight: 600; background: $primary-soft; color: $primary; }
 .fw-button::after { border: 0; }
 .fw-button.primary { background: $primary; color: $surface; }
 .fw-button.secondary { background: $canvas; color: $ink; }
 .fw-button[disabled] { background: $canvas; color: $muted; opacity: .75; }
-.fw-link { color: $primary; font-size: 26rpx; line-height: 80rpx; padding: 0 8rpx; }
-.fw-badge { flex-shrink: 0; display: inline-block; font-size: 22rpx; line-height: 1.4; color: $primary; background: $primary-soft; padding: 4rpx 12rpx; border-radius: 8rpx; }
+.fw-link { color: $primary; font-size: 26rpx; line-height: 80rpx; padding: 0 var(--sp-8, 8rpx); }
+.fw-badge { flex-shrink: 0; display: inline-block; font-size: var(--fs-22, 22rpx); line-height: 1.4; color: $primary; background: $primary-soft; padding: var(--sp-4, 4rpx) var(--sp-12, 12rpx); border-radius: var(--radius-badge, 8rpx); }
 .fw-badge.warning { color: $warning; background: mix($warning, $surface, 10%); }
 .fw-badge.muted { color: $muted; background: $canvas; }
-.fw-field { margin-bottom: 16rpx; }
-.fw-label { display: block; font-size: 24rpx; color: $muted; margin-bottom: 6rpx; }
-.fw-input, .fw-textarea { box-sizing: border-box; width: 100%; font-size: 28rpx; min-height: 80rpx; padding: 12rpx 16rpx; background: $canvas; border: 1px solid transparent; border-radius: 12rpx; line-height: 1.45; }
+/* 状态色四态映射：组件通过 tone 属性挂 class，不再各自写颜色。 */
+.fw-badge.tone-primary { color: var(--state-primary, #{$primary}); background: var(--state-primary-soft, #{$primary-soft}); }
+.fw-badge.tone-warning { color: var(--state-warning, #{$warning}); background: var(--state-warning-soft, #{mix($warning, $surface, 10%)}); }
+.fw-badge.tone-neutral { color: var(--state-neutral, #{$muted}); background: var(--state-neutral-soft, #{$canvas}); }
+.fw-badge.tone-danger { color: var(--state-danger, #{$danger}); background: var(--state-danger-soft, #{mix($danger, $surface, 8%)}); }
+.fw-field { margin-bottom: var(--sp-16, 16rpx); }
+.fw-label { display: block; font-size: var(--fs-24, 24rpx); color: $muted; margin-bottom: 6rpx; }
+.fw-input, .fw-textarea { box-sizing: border-box; width: 100%; font-size: var(--fs-28, 28rpx); min-height: 80rpx; padding: var(--sp-12, 12rpx) var(--sp-16, 16rpx); background: $canvas; border: 1px solid transparent; border-radius: var(--radius-button, 12rpx); line-height: 1.45; }
 .fw-field.warn .fw-input, .fw-field.warn .fw-textarea { border-color: $warning; background: mix($warning, $surface, 5%); }
-.fw-field-grid { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.fw-field-grid { display: flex; flex-wrap: wrap; gap: var(--sp-12, 12rpx); }
 .fw-field-grid .fw-field { flex: 1 1 216rpx; min-width: 0; }
-.fw-notice { border-radius: 12rpx; padding: 14rpx 18rpx; font-size: 26rpx; line-height: 1.5; background: $primary-soft; color: $primary; margin-bottom: 12rpx; overflow-wrap: anywhere; }
+.fw-notice { border-radius: var(--radius-button, 12rpx); padding: 14rpx 18rpx; font-size: 26rpx; line-height: 1.5; background: $primary-soft; color: $primary; margin-bottom: var(--sp-12, 12rpx); overflow-wrap: anywhere; }
 .fw-notice.warning { color: $warning; background: mix($warning, $surface, 10%); }
 .fw-notice.error { color: $danger; background: mix($danger, $surface, 8%); }
-.fw-empty { padding: 48rpx 24rpx; text-align: center; }
-.fw-empty-title { display: block; font-size: 28rpx; font-weight: 600; margin-bottom: 12rpx; }
-.fw-empty .fw-button { margin: 20rpx auto 0; display: inline-block; }
-.fw-search { display: flex; align-items: center; gap: 12rpx; background: $surface; border-radius: 12rpx; padding: 2rpx 14rpx; margin-bottom: 12rpx; border: 1px solid $line; }
+.fw-empty { padding: 48rpx var(--sp-24, 24rpx); text-align: center; }
+.fw-empty-title { display: block; font-size: var(--fs-28, 28rpx); font-weight: 600; margin-bottom: var(--sp-12, 12rpx); }
+.fw-empty .fw-button { margin: var(--sp-20, 20rpx) auto 0; display: inline-block; }
+.fw-search { display: flex; align-items: center; gap: var(--sp-12, 12rpx); background: $surface; border-radius: var(--radius-button, 12rpx); padding: 2rpx 14rpx; margin-bottom: var(--sp-12, 12rpx); border: 1px solid $line; }
 .fw-search input { min-width: 0; flex: 1; height: 68rpx; font-size: 27rpx; }
-.fw-search-clear { color: $muted; font-size: 24rpx; padding: 14rpx 0 14rpx 12rpx; }
-.fw-footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: 12rpx 24rpx calc(12rpx + env(safe-area-inset-bottom)); background: $surface; border-top: 1px solid $line; }
+.fw-search-clear { color: $muted; font-size: var(--fs-24, 24rpx); padding: 14rpx 0 14rpx var(--sp-12, 12rpx); }
+.fw-footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: var(--sp-12, 12rpx) var(--sp-24, 24rpx) calc(var(--sp-12, 12rpx) + env(safe-area-inset-bottom)); background: $surface; border-top: 1px solid $line; }
 .fw-footer .fw-actions { flex-wrap: nowrap; }
 .fw-footer .fw-button { flex: 1; min-width: 0; }
-.fw-footer-note { margin-bottom: 8rpx; font-size: 22rpx; color: $muted; line-height: 1.4; }
+.fw-footer-note { margin-bottom: var(--sp-8, 8rpx); font-size: var(--fs-22, 22rpx); color: $muted; line-height: 1.4; }
+/* 底部固定操作条页面的滚动区预留：页面根节点加 has-action-bar。 */
+.has-action-bar { padding-bottom: calc(120rpx + env(safe-area-inset-bottom)); }
