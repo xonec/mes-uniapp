@@ -19,7 +19,7 @@ const ROUTES = {
     'history': { legacy: '/pages/history/history', vk: '/pages/vk/history/history' },
     'archive': { legacy: '/pages/archive/archive', vk: '/pages/vk/archive/archive' },
     'order-sheet': { legacy: '/pages/order-sheet/order-sheet', vk: '/pages/vk/operations/order-sheet' },
-    'settings-ocr': { legacy: '/pages/settings-ocr/settings-ocr' },
+    'settings-ocr': { legacy: '/pages/settings-ocr/settings-ocr', vk: '/pages/vk/settings/ocr' },
     'user-manage': { legacy: '/pages/user-manage/user-manage' },
     'change-password': { legacy: '/pages/change-password/change-password' },
     'me': { legacy: '/pages/me/me', tab: true }
@@ -42,7 +42,9 @@ export const PAGE_SWITCH = {
     // P2 批 6（生产计算 / 历史记录 / 产品档案）默认关，验收后逐页打开
     'materials': true,
     'history': true,
-    'archive': true
+    'archive': true,
+    // P2 批 7（识别设置）默认关，验收后打开
+    'settings-ocr': true
 }
 
 function query(params) {

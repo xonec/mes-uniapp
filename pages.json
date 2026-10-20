@@ -205,6 +205,12 @@
             "style": {
                 "navigationBarTitleText": "产品档案"
             }
+        },
+        {
+            "path": "pages/vk/settings/ocr",
+            "style": {
+                "navigationBarTitleText": "识别设置"
+            }
         }
     ],
     "globalStyle": {

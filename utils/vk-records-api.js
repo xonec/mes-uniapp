@@ -1,7 +1,7 @@
-// P2 批 6：包材计算 / 计算历史 / 产品档案三页的 vk 数据层适配。
+// P2 批 6-7：包材计算 / 计算历史 / 产品档案 / 识别设置页的 vk 数据层适配。
 //
 // 旧数据层（production-db / cloud-db / bom-db / product-materials-db）通过 callCloud(name, action, payload)
-// 调业务云函数；新页统一改成 vk.callFunction → router facade（mes/pub/records|bom|buckets|materials）。
+// 调业务云函数；新页统一改成 vk.callFunction → router facade（mes/pub/records|bom|buckets|materials|ocr）。
 // 这几个 util 增加可选 call 参数后可直接注入本模块的 callCloud，旧页保持默认旧通道、零改动。
 import { vkCall } from '@/utils/vk-operations.js'
 import { getToken, logout } from '@/utils/auth.js'
@@ -12,7 +12,10 @@ const ROUTES = {
     'batch-buckets': 'mes/pub/buckets',
     'product-materials': 'mes/pub/materials',
     'production-orders': 'mes/pub/orders',
-    'production-operations': 'mes/pub/operation'
+    'production-operations': 'mes/pub/operation',
+    // P2 批 7：识别设置页走后台新增的 mes/pub/ocr-config（配置/个人 Key 白名单）；
+    // 长耗时的 recognize 仍按批 5 例外由指令单页直调，不经过这里
+    'doc-ocr': 'mes/pub/ocr-config'
 }
 
 /** 默认 60s；这批 action 都是亚秒级，无批 5 那种长耗时例外。 */

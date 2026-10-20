@@ -67,7 +67,7 @@ export default {
         goHistory() { openPage('history') },
         goArchive() { openPage('archive') },
         goUserManage() { uni.navigateTo({ url: '/pages/user-manage/user-manage' }) },
-        goSettingsOcr() { uni.navigateTo({ url: '/pages/settings-ocr/settings-ocr' }) },
+        goSettingsOcr() { openPage('settings-ocr') },
         goOrderSheet() { openPage('order-sheet', { purpose: 'order' }) },
         doLogout() { uni.showModal({ title: '退出登录', content: '确认退出当前账户？', success: result => { if (result.confirm) { logout(); uni.reLaunch({ url: '/pages/login/login' }) } } }) }
     }
