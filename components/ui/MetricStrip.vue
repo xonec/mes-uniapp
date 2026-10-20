@@ -27,7 +27,7 @@ export default {
 .ui-metric-strip.cols-4 .metric-cell { flex-basis: calc(25% - 12rpx); }
 .metric-cell { box-sizing: border-box; position: relative; display: flex; flex-direction: column; align-items: flex-start; padding: var(--sp-16, 16rpx) var(--sp-20, 20rpx); border-radius: var(--radius-card, 16rpx); background: $surface; overflow: hidden; }
 .metric-value { font-size: var(--fs-44, 44rpx); font-weight: 700; line-height: 1.1; color: $ink; }
-.metric-label { margin-top: 2rpx; font-size: var(--fs-24, 24rpx); color: $muted; line-height: 1.4; }
+.metric-label { margin-top: 2rpx; font-size: var(--fs-24, 24rpx); color: $muted; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .metric-cell.tone-primary .metric-value { color: $primary; }
 .metric-cell.tone-warning .metric-value { color: $warning; }
 .metric-cell.tone-danger .metric-value { color: $danger; }
