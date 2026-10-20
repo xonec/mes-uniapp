@@ -1,5 +1,9 @@
 <template>
-    <view class="fw-page op-page att-page">
+    <view class="vk-shell">
+        <!-- P2 批 3：tab 壳页。开关 true 渲染 vk 组件，false 渲染旧内容；tabBar 不动。 -->
+        <AttendancePage v-if="vkEnabled" :show-tick="vkShowTick" />
+        <template v-else>
+            <view class="fw-page op-page att-page">
         <view class="att-head">
             <view class="att-period">
                 <button class="att-arrow" :disabled="busy" @tap="prevPeriod" aria-label="上一周期"><uni-icons type="back" size="16" color="#008577"></uni-icons></button>
@@ -77,10 +81,14 @@
             <text class="att-pager-text">{{ page }} / {{ Math.ceil(total / pageSize) }}</text>
             <button class="att-pager-btn" :disabled="busy || page * pageSize >= total" @tap="changePage(1)">下一页</button>
         </view>
+            </view>
+        </template>
     </view>
 </template>
 <script>
 import { callOperations, operationsPage, loadOperations, operationDate, loadBootstrap } from '@/utils/operations-api.js'
+import { PAGE_SWITCH } from '@/utils/vk-migration.js'
+import AttendancePage from '@/components/vk/pages/AttendancePage.vue'
 import StateView from '@/components/ui/StateView.vue'
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
@@ -101,10 +109,14 @@ function shiftMonth(period, delta) {
 }
 
 export default {
-    components: { StateView },
+    components: { StateView, AttendancePage },
     mixins: [operationsPage],
     data() {
         return {
+            /** tab 壳开关：true = vk 组件，false = 旧内容（默认关） */
+            vkEnabled: PAGE_SWITCH['operations.attendance'],
+            vkShowTick: 0,
+            vkFirstShow: true,
             periodType: 'month',
             period: operationDate().slice(0, 7),
             lastMonth: operationDate().slice(5, 7),
@@ -149,7 +161,15 @@ export default {
         /** 本周期完全没有记录时隐藏全 0 概览，只留空态，避免四个 0 + 空进度条占屏。 */
         hasData() { const value = this.overview; return !!(this.total || value.attendanceDays || value.hours || value.restDays || value.leaveDays || value.processes.length) }
     },
-    onShow() { this.load() },
+    onShow() {
+        if (this.vkEnabled) {
+            // 首屏由组件 mounted 取数；之后每次进入 tab 通过 tick 触发刷新
+            if (this.vkFirstShow) { this.vkFirstShow = false; return }
+            this.vkShowTick += 1
+            return
+        }
+        this.load()
+    },
     methods: {
         /** 只读页面：列表与概览都只取数，不提供任何写操作。 */
         load() {

@@ -1,5 +1,9 @@
 <template>
-    <view class="fw-page op-page">
+    <view class="vk-shell">
+        <!-- P2 批 3：tab 壳页。开关 true 渲染 vk 组件，false 渲染旧内容；tabBar 不动。 -->
+        <JobsPage v-if="vkEnabled" :show-tick="vkShowTick" :refresh-tick="vkRefreshTick" :reach-tick="vkReachTick" />
+        <template v-else>
+            <view class="fw-page op-page">
         <FilterBar :items="filters" :value="stateValue" search @change="changeFilter" @search="toggleSearch" />
         <view v-if="searchOpen" class="fw-search">
             <input v-model="keyword" :focus="searchOpen" placeholder="批号、产品或工序" confirm-type="search" @confirm="search" />
@@ -15,19 +19,29 @@
             <StateView v-if="loadingMore" state="more" />
             <text v-else-if="list.length >= total && list.length > pageSize" class="fw-note jobs-end">已全部加载 · 共 {{ total }} 条</text>
         </view>
+            </view>
+        </template>
     </view>
 </template>
 <script>
 import { callOperations, operationsPage, loadOperations, JOB_STATES, OPERATION_UNITS } from '@/utils/operations-api.js'
+import { PAGE_SWITCH } from '@/utils/vk-migration.js'
+import JobsPage from '@/components/vk/pages/JobsPage.vue'
 import FilterBar from '@/components/ui/FilterBar.vue'
 import ListRow from '@/components/ui/ListRow.vue'
 import StateView from '@/components/ui/StateView.vue'
 
 export default {
-    components: { FilterBar, ListRow, StateView },
+    components: { FilterBar, ListRow, StateView, JobsPage },
     mixins: [operationsPage],
     data() {
         return {
+            /** tab 壳开关：true = vk 组件，false = 旧内容（默认关） */
+            vkEnabled: PAGE_SWITCH['operations.jobs'],
+            vkShowTick: 0,
+            vkRefreshTick: 0,
+            vkReachTick: 0,
+            vkFirstShow: true,
             keyword: '',
             searchOpen: false,
             list: [],
@@ -46,9 +60,23 @@ export default {
             ]
         }
     },
-    onShow() { this.load() },
-    onPullDownRefresh() { this.refresh() },
-    onReachBottom() { this.loadMore() },
+    onShow() {
+        if (this.vkEnabled) {
+            // 首屏由组件 mounted 取数；之后每次进入 tab 通过 tick 触发刷新
+            if (this.vkFirstShow) { this.vkFirstShow = false; return }
+            this.vkShowTick += 1
+            return
+        }
+        this.load()
+    },
+    onPullDownRefresh() {
+        if (this.vkEnabled) { this.vkRefreshTick += 1; return }
+        this.refresh()
+    },
+    onReachBottom() {
+        if (this.vkEnabled) { this.vkReachTick += 1; return }
+        this.loadMore()
+    },
     methods: {
         load() { return loadOperations(this, () => this.fetch(1), result => { this.list = result.list || []; this.total = result.total || 0; this.page = 1 }) },
         fetch(page) { return callOperations('listJobs', { page, pageSize: this.pageSize, keyword: this.keyword.trim(), state: this.stateValue }) },

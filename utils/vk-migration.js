@@ -7,12 +7,12 @@ const ROUTES = {
     'operations.workbench': { legacy: '/pages/operations/workbench', tab: true },
     'operations.jobs': { legacy: '/pages/operations/jobs', tab: true },
     'operations.attendance': { legacy: '/pages/operations/attendance', tab: true },
-    'operations.schedules': { legacy: '/pages/operations/schedules' },
+    'operations.schedules': { legacy: '/pages/operations/schedules', vk: '/pages/vk/operations/schedules' },
     'operations.trace': { legacy: '/pages/operations/trace', vk: '/pages/vk/operations/trace' },
     'operations.reports': { legacy: '/pages/operations/reports', vk: '/pages/vk/operations/reports' },
     'operations.handovers': { legacy: '/pages/operations/handovers', vk: '/pages/vk/operations/handovers' },
     'operations.handover-detail': { legacy: '/pages/operations/handover-detail' },
-    'operations.job-detail': { legacy: '/pages/operations/job-detail' },
+    'operations.job-detail': { legacy: '/pages/operations/job-detail', vk: '/pages/vk/operations/job-detail' },
     'operations.exceptions': { legacy: '/pages/operations/exceptions' },
     'operations.tools': { legacy: '/pages/operations/tools' },
     'materials': { legacy: '/pages/materials/materials' },
@@ -27,6 +27,10 @@ const ROUTES = {
 
 /** true = 该页走 vk 新页面；false = 走旧页面。默认全关，批次验收后逐页打开。 */
 export const PAGE_SWITCH = {
+    'operations.jobs': true,
+    'operations.attendance': true,
+    'operations.job-detail': true,
+    'operations.schedules': true,
     'operations.workbench': true,
     'me': true,
     'operations.trace': true,

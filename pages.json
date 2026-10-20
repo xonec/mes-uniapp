@@ -257,6 +257,18 @@
                 "enablePullDownRefresh": true,
                 "backgroundTextStyle": "dark"
             }
+        },
+        {
+            "path": "pages/vk/operations/job-detail",
+            "style": {
+                "navigationBarTitleText": "工单详情"
+            }
+        },
+        {
+            "path": "pages/vk/operations/schedules",
+            "style": {
+                "navigationBarTitleText": "排班"
+            }
         }
     ],
     "globalStyle": {
