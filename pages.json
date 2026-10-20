@@ -269,6 +269,18 @@
             "style": {
                 "navigationBarTitleText": "排班"
             }
+        },
+        {
+            "path": "pages/vk/operations/handover-detail",
+            "style": {
+                "navigationBarTitleText": "交班单"
+            }
+        },
+        {
+            "path": "pages/vk/operations/exceptions",
+            "style": {
+                "navigationBarTitleText": "生产异常"
+            }
         }
     ],
     "globalStyle": {
