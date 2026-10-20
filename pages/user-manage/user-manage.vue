@@ -237,7 +237,7 @@ export default {
 .tb-title { font-size: 32rpx; font-weight: 700; color: #1f2622; }
 .tb-right { display: flex; align-items: center;  }
 .tb-me { font-size: 24rpx; color: #5F6A65; }
-.tb-pwd { font-size: 24rpx; color: #008577; padding: 6rpx 12rpx; background: #E6F4F1; border-radius: 999rpx; }
+.tb-pwd { font-size: 24rpx; color: #0B7263; padding: 6rpx 12rpx; background: #E6F4F1; border-radius: 999rpx; }
 .tb-logout { font-size: 24rpx; color: #B23B37; padding: 6rpx 12rpx; background: #FBEAE9; border-radius: 999rpx; }
 
 .card { background: #fff; border-radius: 16rpx; padding: 22rpx; margin-bottom: 12rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
@@ -259,7 +259,7 @@ export default {
 .fr-actions .btn { flex: 1; }
 .tip { margin-top: 12rpx; font-size: 22rpx; color: #5F6A65; line-height: 1.5; }
 
-.empty { text-align: center; color: #bbb; padding: 28rpx; font-size: 26rpx; }
+.empty { text-align: center; color: #5F6A65; padding: 28rpx; font-size: 26rpx; }
 
 .user-row { display: flex; align-items: center;  padding: 20rpx 6rpx; border-bottom: 1rpx solid #F0F3F1; }
 .user-row:last-child { border-bottom: none; }
@@ -269,13 +269,13 @@ export default {
 .u-sub { font-size: 22rpx; color: #5F6A65; }
 .u-tags { display: flex; flex-direction: column;  flex-shrink: 0; }
 .tag { font-size: 22rpx; padding: 2rpx 12rpx; border-radius: 999rpx; background: #F2F4F3; color: #5F6A65; text-align: center; }
-.tag.admin { background: #E6F4F1; color: #008577; }
-.tag.user { background: #F2F4F3; color: #4a554f; }
-.tag.on { background: #E6F4F1; color: #008577; }
-.tag.off { background: #F2F4F3; color: #bbb; }
+.tag.admin { background: #E6F4F1; color: #0B7263; }
+.tag.user { background: #F2F4F3; color: #5F6A65; }
+.tag.on { background: #E6F4F1; color: #0B7263; }
+.tag.off { background: #F2F4F3; color: #5F6A65; }
 .u-actions { display: flex; flex-direction: column;  flex-shrink: 0; }
-.act { font-size: 24rpx; color: #008577; text-align: center; padding: 4rpx 14rpx; background: #E8F0FE; border-radius: 10rpx; }
-.act.danger { color: #B23B37; background: #FBEAE9; }
+.act { font-size: 24rpx; color: #0B7263; text-align: center; padding: 4rpx 14rpx; background: #F2F4F3; border-radius: 10rpx; }
+.act.danger { color: #B23B37; background: #FBEBEA; }
 
 .tb-right text + text { margin-left: 12rpx; }
 .card-title .count { margin-left: 12rpx; }
