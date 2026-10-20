@@ -27,11 +27,11 @@ const ROUTES = {
 
 /** true = 该页走 vk 新页面；false = 走旧页面。默认全关，批次验收后逐页打开。 */
 export const PAGE_SWITCH = {
-    'operations.workbench': false,
-    'me': false,
-    'operations.trace': false,
-    'operations.reports': false,
-    'operations.handovers': false
+    'operations.workbench': true,
+    'me': true,
+    'operations.trace': true,
+    'operations.reports': true,
+    'operations.handovers': true
 }
 
 function query(params) {
