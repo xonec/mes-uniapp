@@ -18,7 +18,7 @@ import OpsSelect from '@/components/operations/OpsSelect.vue'
 import { getUser } from '@/utils/auth.js'
 import { operationsPage, loadOperations, operationDate, operationRequest, openJobCalculation, operationName, JOB_STATES, OPERATION_UNITS, EVENT_NAMES } from '@/utils/operations-api.js'
 import { vkOperations, vkCall, loadVkBootstrap } from '@/utils/vk-operations.js'
-import { openPage } from '@/utils/vk-migration.js'
+import { openPage, decodeParam } from '@/utils/vk-migration.js'
 export default {
     components: { OpsSelect }, mixins: [operationsPage],
     data() { return { id: '', job: null, events: [], catalogs: {}, profile: {}, states: JOB_STATES, units: OPERATION_UNITS, eventNames: EVENT_NAMES, start: { equipmentId: '', mouldId: '', parameters: '', note: '' }, report: { date: operationDate(), shiftId: '', goodQty: '', defectQty: '', workHours: '', note: '' }, inbound: { qty: '', documentNo: '', note: '' }, stateNote: '' } },
@@ -29,7 +29,7 @@ export default {
         equipment() { return (this.catalogs.resources || []).filter(item => item.kind === 'equipment' && item.workshopId === this.job.workshopId && (!item.processId || item.processId === this.job.processId)) },
         moulds() { return (this.catalogs.resources || []).filter(item => item.kind === 'mould' && item.workshopId === this.job.workshopId && (!item.processId || item.processId === this.job.processId)) }
     },
-    onLoad(options) { this.id = options.id || '' }, onShow() { if (this.id) this.load(); else this.error = '缺少工单编号，请返回工单列表' },
+    onLoad(options) { this.id = decodeParam(options.id) || '' }, onShow() { if (this.id) this.load(); else this.error = '缺少工单编号，请返回工单列表' },
     methods: {
         /** 串行取数：先复用共享 bootstrap，再取工单，避免并发冷启动。 */
         load() { return loadOperations(this, async () => { const base = await loadVkBootstrap(); const result = await vkOperations('getJob', { id: this.id }); return [base, result] }, ([base, result]) => { this.profile = base.profile; this.catalogs = base.catalogs; this.job = result.job; this.events = result.events || [] }) },

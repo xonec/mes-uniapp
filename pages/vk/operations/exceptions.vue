@@ -48,7 +48,7 @@
 <script>
 import { operationsPage, loadOperations, operationRequest } from '@/utils/operations-api.js'
 import { vkOperations, vkCall } from '@/utils/vk-operations.js'
-import { openPage } from '@/utils/vk-migration.js'
+import { openPage, decodeParam } from '@/utils/vk-migration.js'
 import ListRow from '@/components/ui/ListRow.vue'
 import StateView from '@/components/ui/StateView.vue'
 import ActionBar from '@/components/ui/ActionBar.vue'
@@ -91,7 +91,7 @@ export default {
         orderedList() { return this.list.slice().sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1)) },
         selectedBatchNo() { const job = this.jobChoices.find(row => row._id === this.form.jobId); return (job && job.batchNo) || this.presetBatchNo || '' }
     },
-    onLoad(options) { this.jobId = options.jobId || '' },
+    onLoad(options) { this.jobId = decodeParam(options.jobId) || '' },
     onShow() { this.load().then(() => this.maybeOpenForJob()) },
     onReachBottom() { this.loadMore() },
     methods: {

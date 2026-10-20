@@ -4,8 +4,8 @@
 <script>
 import { operationsPage, loadOperations, JOB_STATES, HANDOVER_STATES } from '@/utils/operations-api.js'
 import { vkOperations } from '@/utils/vk-operations.js'
-import { openPage } from '@/utils/vk-migration.js'
-export default { mixins: [operationsPage], data() { return { batchNo: '', queriedBatch: '', result: null, states: JOB_STATES, handoverStates: HANDOVER_STATES } }, onLoad(options) { this.batchNo = options.batchNo || ''; if (this.batchNo) this.load() }, methods: {
+import { openPage, decodeParam } from '@/utils/vk-migration.js'
+export default { mixins: [operationsPage], data() { return { batchNo: '', queriedBatch: '', result: null, states: JOB_STATES, handoverStates: HANDOVER_STATES } }, onLoad(options) { this.batchNo = decodeParam(options.batchNo) || ''; if (this.batchNo) this.load() }, methods: {
     load() { const batchNo = this.batchNo.trim().toUpperCase(); if (!/^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{11,20}$/.test(batchNo)) { this.error = '请输入完整批号，不要使用前缀'; this.result = null; return }; return loadOperations(this, () => vkOperations('trace', { batchNo }), result => { this.result = result; this.queriedBatch = batchNo }) }, clearLoaded() { this.result = null }, openJob(job) { openPage('operations.job-detail', { id: job._id }) }, openHandover(row) { openPage('operations.handover-detail', { id: row._id }) }
 } }
 </script>

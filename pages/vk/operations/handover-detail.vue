@@ -15,6 +15,7 @@ import { getUser } from '@/utils/auth.js'
 import { batchIsValid } from '@/utils/shared/batch.js'
 import { operationsPage, loadOperations, operationDate, operationRequest, HANDOVER_STATES } from '@/utils/operations-api.js'
 import { vkOperations, vkCall, loadVkBootstrap } from '@/utils/vk-operations.js'
+import { decodeParam } from '@/utils/vk-migration.js'
 const fresh = () => ({ date: operationDate(), nextDate: operationDate(), shiftId: '', nextShiftId: '', processId: '', receiverId: '', jobIds: [], content: '', tailPallet: '', hygiene: '', exceptions: '', changeReason: '' })
 const contentKey = row => JSON.stringify(['date','nextDate','shiftId','nextShiftId','processId','receiverId','jobIds','content','tailPallet','hygiene','exceptions'].map(key => row[key]))
 export default {
@@ -27,7 +28,7 @@ export default {
         processes() { return (this.catalogs.processes || []).filter(row => this.profile.isAdmin || row.workshopId === this.profile.workshopId) },
         receivers() { return (this.catalogs.personnel || []).filter(row => (row.uid || row.accountBound) && !row.isSelf && row.uid !== (getUser() || {}).uid && row.workshopId === this.workshopId && (row.processIds || []).includes(this.record.processId)) }
     },
-    onLoad(options) { this.id = options.id || ''; const row = uni.getStorageSync('mes:handover-view'); uni.removeStorageSync('mes:handover-view'); if (row && row._id === this.id) this.record = { ...fresh(), ...row }; this.syncNavTitle() }, onShow() { this.load() },
+    onLoad(options) { this.id = decodeParam(options.id) || ''; const row = uni.getStorageSync('mes:handover-view'); uni.removeStorageSync('mes:handover-view'); if (row && row._id === this.id) this.record = { ...fresh(), ...row }; this.syncNavTitle() }, onShow() { this.load() },
     methods: {
         /** 动态标题交给原生导航栏，页内不再重复画。 */
         syncNavTitle() { uni.setNavigationBarTitle({ title: this.record._id ? '交班单' : '填写交班单' }) },

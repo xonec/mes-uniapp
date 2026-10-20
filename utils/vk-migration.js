@@ -43,7 +43,16 @@ export const PAGE_SWITCH = {
 function query(params) {
     const keys = Object.keys(params || {}).filter(key => params[key] !== undefined && params[key] !== null)
     if (!keys.length) return ''
-    return '?' + keys.map(key => key + '=' + encodeURIComponent(params[key])).join('&')
+    // 不在这里 encodeURIComponent：小程序 onLoad(options) 不会二次解码，H5/App 会。
+    // 页面参数只有 id（handover:xxx / job:hash）、批号、purpose、productCode，都是 URL 安全字符；
+    // 页面 onLoad 再用 decodeParam 兜底旧链接（历史 URL 可能带 %3A）。
+    return '?' + keys.map(key => key + '=' + String(params[key])).join('&')
+}
+
+/** onLoad 参数兜底解码：小程序端不会再解码一次，历史/外部链接可能带 %3A。 */
+export function decodeParam(value) {
+    if (!value || typeof value !== 'string') return value
+    try { return decodeURIComponent(value) } catch (e) { return value }
 }
 
 /** 按开关解析出实际 URL，供需要自己拼跳转的场景使用。 */
