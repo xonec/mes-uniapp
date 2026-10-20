@@ -18,7 +18,7 @@
 </template>
 <script>
 import { getUser, logout, checkLogin, isLoggedIn } from '@/utils/auth.js'
-import { PAGE_SWITCH } from '@/utils/vk-migration.js'
+import { PAGE_SWITCH, openPage } from '@/utils/vk-migration.js'
 import MyPage from '@/components/vk/pages/MyPage.vue'
 export default {
     components: { MyPage },
@@ -68,7 +68,7 @@ export default {
         goArchive() { uni.navigateTo({ url: '/pages/archive/archive' }) },
         goUserManage() { uni.navigateTo({ url: '/pages/user-manage/user-manage' }) },
         goSettingsOcr() { uni.navigateTo({ url: '/pages/settings-ocr/settings-ocr' }) },
-        goOrderSheet() { uni.navigateTo({ url: '/pages/order-sheet/order-sheet?purpose=order' }) },
+        goOrderSheet() { openPage('order-sheet', { purpose: 'order' }) },
         doLogout() { uni.showModal({ title: '退出登录', content: '确认退出当前账户？', success: result => { if (result.confirm) { logout(); uni.reLaunch({ url: '/pages/login/login' }) } } }) }
     }
 }

@@ -75,6 +75,7 @@ import { saveProductionRecord, fetchProductionRecord, saveDraftRecord, getDraftR
 import { getUser, checkLogin } from '@/utils/auth.js'
 import { computeMaterial, computeWeightRange } from '@/utils/calc.js'
 import { callCloud } from '@/utils/cloud-call.js'
+import { openPage } from '@/utils/vk-migration.js'
 import { STORE_RESULTS, STORE_HISTORY, STORE_DRAFT, STORE_SHARE_BATCH, STORE_LOAD_RECORD, STORE_LAST_BATCH } from '@/utils/storage-keys.js'
 import CardLayoutMixin from '@/mixins/card-layout.js'
 import BatchCard from '@/components/batch-card/batch-card.vue'
@@ -625,7 +626,7 @@ export default {
             uni.showToast({ title: '已清空', icon: 'none' })
         },
         // ===== 卡片折叠 / 排序 / 拖拽 ===== 由 mixins/card-layout.js 提供
-        goOrderSheet() { uni.navigateTo({ url: '/pages/order-sheet/order-sheet?purpose=order' }) },
+        goOrderSheet() { openPage('order-sheet', { purpose: 'order' }) },
         goArchive() { uni.navigateTo({ url: '/pages/archive/archive' }) },
         goHistory() {
             uni.navigateTo({ url: '/pages/history/history' })

@@ -180,6 +180,12 @@
             "style": {
                 "navigationBarTitleText": "生产异常"
             }
+        },
+        {
+            "path": "pages/vk/operations/order-sheet",
+            "style": {
+                "navigationBarTitleText": "指令单录入"
+            }
         }
     ],
     "globalStyle": {

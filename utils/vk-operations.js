@@ -27,13 +27,14 @@ export function unwrap(result) {
     return result
 }
 
-function request(url, data) {
+function request(url, data, timeout) {
     return new Promise((resolve, reject) => {
         try {
             vk.callFunction({
                 url,
                 data,
                 // 错误由页面统一展示，避免 vk 默认弹窗与页面提示重复
+                timeout,
                 fail: res => reject(res)
             }).then(resolve, reject)
         } catch (error) {
@@ -72,16 +73,17 @@ function retryable(error) {
 export async function vkCall(url, data = {}, options = {}) {
     if (!getToken()) throw new Error('登录已失效，请重新登录')
     const retry = typeof options.retry === 'boolean' ? options.retry : READ_ACTIONS.has(data.action)
+    const timeout = options.timeout
     let first
     try {
-        return unwrap(await request(url, data))
+        return unwrap(await request(url, data, timeout))
     } catch (error) {
         first = error
     }
     if (!retry || !retryable(first)) throw failure(first)
     await sleep(RETRY_DELAY)
     try {
-        return unwrap(await request(url, data))
+        return unwrap(await request(url, data, timeout))
     } catch (error) {
         throw failure(error)
     }

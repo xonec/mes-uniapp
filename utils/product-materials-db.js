@@ -9,20 +9,21 @@ import { callCloud } from './cloud-call.js'
 const FN = 'product-materials'
 
 // 本模块的调用入口（统一协议解析与 401 跳登录由 cloud-call 负责）
-const callFn = (action, payload) => callCloud(FN, action, payload)
+// 可选 call：P2 批 5 指令单新页传入 vk 版 callCloud；不传时保持旧行为。
+const callFn = (action, payload, call) => (call || callCloud)(FN, action, payload)
 
 // 按产品编码读一份物料清单，无则返回 null
-export async function fetchMaterialsByCode(productCode) {
-    return callFn('get', { productCode: String(productCode) })
+export async function fetchMaterialsByCode(productCode, call) {
+    return callFn('get', { productCode: String(productCode) }, call)
 }
 
 // 列出物料清单（列表项不含 materials，仅带 materialCount）
-export async function listProductMaterials(opts = {}) {
-    const r = await callFn('list', { limit: opts.limit || 100 })
+export async function listProductMaterials(opts = {}, call) {
+    const r = await callFn('list', { limit: opts.limit || 100 }, call)
     return Array.isArray(r) ? r : []
 }
 
 // 幂等写入/更新一份物料清单（同产品编码始终写同一 _id）
-export async function upsertProductMaterials(record, expectedVersion) {
-    return callFn('upsert', { record, ...(expectedVersion === undefined ? {} : { expectedVersion }) })
+export async function upsertProductMaterials(record, expectedVersion, call) {
+    return callFn('upsert', { record, ...(expectedVersion === undefined ? {} : { expectedVersion }) }, call)
 }

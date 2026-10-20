@@ -20,13 +20,14 @@
 import { listProductMaterials } from '@/utils/product-materials-db.js'
 import { listBoms } from '@/utils/bom-db.js'
 import { getUser } from '@/utils/auth.js'
+import { openPage } from '@/utils/vk-migration.js'
 export default {
     data() { return { tab: 'materials', list: [], kw: '', loading: false, error: '', requestNo: 0 } },
     computed: { filtered() { const keyword = this.kw.trim().toLowerCase(); return keyword ? this.list.filter(row => [row.productCode, row.productName].some(value => String(value || '').toLowerCase().includes(keyword))) : this.list } },
     onShow() { if (!getUser()) { uni.reLaunch({ url: '/pages/login/login' }); return }; this.load() },
     methods: {
-        importProduct() { uni.navigateTo({ url: '/pages/order-sheet/order-sheet?purpose=bom' }) },
-        openProduct(record) { if (this.tab === 'materials') uni.navigateTo({ url: '/pages/order-sheet/order-sheet?purpose=bom&productCode=' + encodeURIComponent(record.productCode) }) },
+        importProduct() { openPage('order-sheet', { purpose: 'bom' }) },
+        openProduct(record) { if (this.tab === 'materials') openPage('order-sheet', { purpose: 'bom', productCode: record.productCode }) },
         switchTab(tab) { if (this.tab !== tab) { this.tab = tab; this.list = []; this.kw = ''; this.load() } },
         async load() {
             const request = ++this.requestNo, tab = this.tab
