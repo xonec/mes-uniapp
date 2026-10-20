@@ -18,10 +18,10 @@ export default {
 }
 </script>
 <style lang="scss" scoped>
-.batch-field { margin-bottom: 20rpx; }.label { display: block; color: $muted; font-size: 25.6rpx; margin-bottom: 8rpx; }.locked-note { color: $primary; }
-.input { flex: 1; min-width: 0; box-sizing: border-box; font-size: 28.8rpx; height: 92.8rpx; padding: 0 16rpx; background: $canvas; border-radius: 16rpx; }.product-input { width: 100%; }.scan-input { display: flex; align-items: center; }
-.scan-input .scan-button { margin-left: 12rpx; }.scan-button { flex-shrink: 0; margin: 0; line-height: 92.8rpx; font-size: 27.2rpx; padding: 0 16rpx; background: $primary-soft; color: $primary; border-radius: 16rpx; }.scan-button::after, .button::after { border: 0; }
+.batch-field { margin-bottom: 20rpx; }.label { display: block; color: $muted; font-size: 24rpx; margin-bottom: 8rpx; }.locked-note { color: $primary; }
+.input { flex: 1; min-width: 0; box-sizing: border-box; font-size: 28rpx; height: 92.8rpx; padding: 0 16rpx; background: $canvas; border-radius: 16rpx; }.product-input { width: 100%; }.scan-input { display: flex; align-items: center; }
+.scan-input .scan-button { margin-left: 12rpx; }.scan-button { flex-shrink: 0; margin: 0; line-height: 92.8rpx; font-size: 28rpx; padding: 0 16rpx; background: $primary-soft; color: $primary; border-radius: 16rpx; }.scan-button::after, .button::after { border: 0; }
 .actions { display: flex; }
-.actions .button + .button { margin-left: 12rpx; }.button { flex: 1; min-width: 0; margin: 0; font-size: 27.2rpx; padding: 0 8rpx; line-height: 86.4rpx; border-radius: 16rpx; color: $primary; background: $primary-soft; }.button.primary { background: $primary; color: $surface; }.button[disabled], .scan-button[disabled] { color: $muted; background: $canvas; }
+.actions .button + .button { margin-left: 12rpx; }.button { flex: 1; min-width: 0; margin: 0; font-size: 28rpx; padding: 0 8rpx; line-height: 86.4rpx; border-radius: 16rpx; color: $primary; background: $primary-soft; }.button.primary { background: $primary; color: $surface; }.button[disabled], .scan-button[disabled] { color: $muted; background: $canvas; }
 .fetch-area { margin-top: 20rpx; padding-top: 20rpx; border-top: 1px solid $line; }.fetch-note { display: block; margin-top: 14rpx; font-size: 24rpx; color: $muted; line-height: 1.6; }
 </style>

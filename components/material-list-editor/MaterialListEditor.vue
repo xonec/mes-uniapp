@@ -66,15 +66,15 @@ export default {
 .material-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20rpx; }
 .material-heading .add-button { margin-left: 14rpx; }
 .material-title { display: block; font-size: 32rpx; font-weight: 700; }.material-count { display: block; font-size: 24rpx; margin-top: 8rpx; color: $muted; }
-.add-button { flex-shrink: 0; margin: 0; padding: 0 16rpx; font-size: 25.6rpx; line-height: 80rpx; border-radius: 16rpx; background: $primary-soft; color: $primary; }.add-button::after { border: 0; }
+.add-button { flex-shrink: 0; margin: 0; padding: 0 16rpx; font-size: 24rpx; line-height: 80rpx; border-radius: 16rpx; background: $primary-soft; color: $primary; }.add-button::after { border: 0; }
 .material-item { margin-top: 12rpx; border: 1px solid $line; border-radius: 19.2rpx; overflow: hidden; }.material-item.expanded { border-color: $primary; }.material-item.incomplete { border-color: $warning; }
 .material-summary { display: flex; align-items: flex-start; padding: 18rpx 14rpx; }.material-seq { flex-shrink: 0; color: $primary; background: $primary-soft; border-radius: 9.6rpx; width: 51.2rpx; line-height: 51.2rpx; text-align: center; font-size: 24rpx; }
-.material-overview { min-width: 0; flex: 1; margin: 0 14rpx; }.material-name { display: block; font-size: 28.8rpx; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }.material-code { display: block; font-size: 25rpx; color: $muted; margin-top: 6rpx; }.material-spec { display: block; font-size: 24rpx; line-height: 1.5; color: $muted; margin-top: 8rpx; max-height: 3em; overflow: hidden; }
+.material-overview { min-width: 0; flex: 1; margin: 0 14rpx; }.material-name { display: block; font-size: 28rpx; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }.material-code { display: block; font-size: 24rpx; color: $muted; margin-top: 6rpx; }.material-spec { display: block; font-size: 24rpx; line-height: 1.5; color: $muted; margin-top: 8rpx; max-height: 3em; overflow: hidden; }
 .material-toggle { flex-shrink: 0; display: flex; align-items: center; font-size: 24rpx; line-height: 54.4rpx; color: $primary; }.material-detail { border-top: 1px solid $line; padding: 16rpx; }
 .material-fields { display: flex; flex-wrap: wrap; margin: 0 -8rpx -16rpx; }.material-field { flex: 1 1 224rpx; min-width: 0; margin: 0 8rpx 16rpx; }.material-field.wide { flex-basis: 100%; }
-.material-label { display: block; color: $muted; font-size: 25.6rpx; margin-bottom: 8rpx; }
-.material-input, .source-input { width: 100%; box-sizing: border-box; padding: 14rpx; min-height: 86.4rpx; background: $canvas; font-size: 28.8rpx; border-radius: 12.8rpx; }
-.material-empty { color: $muted; padding: 32rpx 12rpx; line-height: 1.6; font-size: 27.2rpx; background: $canvas; border-radius: 16rpx; text-align: center; }
+.material-label { display: block; color: $muted; font-size: 24rpx; margin-bottom: 8rpx; }
+.material-input, .source-input { width: 100%; box-sizing: border-box; padding: 14rpx; min-height: 86.4rpx; background: $canvas; font-size: 28rpx; border-radius: 12.8rpx; }
+.material-empty { color: $muted; padding: 32rpx 12rpx; line-height: 1.6; font-size: 28rpx; background: $canvas; border-radius: 16rpx; text-align: center; }
 .material-source { margin-top: 16rpx; display: flex; align-items: center; justify-content: space-between; color: $muted; font-size: 24rpx; }.material-source-btn { margin: 0; font-size: 24rpx; padding: 6rpx 0 6rpx 12rpx; line-height: 1.6; background: $surface; color: $primary; }.material-source-btn::after, .remove-button::after { border: 0; }
-.remove-button { margin: 20rpx 0 0; padding: 0; line-height: 80rpx; background: $surface; color: $danger; border-top: 1px solid $line; border-radius: 0; font-size: 25.6rpx; }
+.remove-button { margin: 20rpx 0 0; padding: 0; line-height: 80rpx; background: $surface; color: $danger; border-top: 1px solid $line; border-radius: 0; font-size: 24rpx; }
 </style>

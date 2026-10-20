@@ -81,6 +81,7 @@ page {
     --fs-28: 28rpx;
     --fs-24: 24rpx;
     --fs-22: 22rpx;
+    --fs-52: 52rpx; /* 品牌字例外，仅登录页 */
 
     /* 圆角 */
     --radius-card: 16rpx;

@@ -233,14 +233,14 @@ export default {
 .att-seg-item { margin: 0; padding: 0 12rpx; min-height: 48rpx; line-height: 48rpx; font-size: 24rpx; border-radius: 8rpx; background: transparent; color: $muted; }
 .att-seg-item::after { border: 0; }
 .att-seg-item.active { background: $surface; color: $primary; font-weight: 600; }
-.att-help { margin: 0; padding: 0; width: 48rpx; height: 48rpx; line-height: 48rpx; text-align: center; border-radius: 50%; background: $canvas; color: $muted; font-size: 26rpx; }
+.att-help { margin: 0; padding: 0; width: 48rpx; height: 48rpx; line-height: 48rpx; text-align: center; border-radius: 50%; background: $canvas; color: $muted; font-size: 24rpx; }
 .att-help::after { border: 0; }
 .att-help-card { padding: 20rpx 16rpx; margin-bottom: 20rpx; border-radius: 16rpx; background: $primary-soft; }
 .att-help-text { font-size: 24rpx; color: $ink; line-height: 1.6; }
 .att-overview { padding: 16rpx; }
 .att-metrics { display: flex; margin-right: -12rpx; }
 .att-metric { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; margin-right: 12rpx; }
-.att-metric-value { font-size: 36rpx; font-weight: 700; }
+.att-metric-value { font-size: 32rpx; font-weight: 700; }
 .att-metric-label { margin-top: 4rpx; font-size: 22rpx; color: $muted; }
 .att-rate { margin-top: 20rpx; }
 .att-rate-head { display: flex; align-items: center; justify-content: space-between; font-size: 24rpx; color: $muted; margin-bottom: 6rpx; }
@@ -270,7 +270,7 @@ export default {
 .att-row-main { min-width: 0; }
 .att-row-line { display: flex; align-items: baseline; justify-content: space-between; }
 .att-title { font-size: 28rpx; font-weight: 600; }
-.att-hours { flex-shrink: 0; font-size: 26rpx; font-weight: 700; color: $primary; }
+.att-hours { flex-shrink: 0; font-size: 24rpx; font-weight: 700; color: $primary; }
 .att-row-meta { display: block; font-size: 22rpx; color: $muted; margin-top: 4rpx; }
 .att-row-badges { display: flex; flex-wrap: wrap; margin: 6rpx 0 -6rpx; }
 .att-note { display: block; font-size: 22rpx; color: $muted; line-height: 1.5; margin-top: 6rpx; opacity: .85; }

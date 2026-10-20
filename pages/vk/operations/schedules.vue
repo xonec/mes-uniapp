@@ -309,7 +309,7 @@ export default {
 .cal-card { padding: 16rpx 20rpx; }
 .cal-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .cal-segmented { display: flex; padding: 4rpx; border-radius: 16rpx; background: $canvas; }
-.cal-seg { margin: 0; padding: 0 16rpx; min-height: 56rpx; line-height: 56rpx; font-size: 26rpx; border-radius: 12rpx; background: transparent; color: $muted; }
+.cal-seg { margin: 0; padding: 0 16rpx; min-height: 56rpx; line-height: 56rpx; font-size: 24rpx; border-radius: 12rpx; background: transparent; color: $muted; }
 .cal-seg::after { border: 0; }
 .cal-seg.active { background: $surface; color: $primary; font-weight: 600; }
 .cal-actions { display: flex; align-items: center; margin-left: 12rpx; }
@@ -326,7 +326,7 @@ export default {
 .week-cell.off { background: $canvas; }
 .week-cell.today { border-color: $primary; }
 .week-cell.selected { background: $primary-soft; border-color: $primary; }
-.week-day { font-size: 26rpx; font-weight: 600; line-height: 1.3; }
+.week-day { font-size: 24rpx; font-weight: 600; line-height: 1.3; }
 .cell-shift { margin-top: 6rpx; font-size: 24rpx; font-weight: 600; color: $primary; line-height: 1.3; }
 .cell-dot { width: 14rpx; height: 14rpx; margin-top: 8rpx; border-radius: 50%; background: $muted; }
 .cell-dot.leave { background: $warning; }
@@ -337,7 +337,7 @@ export default {
 .cal-cell.off { background: $canvas; }
 .cal-cell.today { border-color: $primary; }
 .cal-cell.selected { background: $primary-soft; border-color: $primary; }
-.cal-day { font-size: 26rpx; font-weight: 600; line-height: 1.3; }
+.cal-day { font-size: 24rpx; font-weight: 600; line-height: 1.3; }
 .cal-empty { display: block; padding: 12rpx 0 0; text-align: center; }
 .cal-skeleton { padding: 6rpx 0; }
 .cal-skeleton-row { display: flex; margin-right: -6rpx; margin-bottom: 6rpx; }
@@ -361,7 +361,7 @@ export default {
 .plan-col-person { flex: 1 1 0; min-width: 0; }
 .plan-col { min-width: 0; }
 .plan-col-person { padding-left: 16rpx; border-left: 1rpx solid $line; }
-.plan-title { display: flex; align-items: center; justify-content: space-between; font-size: 26rpx; font-weight: 700; padding: 12rpx 0; border-bottom: 1rpx solid $line; white-space: nowrap; }
+.plan-title { display: flex; align-items: center; justify-content: space-between; font-size: 24rpx; font-weight: 700; padding: 12rpx 0; border-bottom: 1rpx solid $line; white-space: nowrap; }
 .plan-title .plan-count { margin-left: 8rpx; }
 .plan-count { font-size: 22rpx; font-weight: 400; color: $muted; }
 .plan-row { display: flex; flex-direction: column; padding: 12rpx 0; border-bottom: 1rpx solid $line; min-width: 0; }
@@ -369,7 +369,7 @@ export default {
 .plan-row:last-child { border-bottom: 0; }
 .plan-row.me { background: $primary-soft; border-radius: 8rpx; padding-left: 8rpx; padding-right: 8rpx; }
 .plan-code { font-family: monospace; font-size: 24rpx; line-height: 1.35; color: $primary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plan-person { font-size: 26rpx; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-person { font-size: 24rpx; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan-row .plan-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan-row.me .plan-person { font-weight: 700; color: $primary; }
 .me-tag { margin-left: 6rpx; padding: 0 8rpx; border-radius: 4rpx; background: $primary; color: $surface; font-size: 22rpx; font-weight: normal; }

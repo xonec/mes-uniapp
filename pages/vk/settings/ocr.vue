@@ -295,15 +295,15 @@ export default {
 .card { background: #fff; border-radius: 16rpx; padding: 22rpx; margin-bottom: 12rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
 .card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 12rpx; }
 .tip { font-size: 22rpx; color: #5F6A65; line-height: 1.5; margin-top: 6rpx; }
-.noauth { font-size: 26rpx; color: #B23B37; text-align: center; padding: 20rpx 0; }
+.noauth { font-size: 24rpx; color: #B23B37; text-align: center; padding: 20rpx 0; }
 .presets { display: flex; flex-wrap: wrap;  }
 .preset { padding: 12rpx 20rpx; border-radius: 12rpx; background: #F4F7F6; font-size: 24rpx; color: #4a554f; border: 1rpx solid #E3E8E5; }
 .preset.active { background: #008577; color: #fff; border-color: #008577; }
 .preset.disabled { pointer-events: none; opacity: 0.5; }
 .field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 12rpx; min-height: 84rpx; margin-bottom: 12rpx; }
-.lbl { width: 170rpx; font-size: 26rpx; color: #5F6A65; flex-shrink: 0; }
-.inp { flex: 1; height: 84rpx; font-size: 26rpx; background: transparent; }
-.kv { display: flex; justify-content: space-between; align-items: center; padding: 12rpx 0; border-bottom: 1rpx dashed #E3E8E5; font-size: 26rpx; color: #4a554f; }
+.lbl { width: 170rpx; font-size: 24rpx; color: #5F6A65; flex-shrink: 0; }
+.inp { flex: 1; height: 84rpx; font-size: 24rpx; background: transparent; }
+.kv { display: flex; justify-content: space-between; align-items: center; padding: 12rpx 0; border-bottom: 1rpx dashed #E3E8E5; font-size: 24rpx; color: #4a554f; }
 .kv:last-child { border-bottom: none; }
 .kv .mono { font-family: monospace; font-size: 22rpx; text-align: right; color: #1f2622; max-width: 65%; word-break: break-all; }
 .btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #EEF3F1; color: #1f2622; }

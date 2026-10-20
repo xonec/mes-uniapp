@@ -55,7 +55,7 @@ export default {
 .data-grid .data-cell { box-sizing: border-box; flex: 0 0 calc(50% - 12rpx); margin: 0 6rpx 12rpx; }
 .data-cell { background: $canvas; border-radius: 12rpx; padding: 16rpx; min-height: 112rpx; display: flex; flex-direction: column; justify-content: center; }
 .dlbl { font-size: 24rpx; color: $muted; }
-.dinp { margin-top: 4rpx; font-size: 28.8rpx; background: transparent; height: 73.6rpx; }
+.dinp { margin-top: 4rpx; font-size: 28rpx; background: transparent; height: 73.6rpx; }
 .dval { margin-top: 4rpx; font-size: 32rpx; font-weight: 700; color: $primary; }
 // 安卓 App 恢复原有三列生产数据布局。
 .legacy-layout {

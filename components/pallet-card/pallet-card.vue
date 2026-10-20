@@ -26,7 +26,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.pager-summary { display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 14rpx; padding: 16rpx; background: $canvas; border-radius: 16rpx; font-size: 25.6rpx; color: $muted; }.strong { font-weight: 700; font-size: 30.4rpx; color: $ink; }.pager-actions { display: flex; flex-wrap: wrap; }.pager-actions .btn { flex: 1 1 40%; margin: 0; }.btn { font-size: 27.2rpx; border-radius: 16rpx; padding: 0 12rpx; line-height: 86.4rpx; background: $primary-soft; color: $primary; }.btn::after { border: 0; }.btn.primary { background: $primary; color: $surface; }.btn[disabled] { color: $muted; background: $canvas; }.pending-note { padding: 18rpx; margin-bottom: 16rpx; background: mix($warning, $surface, 8%); color: $warning; font-size: 25.6rpx; line-height: 1.6; border-radius: 16rpx; }
+.pager-summary { display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 14rpx; padding: 16rpx; background: $canvas; border-radius: 16rpx; font-size: 24rpx; color: $muted; }.strong { font-weight: 700; font-size: 30rpx; color: $ink; }.pager-actions { display: flex; flex-wrap: wrap; }.pager-actions .btn { flex: 1 1 40%; margin: 0; }.btn { font-size: 28rpx; border-radius: 16rpx; padding: 0 12rpx; line-height: 86.4rpx; background: $primary-soft; color: $primary; }.btn::after { border: 0; }.btn.primary { background: $primary; color: $surface; }.btn[disabled] { color: $muted; background: $canvas; }.pending-note { padding: 18rpx; margin-bottom: 16rpx; background: mix($warning, $surface, 8%); color: $warning; font-size: 24rpx; line-height: 1.6; border-radius: 16rpx; }
 
 .pager-summary .strong { margin-left: 12rpx; }
 .pager-actions .btn + .btn { margin-left: 12rpx; }

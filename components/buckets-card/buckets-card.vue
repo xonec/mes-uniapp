@@ -56,9 +56,9 @@ export default {
 <style lang="scss" scoped>
 .bucket-grid { display: flex; flex-wrap: wrap; margin: 0 -6rpx; }
 .bucket-grid .bucket { flex: 0 0 calc(50% - 12rpx); margin: 0 6rpx 12rpx; }.bucket { box-sizing: border-box; display: flex; align-items: center; background: $canvas; padding: 12rpx 12rpx; border-radius: 17.6rpx; }
-.bucket .binp { margin-left: 12rpx; }.blbl { flex-shrink: 0; font-size: 25.6rpx; color: $primary; font-weight: 600; }.binp { flex: 1; min-width: 0; height: 73.6rpx; font-size: 32rpx; text-align: right; background: transparent; }.binp[disabled] { color: $muted; }
+.bucket .binp { margin-left: 12rpx; }.blbl { flex-shrink: 0; font-size: 24rpx; color: $primary; font-weight: 600; }.binp { flex: 1; min-width: 0; height: 73.6rpx; font-size: 32rpx; text-align: right; background: transparent; }.binp[disabled] { color: $muted; }
 .bucket-tail { margin-top: 16rpx; padding-top: 16rpx; border-top: 1px solid $line; }.data-grid { display: flex; flex-wrap: wrap; margin: 0 -6rpx; }
-.data-grid .data-cell { flex: 0 0 calc(50% - 12rpx); margin: 0 6rpx 12rpx; }.data-cell { box-sizing: border-box; background: $canvas; border-radius: 16rpx; padding: 14rpx; min-height: 102.4rpx; display: flex; flex-direction: column; justify-content: center; }.dlbl { font-size: 24rpx; color: $muted; }.dinp { margin-top: 6rpx; font-size: 30.4rpx; background: transparent; height: 70.4rpx; }
+.data-grid .data-cell { flex: 0 0 calc(50% - 12rpx); margin: 0 6rpx 12rpx; }.data-cell { box-sizing: border-box; background: $canvas; border-radius: 16rpx; padding: 14rpx; min-height: 102.4rpx; display: flex; flex-direction: column; justify-content: center; }.dlbl { font-size: 24rpx; color: $muted; }.dinp { margin-top: 6rpx; font-size: 30rpx; background: transparent; height: 70.4rpx; }
 // 安卓 App 恢复原有五列分桶及三列参数布局。
 .legacy-layout {
     .bucket-grid { display: flex; flex-wrap: wrap; margin: 0 -5rpx; }

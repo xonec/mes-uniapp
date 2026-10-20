@@ -74,7 +74,7 @@ export default {
 .card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 6rpx; }
 .who { font-size: 24rpx; color: #5F6A65; margin-bottom: 20rpx; }
 .field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 12rpx; height: 84rpx; margin-bottom: 14rpx; }
-.lbl { width: 110rpx; font-size: 26rpx; color: #5F6A65; flex-shrink: 0; }
+.lbl { width: 110rpx; font-size: 24rpx; color: #5F6A65; flex-shrink: 0; }
 .inp { flex: 1; height: 84rpx; font-size: 28rpx; background: transparent; }
 .btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #EEF3F1; color: #1f2622; }
 .btn.primary { background: #008577; color: #fff; font-weight: 700; }

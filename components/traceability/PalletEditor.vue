@@ -48,10 +48,10 @@ export default {
 /* 微信小程序组件 wxss 不允许标签选择器：这里统一用 class，避免样式被整段丢弃 */
 /* 旧版微信 WebView 不支持 flex gap：统一用 margin 保持视觉不变 */
 .pallet-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }.pallet-title { font-weight: 700; font-size: 32rpx; }.pallet-state { margin-left: 16rpx; }
-.pallet-state { color: $warning; background: mix($warning, $surface, 10%); padding: 6rpx 12rpx; border-radius: 12.8rpx; font-size: 23rpx; }.pallet-state.confirmed { color: $primary; background: $primary-soft; }
-.pallet-summary { display: flex; align-items: center; justify-content: space-between; padding: 16rpx; border-radius: 17.6rpx; background: $canvas; }.pallet-summary-main { flex: 1; min-width: 0; }.pallet-number { display: block; font-size: 32rpx; font-weight: 600; }.pallet-description { display: block; margin-top: 8rpx; font-size: 25.6rpx; color: $muted; line-height: 1.5; overflow-wrap: anywhere; }.pallet-edit { flex-shrink: 0; display: flex; align-items: center; margin-left: 14rpx; font-size: 24rpx; color: $primary; }
-.pallet-detail { margin-top: 20rpx; }.pallet-note, .pending-note { color: $muted; font-size: 25.6rpx; margin-top: 16rpx; line-height: 1.6; }.pending-note { color: $warning; }
+.pallet-state { color: $warning; background: mix($warning, $surface, 10%); padding: 6rpx 12rpx; border-radius: 12.8rpx; font-size: 24rpx; }.pallet-state.confirmed { color: $primary; background: $primary-soft; }
+.pallet-summary { display: flex; align-items: center; justify-content: space-between; padding: 16rpx; border-radius: 17.6rpx; background: $canvas; }.pallet-summary-main { flex: 1; min-width: 0; }.pallet-number { display: block; font-size: 32rpx; font-weight: 600; }.pallet-description { display: block; margin-top: 8rpx; font-size: 24rpx; color: $muted; line-height: 1.5; overflow-wrap: anywhere; }.pallet-edit { flex-shrink: 0; display: flex; align-items: center; margin-left: 14rpx; font-size: 24rpx; color: $primary; }
+.pallet-detail { margin-top: 20rpx; }.pallet-note, .pending-note { color: $muted; font-size: 24rpx; margin-top: 16rpx; line-height: 1.6; }.pending-note { color: $warning; }
 .pallet-grid { display: flex; flex-wrap: wrap; margin: 0 -8rpx -16rpx; }.pallet-field { flex: 1 1 224rpx; min-width: 0; margin: 0 8rpx 16rpx; }.pallet-field.wide { flex-basis: 100%; }
-.pallet-label { display: block; margin-bottom: 8rpx; color: $muted; font-size: 25.6rpx; }
-.pallet-input, .pallet-picker { width: 100%; box-sizing: border-box; min-height: 86.4rpx; padding: 14rpx; background: $canvas; border-radius: 16rpx; font-size: 28.8rpx; }
+.pallet-label { display: block; margin-bottom: 8rpx; color: $muted; font-size: 24rpx; }
+.pallet-input, .pallet-picker { width: 100%; box-sizing: border-box; min-height: 86.4rpx; padding: 14rpx; background: $canvas; border-radius: 16rpx; font-size: 28rpx; }
 </style>

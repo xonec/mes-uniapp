@@ -79,8 +79,8 @@ export default {
 <style lang="scss" scoped>
 /* 微信小程序组件 wxss 不允许标签选择器：这里统一用 class，避免样式被整段丢弃 */
 /* 旧版微信 WebView 不支持 flex gap：统一用 margin 保持视觉不变 */
-.selection-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }.selection-title { font-weight: 700; font-size: 32rpx; }.selection-badge { margin-left: 12rpx; font-size: 23rpx; color: $primary; background: $primary-soft; padding: 6rpx 12rpx; border-radius: 11.2rpx; }
-.selection-field { margin-bottom: 18rpx; }.selection-label { display: block; color: $muted; font-size: 25.6rpx; margin-bottom: 8rpx; }
-.selection-picker { display: flex; align-items: center; justify-content: space-between; background: $canvas; padding: 16rpx; border-radius: 16rpx; font-size: 28.8rpx; min-height: 44.8rpx; }.selection-value { flex: 1; min-width: 0; margin-right: 12rpx; overflow-wrap: anywhere; }.selection-arrow { color: $primary; }.selection-picker.muted { color: $muted; }
-.selection-note { color: $muted; line-height: 1.6; margin-top: 12rpx; font-size: 25.6rpx; }.selection-error { color: $danger; margin-bottom: 16rpx; font-size: 25.6rpx; line-height: 1.6; }.selection-retry { display: inline; margin: 0; padding: 4rpx 12rpx; line-height: 1.6; font-size: 25.6rpx; background: $surface; color: $primary; }.selection-retry::after { border: 0; }
+.selection-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }.selection-title { font-weight: 700; font-size: 32rpx; }.selection-badge { margin-left: 12rpx; font-size: 24rpx; color: $primary; background: $primary-soft; padding: 6rpx 12rpx; border-radius: 11.2rpx; }
+.selection-field { margin-bottom: 18rpx; }.selection-label { display: block; color: $muted; font-size: 24rpx; margin-bottom: 8rpx; }
+.selection-picker { display: flex; align-items: center; justify-content: space-between; background: $canvas; padding: 16rpx; border-radius: 16rpx; font-size: 28rpx; min-height: 44.8rpx; }.selection-value { flex: 1; min-width: 0; margin-right: 12rpx; overflow-wrap: anywhere; }.selection-arrow { color: $primary; }.selection-picker.muted { color: $muted; }
+.selection-note { color: $muted; line-height: 1.6; margin-top: 12rpx; font-size: 24rpx; }.selection-error { color: $danger; margin-bottom: 16rpx; font-size: 24rpx; line-height: 1.6; }.selection-retry { display: inline; margin: 0; padding: 4rpx 12rpx; line-height: 1.6; font-size: 24rpx; background: $surface; color: $primary; }.selection-retry::after { border: 0; }
 </style>

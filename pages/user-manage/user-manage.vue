@@ -234,7 +234,7 @@ export default {
 <style scoped>
 .page { padding: 12rpx; min-height: 100vh; background: #F2F4F3; }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 6rpx 20rpx; }
-.tb-title { font-size: 34rpx; font-weight: 700; color: #1f2622; }
+.tb-title { font-size: 32rpx; font-weight: 700; color: #1f2622; }
 .tb-right { display: flex; align-items: center;  }
 .tb-me { font-size: 24rpx; color: #5F6A65; }
 .tb-pwd { font-size: 24rpx; color: #008577; padding: 6rpx 12rpx; background: #E6F4F1; border-radius: 999rpx; }
