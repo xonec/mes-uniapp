@@ -16,7 +16,7 @@
 .fw-note { color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.5; }
 .fw-actions { display: flex; flex-wrap: wrap; }
 .fw-actions > .fw-button + .fw-button { margin-left: var(--sp-12, 12rpx); }
-.fw-button { box-sizing: border-box; margin: 0; min-height: 80rpx; line-height: 80rpx; padding: 0 var(--sp-24, 24rpx); border-radius: var(--radius-button, 12rpx); font-size: var(--fs-28, 28rpx); font-weight: 600; background: $primary-soft; color: $primary; }
+.fw-button { box-sizing: border-box; margin: 0; min-height: 80rpx; line-height: 80rpx; padding: 0 var(--sp-24, 24rpx); border-radius: var(--radius-button, 12rpx); font-size: var(--fs-28, 28rpx); font-weight: 600; background: $primary-soft; color: var(--state-primary, #{$primary}); }
 .fw-button::after { border: 0; }
 .fw-button.primary { background: $primary; color: $surface; }
 .fw-button.secondary { background: $canvas; color: $ink; }
