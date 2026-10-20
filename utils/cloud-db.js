@@ -14,11 +14,12 @@ const FN = 'batch-buckets'
 const BUCKET_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
 
 // 本模块的调用入口（统一协议解析与 401 跳登录由 cloud-call 负责）
-const callFn = (action, payload) => callCloud(FN, action, payload)
+// 可选 call：P2 批 6 新页传入 vk 版 callCloud；不传时保持旧行为。
+const callFn = (action, payload, call) => (call || callCloud)(FN, action, payload)
 
 // 按批号取每桶件数，返回 {A:n, ..., J:n}
-export async function fetchBatchBucketsFromCloud(batchNo) {
-    const doc = await callFn('get', { batchNo: String(batchNo) })
+export async function fetchBatchBucketsFromCloud(batchNo, call) {
+    const doc = await callFn('get', { batchNo: String(batchNo) }, call)
     if (!doc) throw new Error('云端无该批号数据（请先由连公司 WiFi 的手机从帆软获取并写入）')
     const buckets = doc.buckets || {}
     const out = {}
@@ -27,11 +28,11 @@ export async function fetchBatchBucketsFromCloud(batchNo) {
 }
 
 // 写入/更新某批号分桶数据（幂等：同批号始终写同一 _id）
-export async function upsertBatchBuckets(batchNo, buckets, meta = {}) {
+export async function upsertBatchBuckets(batchNo, buckets, meta = {}, call) {
     return callFn('upsert', {
         batchNo: String(batchNo),
         buckets,
         sourceFetchedAt: meta.sourceFetchedAt || null,
         checksum: meta.checksum || null
-    })
+    }, call)
 }

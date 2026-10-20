@@ -30,6 +30,7 @@
 
 <script>
 import { login, isLoggedIn } from '@/utils/auth.js'
+import { pageUrl } from '@/utils/vk-migration.js'
 
 // 本地记住账号密码的 storage key（密码仅 base64 混淆，非加密，仅内部工具使用）
 const SAVED_KEY = 'mes_login_saved'
@@ -100,7 +101,7 @@ export default {
         enterAfterLogin() {
             const shareBatch = uni.getStorageSync('mes-share-batch') || ''
             uni.removeStorageSync('mes-share-batch')
-            const url = shareBatch ? '/pages/materials/materials?batchNo=' + shareBatch : '/pages/operations/workbench'
+            const url = shareBatch ? pageUrl('materials', { batchNo: shareBatch }) : '/pages/operations/workbench'
             uni.reLaunch({ url })
         },
         // 回填上次记住的账号 / 密码

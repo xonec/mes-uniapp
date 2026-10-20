@@ -27,6 +27,7 @@
 import { listProductionRecords, listRecordVersions, fetchProductionRecord } from '@/utils/production-db.js'
 import { STORE_LOAD_RECORD } from '@/utils/storage-keys.js'
 import { getUser } from '@/utils/auth.js'
+import { openPage } from '@/utils/vk-migration.js'
 import { batchIsValid } from '@/utils/shared/batch.js'
 export default {
     data() { return { list: [], kw: '', cursor: 0, done: false, loading: false, error: '', searching: false, searchError: '', requestNo: 0, searchRequest: 0, showVersions: false, versionBatch: '', versions: [], verLoading: false, versionError: '', historyLimitReached: false, versionRequest: 0 } },
@@ -37,7 +38,7 @@ export default {
     onUnload() { this.cancelRequests() },
     methods: {
         cancelRequests() { this.requestNo++; this.searchRequest++; this.versionRequest++; this.loading = false; this.searching = false; this.verLoading = false; this.showVersions = false },
-        goCalculation() { uni.navigateTo({ url: '/pages/materials/materials' }) },
+        goCalculation() { openPage('materials') },
         async refresh() { if (this.loading) return; this.searchRequest++; this.searching = false; this.requestNo++; this.cursor = 0; this.done = false; this.list = []; this.error = ''; this.searchError = ''; await this.loadMore() },
         async loadMore() {
             if (this.loading || this.done) return

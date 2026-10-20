@@ -75,7 +75,7 @@ import { saveProductionRecord, fetchProductionRecord, saveDraftRecord, getDraftR
 import { getUser, checkLogin } from '@/utils/auth.js'
 import { computeMaterial, computeWeightRange } from '@/utils/calc.js'
 import { callCloud } from '@/utils/cloud-call.js'
-import { openPage } from '@/utils/vk-migration.js'
+import { openPage, pageUrl } from '@/utils/vk-migration.js'
 import { STORE_RESULTS, STORE_HISTORY, STORE_DRAFT, STORE_SHARE_BATCH, STORE_LOAD_RECORD, STORE_LAST_BATCH } from '@/utils/storage-keys.js'
 import CardLayoutMixin from '@/mixins/card-layout.js'
 import BatchCard from '@/components/batch-card/batch-card.vue'
@@ -226,7 +226,7 @@ export default {
         const title = this.batchValid ? `批号 ${this.batchNo} · 包材计算` : 'MES生产助手 - 包材计算'
         return {
             title,
-            path: '/pages/materials/materials' + (this.batchValid ? '?batchNo=' + this.batchNo : '')
+            path: pageUrl('materials', this.batchValid ? { batchNo: this.batchNo } : {})
         }
     },
     onShareTimeline() {
@@ -627,10 +627,8 @@ export default {
         },
         // ===== 卡片折叠 / 排序 / 拖拽 ===== 由 mixins/card-layout.js 提供
         goOrderSheet() { openPage('order-sheet', { purpose: 'order' }) },
-        goArchive() { uni.navigateTo({ url: '/pages/archive/archive' }) },
-        goHistory() {
-            uni.navigateTo({ url: '/pages/history/history' })
-        }
+        goArchive() { openPage('archive') },
+        goHistory() { openPage('history') }
     }
 }
 </script>

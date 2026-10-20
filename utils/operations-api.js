@@ -1,5 +1,6 @@
 import { callCloud } from '@/utils/cloud-call.js'
 import { getUser, getToken } from '@/utils/auth.js'
+import { openPage } from '@/utils/vk-migration.js'
 
 /** 只读 action：冷启动超时/网络失败自动重试一次；写 action 保持单次，避免重复提交。 */
 const RETRY_ACTIONS = new Set([
@@ -63,7 +64,7 @@ export async function loadOperations(vm, fetcher, apply) {
 /** 进入计算前带上工单采用的订单版本，防止计算自动改用新版本。 */
 export function openJobCalculation(job) {
     uni.setStorageSync('mes:operation-calculation', { batchNo: job.batchNo, jobId: job._id, orderNo: job.orderNo, orderVersion: job.orderVersion, orderSnapshot: job.orderSnapshot })
-    uni.navigateTo({ url: '/pages/materials/materials' })
+    openPage('materials')
 }
 /** 使用目录名称显示引用，历史名称优先由服务端冻结快照提供。 */
 export function operationName(items, id) { const item = (items || []).find(value => value._id === id); return item ? item.name : id || '—' }

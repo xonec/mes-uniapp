@@ -112,7 +112,7 @@ export default {
             uni.showActionSheet({
                 itemList: ['包材计算', '标准差计算', '批次追溯'],
                 success: result => {
-                    if (result.tapIndex === 0) uni.navigateTo({ url: '/pages/materials/materials' })
+                    if (result.tapIndex === 0) openPage('materials')
                     if (result.tapIndex === 1) uni.navigateTo({ url: '/pages/operations/tools' })
                     if (result.tapIndex === 2) openPage('operations.trace')
                 }

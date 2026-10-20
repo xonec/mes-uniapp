@@ -15,9 +15,9 @@ const ROUTES = {
     'operations.job-detail': { legacy: '/pages/operations/job-detail', vk: '/pages/vk/operations/job-detail' },
     'operations.exceptions': { legacy: '/pages/operations/exceptions', vk: '/pages/vk/operations/exceptions' },
     'operations.tools': { legacy: '/pages/operations/tools' },
-    'materials': { legacy: '/pages/materials/materials' },
-    'history': { legacy: '/pages/history/history' },
-    'archive': { legacy: '/pages/archive/archive' },
+    'materials': { legacy: '/pages/materials/materials', vk: '/pages/vk/materials/materials' },
+    'history': { legacy: '/pages/history/history', vk: '/pages/vk/history/history' },
+    'archive': { legacy: '/pages/archive/archive', vk: '/pages/vk/archive/archive' },
     'order-sheet': { legacy: '/pages/order-sheet/order-sheet', vk: '/pages/vk/operations/order-sheet' },
     'settings-ocr': { legacy: '/pages/settings-ocr/settings-ocr' },
     'user-manage': { legacy: '/pages/user-manage/user-manage' },
@@ -38,7 +38,11 @@ export const PAGE_SWITCH = {
     'me': true,
     'operations.trace': true,
     'operations.reports': true,
-    'operations.handovers': true
+    'operations.handovers': true,
+    // P2 批 6（生产计算 / 历史记录 / 产品档案）默认关，验收后逐页打开
+    'materials': true,
+    'history': true,
+    'archive': true
 }
 
 function query(params) {

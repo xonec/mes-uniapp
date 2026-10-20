@@ -186,6 +186,25 @@
             "style": {
                 "navigationBarTitleText": "指令单录入"
             }
+        },
+        {
+            "path": "pages/vk/materials/materials",
+            "style": {
+                "navigationBarTitleText": "生产计算",
+                "enablePullDownRefresh": false
+            }
+        },
+        {
+            "path": "pages/vk/history/history",
+            "style": {
+                "navigationBarTitleText": "历史记录"
+            }
+        },
+        {
+            "path": "pages/vk/archive/archive",
+            "style": {
+                "navigationBarTitleText": "产品档案"
+            }
         }
     ],
     "globalStyle": {
