@@ -63,9 +63,8 @@ page {
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', sans-serif;
     color: #1f2622;
 
-    /* 间距 8 档 + 兼容档 sp-6（rpx；sp-6 仅历史组件使用，新代码禁用） */
+    /* 间距 8 档（rpx） */
     --sp-4: 4rpx;
-    --sp-6: 6rpx;
     --sp-8: 8rpx;
     --sp-12: 12rpx;
     --sp-16: 16rpx;

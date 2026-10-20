@@ -180,10 +180,10 @@ export default {
 .rep-rows { display: flex; flex-direction: column;  padding-bottom: var(--sp-8, 8rpx); }
 
 .rep-head .fw-note { margin-top: 2rpx; }
-.rep-bar .rep-nav { margin-right: var(--sp-6, 6rpx); }
-.rep-bar .rep-sep { margin: 0 var(--sp-6, 6rpx); }
-.rep-bar picker + .rep-nav { margin-left: var(--sp-6, 6rpx); }
-.rep-bar .rep-query { margin-left: var(--sp-6, 6rpx); }
+.rep-bar .rep-nav { margin-right: var(--sp-8); }
+.rep-bar .rep-sep { margin: 0 var(--sp-8); }
+.rep-bar picker + .rep-nav { margin-left: var(--sp-8); }
+.rep-bar .rep-query { margin-left: var(--sp-8); }
 .rep-group-head .rep-group-date, .rep-group-head .rep-group-count, .rep-group-head .rep-group-summary { margin-left: var(--sp-8, 8rpx); }
 .rep-rows { display: flex; flex-direction: column; }
 .rep-row + .rep-row { margin-top: var(--sp-8, 8rpx); }
