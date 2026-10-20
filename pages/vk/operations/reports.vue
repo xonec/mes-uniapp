@@ -166,10 +166,10 @@ export default {
 .rep-head { display: flex; flex-direction: column;  margin-bottom: var(--sp-8, 8rpx); }
 .rep-title { color: $primary; font-size: var(--fs-30, 30rpx); font-weight: 700; white-space: nowrap; }
 .rep-bar { display: flex; align-items: center;  margin-bottom: var(--sp-12, 12rpx); }
-.rep-nav { width: 52rpx; height: 64rpx; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-button, 12rpx); background: $canvas; }
+.rep-nav { width: 72rpx; height: 72rpx; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-button, 12rpx); background: $canvas; }
 .rep-date { padding: 0 var(--sp-8, 8rpx); height: 64rpx; line-height: 64rpx; border-radius: var(--radius-button, 12rpx); background: $surface; font-size: var(--fs-28, 28rpx); font-weight: 600; }
 .rep-sep { color: $muted; font-size: var(--fs-24, 24rpx); }
-.rep-query { margin-left: auto; padding: 0 var(--sp-16, 16rpx); height: 64rpx; line-height: 64rpx; border-radius: var(--radius-button, 12rpx); background: $primary; color: $surface; font-size: var(--fs-24, 24rpx); font-weight: 600; }
+.rep-query { margin-left: auto; padding: 0 var(--sp-16, 16rpx); min-height: 72rpx; line-height: 72rpx; border-radius: var(--radius-button, 12rpx); background: $primary; color: $surface; font-size: var(--fs-24, 24rpx); font-weight: 600; }
 .rep-query.disabled { opacity: .6; }
 .rep-summary .fw-heading { margin-bottom: var(--sp-8, 8rpx); }
 .rep-group + .rep-group { margin-top: var(--sp-4, 4rpx); border-top: 1px solid $line; }

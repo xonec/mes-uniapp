@@ -664,7 +664,7 @@ export default {
 .photos { display: flex; flex-wrap: wrap; margin: 0 -12rpx -12rpx 0; }.photo-item { box-sizing: border-box; position: relative; width: calc((100% - 36rpx) / 3); min-width: 0; margin: 0 12rpx 12rpx 0; padding-bottom: 24rpx; }
 .photo-item image { width: 100%; height: 256rpx; border-radius: 16rpx; background: $canvas; }
 .photo-page { display: block; text-align: center; color: $muted; font-size: 24rpx; padding: 8rpx 0; }
-.photo-remove { position: absolute; right: -6.4rpx; top: -6.4rpx; margin: 0; padding: 0; width: 64rpx; height: 64rpx; font-size: 40rpx; line-height: 64rpx; border-radius: 50%; background: $ink; color: $surface; }
+.photo-remove { position: absolute; right: -8rpx; top: -8rpx; margin: 0; padding: 0; width: 72rpx; height: 72rpx; font-size: 40rpx; line-height: 72rpx; border-radius: 50%; background: $ink; color: $surface; }
 .photo-remove::after, .photo-first::after { border: 0; }.photo-first { margin: 0; padding: 4rpx 0; font-size: 22rpx; line-height: 1.8; color: $primary; background: $primary-soft; border-radius: 9.6rpx; }
 .photo-actions { display: flex; margin: 20rpx 0 0; }.photo-btn { flex: 1 1 0; min-width: 120rpx; }.photo-actions .photo-btn + .photo-btn { margin-left: 12rpx; }.photo-clear-row { display: flex; justify-content: flex-end; margin: 2rpx 0 2rpx; }.photo-clear { font-size: 24rpx; color: $muted; padding: 8rpx 0 8rpx 16rpx; }
 .flow-line { display: flex; align-items: center; justify-content: space-between; margin-top: var(--sp-12, 12rpx); padding-top: var(--sp-12, 12rpx); border-top: 1px solid $line; }

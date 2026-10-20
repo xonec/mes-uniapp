@@ -43,5 +43,5 @@ export default {
 .page-head-sub { display: block; margin-top: 2rpx; color: $muted; font-size: var(--fs-22, 22rpx); line-height: 1.4; }
 .page-head-actions { display: flex; align-items: center; flex-shrink: 0; margin-left: var(--sp-12, 12rpx); }
 .page-head-icon + .page-head-icon { margin-left: var(--sp-8, 8rpx); }
-.page-head-icon { width: 60rpx; height: 60rpx; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: $canvas; }
+.page-head-icon { width: 72rpx; height: 72rpx; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: $canvas; }
 </style>

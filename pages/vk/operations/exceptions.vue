@@ -195,7 +195,7 @@ export default {
 .exc-pending { display: flex; align-items: baseline;  }
 .exc-pending-num { color: $warning; font-size: var(--fs-44, 44rpx); font-weight: 700; line-height: 1; }
 .exc-pending-label { color: $muted; font-size: var(--fs-24, 24rpx); }
-.exc-refresh { width: 60rpx; height: 60rpx; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: $surface; }
+.exc-refresh { width: 72rpx; height: 72rpx; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: $surface; }
 .row-list { display: flex; flex-direction: column;  }
 .list-end { display: block; text-align: center; padding: var(--sp-16, 16rpx) 0 var(--sp-8, 8rpx); }
 .exc-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 90; display: flex; align-items: flex-end; background: rgba(31, 38, 34, .42); }

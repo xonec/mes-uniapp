@@ -309,14 +309,14 @@ export default {
 .cal-card { padding: 16rpx 20rpx; }
 .cal-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .cal-segmented { display: flex; padding: 4rpx; border-radius: 16rpx; background: $canvas; }
-.cal-seg { margin: 0; padding: 0 16rpx; min-height: 56rpx; line-height: 56rpx; font-size: 24rpx; border-radius: 12rpx; background: transparent; color: $muted; }
+.cal-seg { margin: -8rpx 0; padding: 8rpx 16rpx; min-height: 56rpx; line-height: 56rpx; font-size: 24rpx; border-radius: 12rpx; background: transparent; color: $muted; }
 .cal-seg::after { border: 0; }
 .cal-seg.active { background: $surface; color: $primary; font-weight: 600; }
 .cal-actions { display: flex; align-items: center; margin-left: 12rpx; }
 .cal-actions .cal-none, .cal-actions .cal-nav { margin-right: 6rpx; }
-.cal-none { margin: 0; padding: 0 12rpx; min-height: 56rpx; line-height: 56rpx; font-size: 24rpx; border-radius: 12rpx; background: $canvas; color: $primary; }
+.cal-none { margin: -8rpx 0; padding: 8rpx 12rpx; min-height: 56rpx; line-height: 56rpx; font-size: 24rpx; border-radius: 12rpx; background: $canvas; color: $primary; }
 .cal-none::after { border: 0; }
-.cal-nav { margin: 0; padding: 0; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; border-radius: 12rpx; background: $canvas; }
+.cal-nav { margin: 0; padding: 0; width: 72rpx; height: 72rpx; display: flex; align-items: center; justify-content: center; border-radius: 12rpx; background: $canvas; }
 .cal-nav::after { border: 0; }
 .cal-title { display: block; font-size: 30rpx; font-weight: 700; margin: 12rpx 0 12rpx; }
 .cal-week { display: flex; margin-right: -6rpx; margin-bottom: 6rpx; }
@@ -351,7 +351,7 @@ export default {
 .plan-card { margin-top: 16rpx; }
 .filter-row { display: flex; flex-wrap: wrap; margin: 12rpx 0; }
 .filter-row .filter-button { margin-right: 12rpx; }
-.filter-button { margin: 0; padding: 0 20rpx; min-height: 64rpx; line-height: 64rpx; font-size: 24rpx; display: flex; align-items: center; }
+.filter-button { margin: 0; padding: 0 20rpx; min-height: 72rpx; line-height: 72rpx; font-size: 24rpx; display: flex; align-items: center; }
 .filter-caret { display: flex; align-items: center; margin-left: 4rpx; }
 .chips { display: flex; flex-wrap: wrap; margin-bottom: 12rpx; }
 .chips .chip { margin-right: 12rpx; }

@@ -223,17 +223,17 @@ export default {
 .att-page { padding-bottom: calc(32rpx + env(safe-area-inset-bottom)); }
 .att-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20rpx; }
 .att-period { display: flex; align-items: center; min-width: 0; }
-.att-arrow { margin: 0 6rpx 0 0; padding: 0; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; border-radius: 12rpx; background: $canvas; }
+.att-arrow { margin: -8rpx 6rpx -8rpx -8rpx; padding: 8rpx; min-width: 72rpx; min-height: 72rpx; display: flex; align-items: center; justify-content: center; border-radius: 12rpx; background: $canvas; }
 .att-arrow::after { border: 0; }
 .att-period-value { display: flex; align-items: center; font-size: 30rpx; font-weight: 700; padding: 0 6rpx; }
 .period-caret { display: flex; align-items: center; margin-left: 4rpx; }
 .att-head-right { display: flex; align-items: center; flex-shrink: 0; margin-left: 12rpx; }
 .att-seg { margin-right: 12rpx; }
 .att-seg { display: flex; padding: 4rpx; border-radius: 12rpx; background: $canvas; }
-.att-seg-item { margin: 0; padding: 0 12rpx; min-height: 48rpx; line-height: 48rpx; font-size: 24rpx; border-radius: 8rpx; background: transparent; color: $muted; }
+.att-seg-item { margin: -12rpx 0; padding: 12rpx 0; min-height: 48rpx; line-height: 48rpx; font-size: 24rpx; border-radius: 8rpx; background: transparent; color: $muted; }
 .att-seg-item::after { border: 0; }
 .att-seg-item.active { background: $surface; color: $primary; font-weight: 600; }
-.att-help { margin: 0; padding: 0; width: 48rpx; height: 48rpx; line-height: 48rpx; text-align: center; border-radius: 50%; background: $canvas; color: $muted; font-size: 24rpx; }
+.att-help { margin: 0; padding: 0; width: 72rpx; height: 72rpx; line-height: 72rpx; text-align: center; border-radius: 50%; background: $canvas; color: $muted; font-size: 24rpx; }
 .att-help::after { border: 0; }
 .att-help-card { padding: 20rpx 16rpx; margin-bottom: 20rpx; border-radius: 16rpx; background: $primary-soft; }
 .att-help-text { font-size: 24rpx; color: $ink; line-height: 1.6; }
@@ -282,7 +282,7 @@ export default {
 .att-tag.light { background: $canvas; color: $muted; }
 .att-pager { display: flex; align-items: center; justify-content: center; padding: 20rpx 0 6rpx; }
 .att-pager-text { margin: 0 16rpx; }
-.att-pager-btn { margin: 0; min-height: 64rpx; line-height: 64rpx; padding: 0 16rpx; font-size: 24rpx; border-radius: 12rpx; background: $canvas; color: $primary; }
+.att-pager-btn { margin: 0; min-height: 72rpx; line-height: 72rpx; padding: 0 16rpx; font-size: 24rpx; border-radius: 12rpx; background: $canvas; color: $primary; }
 .att-pager-btn::after { border: 0; }
 .att-pager-btn[disabled] { color: $muted; opacity: .5; }
 .att-pager-text { font-size: 24rpx; color: $muted; }
