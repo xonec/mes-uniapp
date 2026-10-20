@@ -232,7 +232,7 @@ export default {
 </script>
 
 <style scoped>
-.page { padding: 12rpx; min-height: 100vh; background: #F2F4F3; }
+.page { padding: 24rpx; min-height: 100vh; background: #F2F4F3; }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 6rpx 20rpx; }
 .tb-title { font-size: 32rpx; font-weight: 700; color: #1f2622; }
 .tb-right { display: flex; align-items: center;  }
@@ -244,14 +244,14 @@ export default {
 .card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 12rpx; display: flex; align-items: center;  }
 .count { font-size: 22rpx; color: #fff; background: #008577; border-radius: 999rpx; padding: 0 14rpx; }
 
-.field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 12rpx; height: 84rpx; margin-bottom: 14rpx; }
+.field { display: flex; align-items: center; background: #F2F4F3; border-radius: 12rpx; padding: 0 12rpx; height: 84rpx; margin-bottom: 14rpx; }
 .lbl { width: 90rpx; font-size: 26rpx; color: #5F6A65; flex-shrink: 0; }
 .inp { flex: 1; height: 84rpx; font-size: 28rpx; background: transparent; }
 .seg { flex: 1; display: flex; background: #F2F4F3; border-radius: 12rpx; padding: 4rpx;  }
 .seg-item { flex: 1; text-align: center; font-size: 26rpx; color: #5F6A65; padding: 12rpx 0; border-radius: 10rpx; }
 .seg-item.active { background: #008577; color: #fff; font-weight: 700; }
 
-.btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #EEF3F1; color: #1f2622; }
+.btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #F2F4F3; color: #1f2622; }
 .btn.primary { background: #008577; color: #fff; font-weight: 700; }
 .btn[disabled] { opacity: 0.5; }
 .err { display: block; margin-top: 12rpx; font-size: 24rpx; color: #B23B37; }
@@ -270,7 +270,7 @@ export default {
 .u-tags { display: flex; flex-direction: column;  flex-shrink: 0; }
 .tag { font-size: 22rpx; padding: 2rpx 12rpx; border-radius: 999rpx; background: #F2F4F3; color: #5F6A65; text-align: center; }
 .tag.admin { background: #E6F4F1; color: #008577; }
-.tag.user { background: #EEF3F1; color: #4a554f; }
+.tag.user { background: #F2F4F3; color: #4a554f; }
 .tag.on { background: #E6F4F1; color: #008577; }
 .tag.off { background: #F2F4F3; color: #bbb; }
 .u-actions { display: flex; flex-direction: column;  flex-shrink: 0; }

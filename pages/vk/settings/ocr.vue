@@ -300,7 +300,7 @@ export default {
 .preset { padding: 12rpx 20rpx; border-radius: 12rpx; background: $canvas; font-size: 24rpx; color: #4a554f; border: 1rpx solid #E3E8E5; }
 .preset.active { background: #008577; color: #fff; border-color: #008577; }
 .preset.disabled { pointer-events: none; opacity: 0.5; }
-.field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 12rpx; min-height: 84rpx; margin-bottom: 12rpx; }
+.field { display: flex; align-items: center; background: #F2F4F3; border-radius: 12rpx; padding: 0 12rpx; min-height: 84rpx; margin-bottom: 12rpx; }
 .lbl { width: 170rpx; font-size: 24rpx; color: #5F6A65; flex-shrink: 0; }
 .inp { flex: 1; height: 84rpx; font-size: 24rpx; background: transparent; }
 .kv { display: flex; justify-content: space-between; align-items: center; padding: 12rpx 0; border-bottom: 1rpx dashed #E3E8E5; font-size: 24rpx; color: #4a554f; }
