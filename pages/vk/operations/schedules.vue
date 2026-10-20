@@ -343,7 +343,7 @@ export default {
 .cal-skeleton-row { display: flex; margin-right: -6rpx; margin-bottom: 6rpx; }
 .cal-skeleton-cell { flex: 1 1 0; min-width: 0; margin-right: 6rpx; height: 92rpx; border-radius: 12rpx; background: $canvas; }
 .cal-skeleton-note { display: block; text-align: center; padding-top: 12rpx; }
-.cal-legend { display: flex; flex-wrap: wrap; align-items: center; padding-top: 8rpx; color: $muted; font-size: 20rpx; }
+.cal-legend { display: flex; flex-wrap: wrap; align-items: center; padding-top: 8rpx; color: $muted; font-size: 22rpx; }
 .cal-legend .legend-item { margin-right: 12rpx; }
 .legend-item { display: flex; align-items: center; }
 .legend-dot { display: inline-block; width: 12rpx; height: 12rpx; border-radius: 50%; background: $muted; margin-right: 4rpx; }
@@ -363,7 +363,7 @@ export default {
 .plan-col-person { padding-left: 16rpx; border-left: 1rpx solid $line; }
 .plan-title { display: flex; align-items: center; justify-content: space-between; font-size: 26rpx; font-weight: 700; padding: 12rpx 0; border-bottom: 1rpx solid $line; white-space: nowrap; }
 .plan-title .plan-count { margin-left: 8rpx; }
-.plan-count { font-size: 20rpx; font-weight: 400; color: $muted; }
+.plan-count { font-size: 22rpx; font-weight: 400; color: $muted; }
 .plan-row { display: flex; flex-direction: column; padding: 12rpx 0; border-bottom: 1rpx solid $line; min-width: 0; }
 .plan-row .plan-meta { margin-top: 4rpx; }
 .plan-row:last-child { border-bottom: 0; }
@@ -372,7 +372,7 @@ export default {
 .plan-person { font-size: 26rpx; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan-row .plan-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan-row.me .plan-person { font-weight: 700; color: $primary; }
-.me-tag { margin-left: 6rpx; padding: 0 8rpx; border-radius: 4rpx; background: $primary; color: $surface; font-size: 18rpx; font-weight: normal; }
+.me-tag { margin-left: 6rpx; padding: 0 8rpx; border-radius: 4rpx; background: $primary; color: $surface; font-size: 22rpx; font-weight: normal; }
 .op-meta.pending { color: $warning; }
 .attendance-entry { margin-top: 16rpx; width: 100%; }
 </style>

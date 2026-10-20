@@ -273,8 +273,8 @@ export default {
 .att-hours { flex-shrink: 0; font-size: 26rpx; font-weight: 700; color: $primary; }
 .att-row-meta { display: block; font-size: 22rpx; color: $muted; margin-top: 4rpx; }
 .att-row-badges { display: flex; flex-wrap: wrap; margin: 6rpx 0 -6rpx; }
-.att-note { display: block; font-size: 20rpx; color: $muted; line-height: 1.5; margin-top: 6rpx; opacity: .85; }
-.att-tag { display: inline-block; padding: 2rpx 12rpx; border-radius: 8rpx; font-size: 20rpx; background: $canvas; color: $muted; }
+.att-note { display: block; font-size: 22rpx; color: $muted; line-height: 1.5; margin-top: 6rpx; opacity: .85; }
+.att-tag { display: inline-block; padding: 2rpx 12rpx; border-radius: 8rpx; font-size: 22rpx; background: $canvas; color: $muted; }
 .att-tag.work { background: $primary-soft; color: $primary; }
 .att-tag.leave { background: mix($warning, $surface, 15%); color: $warning; }
 .att-tag.rest { background: $canvas; color: $muted; }

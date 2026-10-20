@@ -65,14 +65,14 @@ export default {
     .bucket-grid .bucket { flex: 0 0 calc(20% - 10rpx); margin: 0 5rpx 10rpx; }
     .bucket .binp { margin-left: 0; }
     .bucket { flex-direction: column; align-items: stretch; min-width: 0; padding: 0; border-radius: 0; background: transparent; }
-    .blbl { margin-bottom: 4rpx; font-size: 20rpx; font-weight: normal; color: $muted; }
+    .blbl { margin-bottom: 4rpx; font-size: 22rpx; font-weight: normal; color: $muted; }
     .binp { flex: none; width: 100%; box-sizing: border-box; height: 60rpx; border: 1rpx solid $line; border-radius: 10rpx; font-size: 26rpx; text-align: center; background: $surface; }
     .binp[disabled] { background: $canvas; color: $muted; }
     .bucket-tail { margin-top: 12rpx; padding-top: 0; border-top: 0; }
     .data-grid { display: flex; flex-wrap: wrap; margin: 0 -6rpx; }
     .data-grid .data-cell { flex: 0 0 calc(33.333% - 12rpx); margin: 0 6rpx 12rpx; }
     .data-cell { min-width: 0; min-height: 88rpx; padding: 10rpx; border-radius: 12rpx; }
-    .dlbl { font-size: 20rpx; }
+    .dlbl { font-size: 22rpx; }
     .dinp { margin-top: 4rpx; height: 40rpx; font-size: 26rpx; }
 }
 </style>

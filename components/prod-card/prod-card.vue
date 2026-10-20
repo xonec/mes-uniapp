@@ -61,7 +61,7 @@ export default {
 .legacy-layout {
     .data-grid .data-cell { flex-basis: calc(33.333% - 12rpx); }
     .data-cell { min-width: 0; padding: 10rpx; min-height: 88rpx; }
-    .dlbl { font-size: 20rpx; }
+    .dlbl { font-size: 22rpx; }
     .dinp { min-width: 0; height: 40rpx; font-size: 26rpx; }
     .dval { font-size: 28rpx; }
 }

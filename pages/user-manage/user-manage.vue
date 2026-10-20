@@ -268,7 +268,7 @@ export default {
 .u-name { font-size: 28rpx; font-weight: 600; color: #1f2622; display: block; }
 .u-sub { font-size: 22rpx; color: #5F6A65; }
 .u-tags { display: flex; flex-direction: column;  flex-shrink: 0; }
-.tag { font-size: 18rpx; padding: 2rpx 12rpx; border-radius: 999rpx; background: #F2F4F3; color: #5F6A65; text-align: center; }
+.tag { font-size: 22rpx; padding: 2rpx 12rpx; border-radius: 999rpx; background: #F2F4F3; color: #5F6A65; text-align: center; }
 .tag.admin { background: #E6F4F1; color: #008577; }
 .tag.user { background: #EEF3F1; color: #4a554f; }
 .tag.on { background: #E6F4F1; color: #008577; }
