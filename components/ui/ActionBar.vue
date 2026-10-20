@@ -27,7 +27,7 @@ export default {
 @import '@/styles/field-work.scss';
 
 .ui-action-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; padding: var(--sp-8, 8rpx) var(--sp-24, 24rpx) calc(var(--sp-12, 12rpx) + env(safe-area-inset-bottom)); background: $surface; border-top: 1px solid $line; }
-.action-note { display: block; margin-bottom: var(--sp-8); color: $muted; font-size: var(--fs-22, 22rpx); line-height: 1.4; }
+.action-note { display: block; margin-bottom: var(--sp-8, 8rpx); color: $muted; font-size: var(--fs-22, 22rpx); line-height: 1.4; }
 /* 旧版微信 WebView 不支持 flex gap：统一用 margin 保持视觉不变 */
 .action-row { display: flex; align-items: center; }
 .action-row .action-btn + .action-btn, .action-row .action-btn + .action-more { margin-left: var(--sp-12, 12rpx); }

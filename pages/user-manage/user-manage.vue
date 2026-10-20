@@ -234,25 +234,25 @@ export default {
 <style scoped>
 .page { padding: 24rpx; min-height: 100vh; background: #F2F4F3; }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 6rpx 20rpx; }
-.tb-title { font-size: 32rpx; font-weight: 700; color: #1f2622; }
+.tb-title { font-size: 32rpx; font-weight: 700; color: #1F2622; }
 .tb-right { display: flex; align-items: center;  }
 .tb-me { font-size: 24rpx; color: #5F6A65; }
 .tb-pwd { font-size: 24rpx; color: #0B7263; padding: 6rpx 12rpx; background: #E6F4F1; border-radius: 999rpx; }
-.tb-logout { font-size: 24rpx; color: #B23B37; padding: 6rpx 12rpx; background: #FBEAE9; border-radius: 999rpx; }
+.tb-logout { font-size: 24rpx; color: #B23B37; padding: 6rpx 12rpx; background: #FBEBEA; border-radius: 999rpx; }
 
-.card { background: #fff; border-radius: 16rpx; padding: 22rpx; margin-bottom: 12rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
-.card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 12rpx; display: flex; align-items: center;  }
-.count { font-size: 22rpx; color: #fff; background: #008577; border-radius: 999rpx; padding: 0 14rpx; }
+.card { background: #FFFFFF; border-radius: 16rpx; padding: 22rpx; margin-bottom: 12rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
+.card-title { font-size: 28rpx; font-weight: 700; color: #1F2622; margin-bottom: 12rpx; display: flex; align-items: center;  }
+.count { font-size: 22rpx; color: #FFFFFF; background: #008577; border-radius: 999rpx; padding: 0 14rpx; }
 
 .field { display: flex; align-items: center; background: #F2F4F3; border-radius: 12rpx; padding: 0 12rpx; height: 84rpx; margin-bottom: 14rpx; }
 .lbl { width: 90rpx; font-size: 26rpx; color: #5F6A65; flex-shrink: 0; }
 .inp { flex: 1; height: 84rpx; font-size: 28rpx; background: transparent; }
 .seg { flex: 1; display: flex; background: #F2F4F3; border-radius: 12rpx; padding: 4rpx;  }
 .seg-item { flex: 1; text-align: center; font-size: 26rpx; color: #5F6A65; padding: 12rpx 0; border-radius: 10rpx; }
-.seg-item.active { background: #008577; color: #fff; font-weight: 700; }
+.seg-item.active { background: #008577; color: #FFFFFF; font-weight: 700; }
 
-.btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #F2F4F3; color: #1f2622; }
-.btn.primary { background: #008577; color: #fff; font-weight: 700; }
+.btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #F2F4F3; color: #1F2622; }
+.btn.primary { background: #008577; color: #FFFFFF; font-weight: 700; }
 .btn[disabled] { opacity: 0.5; }
 .err { display: block; margin-top: 12rpx; font-size: 24rpx; color: #B23B37; }
 .fr-actions { display: flex;  }
@@ -261,11 +261,11 @@ export default {
 
 .empty { text-align: center; color: #5F6A65; padding: 28rpx; font-size: 26rpx; }
 
-.user-row { display: flex; align-items: center;  padding: 20rpx 6rpx; border-bottom: 1rpx solid #F0F3F1; }
+.user-row { display: flex; align-items: center;  padding: 20rpx 6rpx; border-bottom: 1rpx solid #E3E8E5; }
 .user-row:last-child { border-bottom: none; }
 .user-row.disabled { opacity: 0.55; }
 .u-main { flex: 1; min-width: 0; }
-.u-name { font-size: 28rpx; font-weight: 600; color: #1f2622; display: block; }
+.u-name { font-size: 28rpx; font-weight: 600; color: #1F2622; display: block; }
 .u-sub { font-size: 22rpx; color: #5F6A65; }
 .u-tags { display: flex; flex-direction: column;  flex-shrink: 0; }
 .tag { font-size: 22rpx; padding: 2rpx 12rpx; border-radius: 999rpx; background: #F2F4F3; color: #5F6A65; text-align: center; }

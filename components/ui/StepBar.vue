@@ -29,7 +29,7 @@ export default {
 .step-item { flex: 1; min-width: 0; display: flex; align-items: center; position: relative; }
 .step-dot { flex-shrink: 0; width: 40rpx; height: 40rpx; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: $line; }
 .step-dot-text { color: $muted; font-size: var(--fs-22, 22rpx); font-weight: 600; }
-.step-label { margin-left: var(--sp-8); color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.3; white-space: nowrap; }
+.step-label { margin-left: var(--sp-8, 8rpx); color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.3; white-space: nowrap; }
 .step-item.active .step-dot { background: $primary; }
 .step-item.active .step-dot-text { color: $surface; }
 .step-item.active .step-label { color: $primary; font-weight: 600; }
@@ -37,6 +37,6 @@ export default {
 .step-item.complete .step-dot-text { color: $primary; }
 .step-item.complete .step-label { color: $ink; }
 .step-item.clickable { opacity: .9; }
-.step-line { flex: 1; height: 2rpx; min-width: 12rpx; margin-left: var(--sp-8); margin-right: var(--sp-4, 4rpx); background: $line; }
+.step-line { flex: 1; height: 2rpx; min-width: 12rpx; margin-left: var(--sp-8, 8rpx); margin-right: var(--sp-4, 4rpx); background: $line; }
 .step-line.done { background: $primary-soft; }
 </style>
