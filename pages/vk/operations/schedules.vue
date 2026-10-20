@@ -54,10 +54,10 @@
             <text class="op-meta">{{ selectedDateText }} · 只显示本人或有权限范围内的排班。</text>
             <view class="filter-row">
                 <picker :range="processNames" :value="processIndex" :disabled="loadingDay" @change="changeProcess">
-                    <view class="fw-button secondary filter-button">{{ processNames[processIndex] }}<view class="filter-caret"><uni-icons type="bottom" size="10" color="#77827D"></uni-icons></view></view>
+                    <view class="fw-button secondary filter-button">{{ processNames[processIndex] }}<view class="filter-caret"><uni-icons type="bottom" size="10" color="#5F6A65"></uni-icons></view></view>
                 </picker>
                 <picker :range="shiftNames" :value="shiftIndex" :disabled="loadingDay" @change="changeShift">
-                    <view class="fw-button secondary filter-button">{{ shiftNames[shiftIndex] }}<view class="filter-caret"><uni-icons type="bottom" size="10" color="#77827D"></uni-icons></view></view>
+                    <view class="fw-button secondary filter-button">{{ shiftNames[shiftIndex] }}<view class="filter-caret"><uni-icons type="bottom" size="10" color="#5F6A65"></uni-icons></view></view>
                 </picker>
             </view>
             <view class="chips">

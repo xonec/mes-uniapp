@@ -63,8 +63,9 @@ page {
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', sans-serif;
     color: #1f2622;
 
-    /* 间距 8 档（rpx） */
+    /* 间距 8 档 + 兼容档 sp-6（rpx；sp-6 仅历史组件使用，新代码禁用） */
     --sp-4: 4rpx;
+    --sp-6: 6rpx;
     --sp-8: 8rpx;
     --sp-12: 12rpx;
     --sp-16: 16rpx;
@@ -86,14 +87,14 @@ page {
     --radius-button: 12rpx;
     --radius-badge: 8rpx;
 
-    /* 状态色四态映射：实心 / 浅底 */
-    --state-primary: #008577;
+    /* 状态文字色 ink / 浅底；填充仍用 $primary/$warning/$danger/$muted */
+    --state-primary: #0B7263; /* 状态文字色（徽标/tag/标题主态；品牌按钮仍用 $primary #008577） */
     --state-primary-soft: #E6F4F1;
-    --state-warning: #E8833A;
+    --state-warning: #A64B00;
     --state-warning-soft: #FBEEE3;
-    --state-neutral: #77827D;
+    --state-neutral: #5F6A65;
     --state-neutral-soft: #F2F4F3;
-    --state-danger: #D9534F;
+    --state-danger: #B23B37;
     --state-danger-soft: #FBEBEA;
 }
 </style>

@@ -6,7 +6,7 @@
             </view>
         </scroll-view>
         <view v-if="search" class="filter-icon" aria-label="搜索" @tap="$emit('search')">
-            <uni-icons type="search" size="16" color="#77827D"></uni-icons>
+            <uni-icons type="search" size="16" color="#5F6A65"></uni-icons>
         </view>
     </view>
 </template>

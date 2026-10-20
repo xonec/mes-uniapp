@@ -22,11 +22,10 @@
 .fw-button.secondary { background: $canvas; color: $ink; }
 .fw-button[disabled] { background: $canvas; color: $muted; opacity: .75; }
 .fw-link { color: $primary; font-size: 26rpx; line-height: 80rpx; padding: 0 var(--sp-8, 8rpx); }
-.fw-badge { flex-shrink: 0; display: inline-block; font-size: var(--fs-22, 22rpx); line-height: 1.4; color: $primary; background: $primary-soft; padding: var(--sp-4, 4rpx) var(--sp-12, 12rpx); border-radius: var(--radius-badge, 8rpx); }
-.fw-badge.warning { color: $warning; background: mix($warning, $surface, 10%); }
+.fw-badge { flex-shrink: 0; display: inline-block; font-size: var(--fs-22, 22rpx); line-height: 1.4; color: var(--state-primary, #{$primary}); background: $primary-soft; padding: var(--sp-4, 4rpx) var(--sp-12, 12rpx); border-radius: var(--radius-badge, 8rpx); }
 .fw-badge.muted { color: $muted; background: $canvas; }
 /* 状态色四态映射：组件通过 tone 属性挂 class，不再各自写颜色。 */
-.fw-badge.tone-primary { color: var(--state-primary, #{$primary}); background: var(--state-primary-soft, #{$primary-soft}); }
+.fw-badge.tone-primary { color: var(--state-primary, #0B7263); background: var(--state-primary-soft, #{$primary-soft}); }
 .fw-badge.tone-warning { color: var(--state-warning, #{$warning}); background: var(--state-warning-soft, #{mix($warning, $surface, 10%)}); }
 .fw-badge.tone-neutral { color: var(--state-neutral, #{$muted}); background: var(--state-neutral-soft, #{$canvas}); }
 .fw-badge.tone-danger { color: var(--state-danger, #{$danger}); background: var(--state-danger-soft, #{mix($danger, $surface, 8%)}); }

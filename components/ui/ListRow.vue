@@ -53,7 +53,7 @@ export default {
 /* 旧版微信 WebView 不支持 flex gap：统一用 margin 保持视觉不变 */
 .list-row-title-line { display: flex; align-items: center; justify-content: space-between; }
 .list-row-title-line .fw-badge { margin-left: var(--sp-12, 12rpx); }
-.list-row-tag { flex-shrink: 0; margin-right: var(--sp-12, 12rpx); padding: 2rpx var(--sp-8, 8rpx); border-radius: var(--radius-badge, 8rpx); background: $primary-soft; color: $primary; font-size: var(--fs-22, 22rpx); line-height: 1.4; }
+.list-row-tag { flex-shrink: 0; margin-right: var(--sp-12, 12rpx); padding: 2rpx var(--sp-8, 8rpx); border-radius: var(--radius-badge, 8rpx); background: $primary-soft; color: #0B7263; font-size: var(--fs-22, 22rpx); line-height: 1.4; }
 .list-row-title { flex: 1; min-width: 0; font-size: var(--fs-28, 28rpx); font-weight: 600; line-height: 1.4; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .list-row-meta-line { display: flex; align-items: baseline; margin-top: 2rpx; min-width: 0; }
 .list-row-code { flex-shrink: 0; font-family: monospace; font-size: var(--fs-24, 24rpx); color: $muted; }
@@ -61,11 +61,11 @@ export default {
 .list-row-meta { min-width: 0; color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.4; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .list-row-progress { display: flex; align-items: center; margin-top: var(--sp-8, 8rpx); }
 .list-row-track { flex: 1; height: 6rpx; border-radius: 999rpx; background: $canvas; overflow: hidden; }
-.list-row-bar { display: block; height: 100%; border-radius: 999rpx; background: $primary; }
+.list-row-bar { display: block; height: 100%; border-radius: 999rpx; background: var(--state-primary, #0B7263); }
 .list-row-bar.tone-warning { background: $warning; }
 .list-row-bar.tone-neutral { background: $muted; }
 .list-row-bar.tone-danger { background: $danger; }
 .list-row-progress-text { flex-shrink: 0; margin-left: var(--sp-12, 12rpx); color: $muted; font-size: var(--fs-22, 22rpx); }
 .list-row-preview { display: -webkit-box; margin-top: var(--sp-4, 4rpx); overflow: hidden; color: $muted; font-size: var(--fs-24, 24rpx); line-height: 1.5; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
-.list-row-action { display: block; margin-top: var(--sp-4, 4rpx); text-align: right; color: $primary; font-size: var(--fs-24, 24rpx); }
+.list-row-action { display: block; margin-top: var(--sp-4, 4rpx); text-align: right; color: #0B7263; font-size: var(--fs-24, 24rpx); }
 </style>

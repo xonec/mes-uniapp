@@ -4,7 +4,7 @@
             <view class="att-period">
                 <button class="att-arrow" :disabled="busy" @tap="prevPeriod" aria-label="上一周期"><uni-icons type="back" size="16" color="#008577"></uni-icons></button>
                 <picker mode="date" :fields="periodType" :value="calendarValue" :disabled="busy" @change="changePeriod">
-                    <view class="att-period-value">{{ periodLabel }}<view class="period-caret"><uni-icons type="bottom" size="10" color="#77827D"></uni-icons></view></view>
+                    <view class="att-period-value">{{ periodLabel }}<view class="period-caret"><uni-icons type="bottom" size="10" color="#5F6A65"></uni-icons></view></view>
                 </picker>
                 <button class="att-arrow" :disabled="busy" @tap="nextPeriod" aria-label="下一周期"><uni-icons type="forward" size="16" color="#008577"></uni-icons></button>
             </view>

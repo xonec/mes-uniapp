@@ -25,7 +25,7 @@
                     <view class="fw-heading"><text class="fw-heading-title">逐班生产明细</text><text class="fw-note">默认展开最近 3 天，点日期展开/收起</text></view>
                     <view v-for="day in dateGroups" :key="day.date" class="rep-group">
                         <view class="rep-group-head" hover-class="rep-group-hover" @tap="toggle(day.date)">
-                            <view class="rep-group-arrow"><uni-icons :type="day.expanded ? 'bottom' : 'right'" size="10" color="#77827D"></uni-icons></view>
+                            <view class="rep-group-arrow"><uni-icons :type="day.expanded ? 'bottom' : 'right'" size="10" color="#5F6A65"></uni-icons></view>
                             <text class="rep-group-date">{{ day.label }}</text>
                             <text class="rep-group-count">{{ day.rows.length }} 条</text>
                             <text class="rep-group-summary">{{ day.summary }}</text>

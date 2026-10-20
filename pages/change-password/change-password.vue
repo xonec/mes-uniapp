@@ -72,13 +72,13 @@ export default {
 .page { padding: 12rpx; min-height: 100vh; background: #F2F4F3; }
 .card { background: #fff; border-radius: 16rpx; padding: 16rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.03); }
 .card-title { font-size: 28rpx; font-weight: 700; color: #1f2622; margin-bottom: 6rpx; }
-.who { font-size: 24rpx; color: #77827D; margin-bottom: 20rpx; }
+.who { font-size: 24rpx; color: #5F6A65; margin-bottom: 20rpx; }
 .field { display: flex; align-items: center; background: #F4F7F6; border-radius: 12rpx; padding: 0 12rpx; height: 84rpx; margin-bottom: 14rpx; }
-.lbl { width: 110rpx; font-size: 26rpx; color: #77827D; flex-shrink: 0; }
+.lbl { width: 110rpx; font-size: 26rpx; color: #5F6A65; flex-shrink: 0; }
 .inp { flex: 1; height: 84rpx; font-size: 28rpx; background: transparent; }
 .btn { font-size: 28rpx; border-radius: 12rpx; height: 84rpx; line-height: 84rpx; background: #EEF3F1; color: #1f2622; }
 .btn.primary { background: #008577; color: #fff; font-weight: 700; }
 .btn[disabled] { opacity: 0.5; }
-.err { display: block; margin-top: 12rpx; font-size: 24rpx; color: #D9534F; }
-.tip { margin-top: 12rpx; font-size: 22rpx; color: #77827D; line-height: 1.5; }
+.err { display: block; margin-top: 12rpx; font-size: 24rpx; color: #B23B37; }
+.tip { margin-top: 12rpx; font-size: 22rpx; color: #5F6A65; line-height: 1.5; }
 </style>

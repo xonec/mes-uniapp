@@ -21,7 +21,7 @@
                     <text v-else-if="c.key==='pallet'" class="chip">{{ palletPage }}</text>
                 </view>
                 <view class="card-tools">
-                    <view class="drag-hint"><uni-icons type="bars" size="16" color="#77827D"></uni-icons></view>
+                    <view class="drag-hint"><uni-icons type="bars" size="16" color="#5F6A65"></uni-icons></view>
                     <view class="collapse-btn" @tap.stop="toggleCard(c.key)"><uni-icons :type="c.collapsed ? 'right' : 'bottom'" size="12" color="#008577"></uni-icons></view>
                 </view>
             </view>

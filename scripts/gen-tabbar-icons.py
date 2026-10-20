@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 
 SIZE = 81
 LW = 5
-GRAY = (119, 130, 125)    # #77827D 未选中
+GRAY = (95, 106, 101)     # #5F6A65 未选中
 GREEN = (0, 133, 119)     # #008577 选中（主题色）
 
 def new_canvas():
