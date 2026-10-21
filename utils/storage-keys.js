@@ -8,3 +8,4 @@ export const STORE_LAYOUT = 'mes-card-layout'         // 卡片顺序与折叠�
 export const STORE_SHARE_BATCH = 'mes-share-batch'    // 分享进入时暂存的批号
 export const STORE_LOAD_RECORD = 'mes-load-record'    // 历史页「载入」暂存的记录（切回计算页读取）
 export const STORE_LAST_BATCH = 'mes-last-scan-batch' // 最近一次成功扫码的批号（扫码页提示，防扫错）
+export const STORE_OFFLINE_PRODUCTS = 'mes_offline_product_params' // 离线产品参数轻缓存（设备级，仅产品参数，无人员/订单信息）

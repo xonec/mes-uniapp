@@ -23,6 +23,8 @@
                 <text class="clear" @tap="clearSaved">清空</text>
             </view>
             <button class="login-btn" :disabled="loading" @tap="doLogin">{{ loading ? '登录中…' : '登 录' }}</button>
+            <view v-if="offlineEnabled" class="offline-link" @tap="goOffline">离线使用</view>
+            <text v-if="offlineEnabled" class="offline-note">仅包材计算，不保存、不同步</text>
             <text class="err" v-if="errMsg">{{ errMsg }}</text>
         </view>
     </view>
@@ -30,7 +32,7 @@
 
 <script>
 import { login, isLoggedIn } from '@/utils/auth.js'
-import { pageUrl } from '@/utils/vk-migration.js'
+import { pageUrl, PAGE_SWITCH } from '@/utils/vk-migration.js'
 
 // 本地记住账号密码的 storage key（密码仅 base64 混淆，非加密，仅内部工具使用）
 const SAVED_KEY = 'mes_login_saved'
@@ -85,7 +87,9 @@ export default {
             loading: false,
             errMsg: '',
             remember: false,
-            showPwd: false
+            showPwd: false,
+            // 离线入口只在包材计算页启用新页（materials）时可用，避免进到冻结的 legacy 页
+            offlineEnabled: PAGE_SWITCH['materials'] === true
         }
     },
     onLoad() {
@@ -130,6 +134,14 @@ export default {
             this.remember = false
             uni.removeStorageSync(SAVED_KEY)
         },
+        // 离线使用：不登录直接进包材计算（离线态由页面参数承载，不写任何登录态）
+        goOffline() {
+            if (!this.offlineEnabled) {
+                this.errMsg = '离线模式暂不可用（包材计算页未启用新版）'
+                return
+            }
+            uni.navigateTo({ url: pageUrl('materials', { offline: 1 }) })
+        },
         async doLogin() {
             const u = (this.username || '').trim()
             const p = this.password || ''
@@ -158,5 +170,10 @@ export default {
 .login-btn { line-height: 96rpx; border-radius: 12rpx; background: $primary; color: $surface; font-size: 32rpx; font-weight: 700; margin-top: 12rpx; }.login-btn::after { border: 0; }.login-btn[disabled] { opacity: .6; }.err { display: block; margin-top: 20rpx; font-size: 28rpx; color: $danger; line-height: 1.6; }
 
 .row .clear { margin-left: 12rpx; }
+
+/* 离线入口：文字链 + 副说明（主按钮仍是唯一实底按钮；不新增令牌/配色） */
+.offline-link { display: block; margin: 16rpx auto 0; min-height: 72rpx; line-height: 72rpx; text-align: center; font-size: var(--fs-28, 28rpx); font-weight: 600; color: var(--state-primary, #{$primary}); }
+.offline-link:active { opacity: .7; }
+.offline-note { display: block; text-align: center; font-size: var(--fs-22, 22rpx); color: $muted; line-height: 1.5; }
 
 </style>

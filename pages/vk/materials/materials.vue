@@ -1,12 +1,17 @@
 <template>
     <page-meta :disable-scroll="dragMode"></page-meta>
     <view class="page" @touchmove="onDragMove" @touchend="endDrag" @touchcancel="endDrag">
+        <!-- 离线身份：64rpx 吸顶提示条（warning soft），右侧退出；离线不显示 tabBar（本页非 tab 页） -->
+        <view v-if="offline" class="offline-bar">
+            <text class="offline-bar-text">离线模式 · 仅包材计算，数据不保存</text>
+            <text class="offline-bar-exit" @tap="confirmExitOffline">退出</text>
+        </view>
         <view class="work-header"><view><text class="fw-subtitle">先确认批号和订单，再填写每桶件数。</text></view>
             <!-- #ifdef MP-WEIXIN -->
             <button class="fw-button secondary share-button" open-type="share">分享</button>
             <!-- #endif -->
         </view>
-        <view class="work-entries"><button @tap="goOrderSheet"><text class="entry-label">指令单录入</text><text class="entry-note">拍照识别订单 ›</text></button><button @tap="goArchive"><text class="entry-label">产品档案</text><text class="entry-note">查看规格和物料 ›</text></button></view>
+        <view class="work-entries"><button :class="{ 'offline-disabled': offline }" @tap="goOrderSheet"><text class="entry-label">指令单录入</text><text class="entry-note">{{ offline ? '登录后可用' : '拍照识别订单 ›' }}</text></button><button :class="{ 'offline-disabled': offline }" @tap="goArchive"><text class="entry-label">产品档案</text><text class="entry-note">{{ offline ? '登录后可用' : '查看规格和物料 ›' }}</text></button></view>
         <view v-if="orderMessage" class="fw-notice" :class="{ warning: orderLookupFailed || (linkedOrder && linkedOrder.orderStatus !== 'confirmed') }">{{ orderMessage }}</view>
         <view v-if="linkedOrder" class="order-overview"><view class="order-overview-head"><text>订单 {{ linkedOrder.orderNo }} · V{{ linkedOrder.version || 1 }}</text><text class="fw-badge" :class="{ warning: linkedOrder.orderStatus !== 'confirmed' }">{{ linkedOrder.orderStatus === 'confirmed' ? '正式订单' : '订单草稿' }}</text></view><text class="order-product">{{ linkedOrder.productName }} · {{ linkedOrder.productCode }}</text><view class="order-tags"><text>{{ linkedOrder.customerName || '未填写客户' }}</text><text :class="{ pending: palletPending }">{{ palletPending ? '上托待确认 · 暂不计算托数' : perPallet + ' 箱 / 托' }}</text></view></view>
         <view v-if="lastSavedBatch === batchNo && saveMessage" class="fw-notice" :class="{ warning: saveFailed }">上次保存：{{ saveMessage }}</view>
@@ -30,7 +35,7 @@
                     :product-code="productCode" :batch-no="batchNo" :batch-valid="batchValid"
                     :product-locked="!!linkedOrder" :order-loading="orderLookupPending" :disabled="savingRecord"
                     :is-android="isAndroid" :cloud-fetching="cloudFetching" :fetching="fetching"
-                    :fr-msg="frMsg" :cloud-msg="cloudMsg"
+                    :fr-msg="frMsg" :cloud-msg="cloudMsg" :offline="offline"
                     @update:productCode="onProductInput" @update:batchNo="onBatchInput"
                     @scan="scanBatch" @smart-fill="smartFill" @choose-product="chooseProduct"
                     @fetch-cloud="fetchFromCloud" @fetch-fr="fetchFromFr" />
@@ -62,7 +67,17 @@
                     @go="goPallet" />
             </view>
         </view>
-        <view v-if="!keyboardVisible" class="fw-footer"><view class="fw-footer-note">{{ orderLookupPending ? '正在查询订单，请稍候。' : orderLookupFailed ? '订单查询失败，请重试后保存。' : orderNotReady ? '请先确认并启用本次订单。' : cloudFetching || fetching ? '正在获取每桶件数，请稍候。' : palletPending ? '上托未确认，当前不计算托数。' : !batchValid ? '请输入完整批号后保存。' : '保存当前生产记录，并同步云端。' }}</view><view class="fw-actions"><button class="fw-button secondary" :disabled="savingRecord" @tap="goHistory">查看历史</button><button class="fw-button primary" :disabled="savingRecord || !batchValid || orderLookupPending || orderLookupFailed || orderNotReady || cloudFetching || fetching" @tap="save">{{ savingRecord ? '保存中…' : '保存生产记录' }}</button></view></view>
+        <view v-if="!keyboardVisible" class="fw-footer">
+            <view class="fw-footer-note">
+                <text class="fw-footer-text">{{ footerNote }}</text>
+            </view>
+            <view class="fw-actions">
+                <button class="fw-button secondary footer-clear" :disabled="savingRecord" @tap="confirmClear">清空</button>
+                <button v-if="!offline" class="fw-button secondary" :disabled="savingRecord" @tap="goHistory">查看历史</button>
+                <button v-else class="fw-button secondary" @tap="copyResult">复制结果</button>
+                <button class="fw-button primary" :class="{ 'offline-disabled': offline }" :disabled="savingRecord || (!offline && (!batchValid || orderLookupPending || orderLookupFailed || orderNotReady || cloudFetching || fetching))" @tap="save">{{ savingRecord ? '保存中…' : '保存生产记录' }}</button>
+            </view>
+        </view>
     </view>
 </template>
 
@@ -77,6 +92,7 @@ import { computeMaterial, computeWeightRange } from '@/utils/calc.js'
 import { callCloud } from '@/utils/vk-records-api.js'
 import { openPage, pageUrl } from '@/utils/vk-migration.js'
 import { STORE_RESULTS, STORE_HISTORY, STORE_DRAFT, STORE_SHARE_BATCH, STORE_LOAD_RECORD, STORE_LAST_BATCH } from '@/utils/storage-keys.js'
+import { OFFLINE_BLOCK_TOAST, upsertCachedProduct, findCachedProduct, formatCacheDate } from '@/utils/offline.js'
 import CardLayoutMixin from '@/mixins/card-layout.js'
 import BatchCard from '@/components/batch-card/batch-card.vue'
 import BucketsCard from '@/components/buckets-card/buckets-card.vue'
@@ -95,6 +111,8 @@ export default {
         bucketKeys.forEach(k => { buckets[k] = '' })
         return {
             keyboardVisible: false, savingRecord: false, saveMessage: '', saveFailed: false, lastSavedBatch: '',
+            // 离线态：仅由登录页「离线使用」以页面参数 offline=1 进入（不写登录态/离线标志 storage）
+            offline: false,
             isAndroid: false,
             adminChecked: false,
             isAdminVerified: false,
@@ -149,6 +167,11 @@ export default {
         batchValid() {
             return batchIsValid(this.batchNo)
         },
+        /** footer 提示行：离线固定口径，登录态沿用原有状态提示。 */
+        footerNote() {
+            if (this.offline) return '离线模式：只计算，不保存；登录后可保存与查询。'
+            return this.orderLookupPending ? '正在查询订单，请稍候。' : this.orderLookupFailed ? '订单查询失败，请重试后保存。' : this.orderNotReady ? '请先确认并启用本次订单。' : this.cloudFetching || this.fetching ? '正在获取每桶件数，请稍候。' : this.palletPending ? '上托未确认，当前不计算托数。' : !this.batchValid ? '请输入完整批号后保存。' : '保存当前生产记录，并同步云端。'
+        },
         isAdmin() {
             // 服务端复核结果优先；未复核完成时回退本地判断（避免闪烁）
             if (this.adminChecked) return this.isAdminVerified
@@ -158,13 +181,15 @@ export default {
     },
     onLoad(options) {
         options = options || {}
-        // 分享带批号进入：先解析批号
+        // 离线态仅由登录页「离线使用」的页面参数承载（不落 storage），登录态优先
+        this.offline = String(options.offline || '') === '1' && !getUser()
+        // 分享带批号进入：先解析批号（离线态忽略，避免无凭据载入）
         let sharedBatch = ''
-        if (options.batchNo && batchIsValid(options.batchNo)) {
+        if (!this.offline && options.batchNo && batchIsValid(options.batchNo)) {
             sharedBatch = String(options.batchNo).toUpperCase()
         }
         // 未登录（如通过分享链接直接进入）：先暂存分享批号，跳登录，登录后回来看数据
-        if (!getUser()) {
+        if (!this.offline && !getUser()) {
             if (sharedBatch) uni.setStorageSync(STORE_SHARE_BATCH, sharedBatch)
             uni.reLaunch({ url: '/pages/login/login' })
             return
@@ -177,6 +202,14 @@ export default {
         // #ifdef MP-WEIXIN
         this.isAndroid = false
         // #endif
+        if (this.offline) {
+            // 离线：不查管理员/草稿/分享批号/工单带入，不持久化卡片布局，只用本地计算
+            // #ifdef MP-WEIXIN
+            if (uni.hideShareMenu) uni.hideShareMenu()
+            // #endif
+            this.offlineProductHint()
+            return
+        }
         // 服务端复核管理员身份（防本地篡改 role），完成后覆盖本地判断
         this.adminChecked = false
         checkLogin().then(info => {
@@ -211,6 +244,10 @@ export default {
         }
     },
     onShow() {
+        // #ifdef H5
+        this.ensureH5BackGuard()
+        // #endif
+        if (this.offline) return
         const operation = uni.getStorageSync('mes:operation-calculation')
         if (operation && operation.jobId) { this.loadOperationCalculation(operation); return }
         // 历史页「载入」切回：读取暂存记录回填表单
@@ -221,8 +258,27 @@ export default {
             uni.showToast({ title: '已载入', icon: 'none' })
         }
     },
-    onUnload() { if (uni.offKeyboardHeightChange && this.keyboardHandler) uni.offKeyboardHeightChange(this.keyboardHandler) },
+    onUnload() {
+        if (uni.offKeyboardHeightChange && this.keyboardHandler) uni.offKeyboardHeightChange(this.keyboardHandler)
+        // #ifdef H5
+        if (this._offlinePopState) { window.removeEventListener('popstate', this._offlinePopState); this._offlinePopState = null }
+        // #endif
+    },
+    /** 离线态拦截物理返回：二次确认后退出，避免误触丢失输入。
+        H5 的浏览器返回由 ensureH5BackGuard 的 popstate 守卫处理（避免双弹窗）。 */
+    onBackPress() {
+        if (!this.offline) return false
+        // #ifdef H5
+        return true
+        // #endif
+        // #ifndef H5
+        this.confirmExitOffline()
+        return true
+        // #endif
+    },
     onShareAppMessage() {
+        // 离线不分享批号（未登录计算不外传数据），只给默认入口
+        if (this.offline) return { title: 'MES生产助手 - 包材计算', path: pageUrl('materials') }
         const title = this.batchValid ? `批号 ${this.batchNo} · 包材计算` : 'MES生产助手 - 包材计算'
         return {
             title,
@@ -230,6 +286,7 @@ export default {
         }
     },
     onShareTimeline() {
+        if (this.offline) return { title: 'MES生产助手 - 包材计算', query: '' }
         const title = this.batchValid ? `批号 ${this.batchNo} · 包材计算` : 'MES生产助手 - 包材计算'
         return {
             title,
@@ -237,8 +294,99 @@ export default {
         }
     },
     methods: {
+        /** H5：离线态压一条同 URL 历史记录兜底浏览器返回（返回时先弹退出确认，不直接丢输入）。 */
+        ensureH5BackGuard() {
+            // #ifdef H5
+            if (!this.offline || this._offlineGuardBound) return
+            this._offlineGuardBound = true
+            this._offlinePopState = () => {
+                try { history.pushState({ mesOfflineGuard: 1 }, '', location.href) } catch (e) { /* ignore */ }
+                this.confirmExitOffline()
+            }
+            try { history.pushState({ mesOfflineGuard: 1 }, '', location.href) } catch (e) { /* ignore */ }
+            window.addEventListener('popstate', this._offlinePopState)
+            // #endif
+        },
+        /** 离线态统一提示（置灰元素点击时调用，不发云请求）。 */
+        blockOffline() {
+            uni.showToast({ title: OFFLINE_BLOCK_TOAST, icon: 'none' })
+        },
+        /** 离线拦截：离线时提示并返回 true。 */
+        offlineGuard() {
+            if (!this.offline) return false
+            this.blockOffline()
+            return true
+        },
+        /** 退出离线二次确认（UI 定稿文案）。 */
+        confirmExitOffline() {
+            uni.showModal({
+                title: '退出离线模式',
+                content: '离线计算不会保存，确认退出并返回登录？',
+                confirmText: '退出',
+                cancelText: '留在本页',
+                success: result => { if (result.confirm) uni.reLaunch({ url: '/pages/login/login' }) }
+            })
+        },
+        /** 清空当前计算：登录/离线同款二次确认，只清本页状态，不影响已保存记录。 */
+        confirmClear() {
+            if (this.savingRecord) return
+            uni.showModal({
+                title: '清空当前计算',
+                content: this.offline
+                    ? '离线数据不会保存；清空后批号、桶数与参数归零，无法恢复。确认清空？'
+                    : '清空后批号、桶数与参数归零，已保存的记录不受影响。确认清空？',
+                confirmText: '清空',
+                cancelText: '取消',
+                confirmColor: '#B23B37',
+                success: result => { if (result.confirm) this.clearAll() }
+            })
+        },
+        /** 复制计算结果到剪贴板（不落库、不上云，供离线记录用）。 */
+        copyResult() {
+            const lines = ['MES 包材计算（离线）']
+            if (this.batchNo) lines.push('批号：' + this.batchNo)
+            if (this.productCode) lines.push('产品编码：' + this.productCode)
+            if (this.weightProduct) lines.push('产品：' + this.weightProduct)
+            lines.push('瓶/件：' + (this.perCase || '—') + '　件/托：' + (this.perPallet || '—'))
+            lines.push('每桶件数：' + this.bucketKeys.map(k => k + '=' + (this.buckets[k] || 0)).join(' '))
+            lines.push('桶数：' + this.bucketCount + '　件数：' + this.caseCountText + '　瓶数：' + this.inboundCount)
+            lines.push('托数：' + this.palletCode + '　件号：' + this.palletRange)
+            lines.push('重量区间：' + this.weightRange)
+            if (this.materials.length) lines.push('包材用量：' + this.materials.map(m => m.name + ' ' + m.used).join('；'))
+            uni.setClipboardData({
+                data: lines.join('\n'),
+                success: () => uni.showToast({ title: '已复制计算结果', icon: 'none' }),
+                fail: () => uni.showToast({ title: '复制失败，请手动记录', icon: 'none' })
+            })
+        },
+        /** 离线产品参数提示：优先命中本机轻缓存，未命中提示可手填，绝不查云。 */
+        offlineProductHint() {
+            if (!this.offline) return
+            if (!this.productCode && this.batchValid) {
+                const matches = productMatches(this.batchNo)
+                if (matches.length === 1) this.productCode = matches[0].code
+            }
+            const cached = this.productCode ? findCachedProduct(uni, this.productCode) : null
+            if (cached) {
+                this.perCase = cached.perCase
+                this.perPallet = cached.perPallet
+                this.weightProduct = cached.name || this.productCode
+                this.orderMessage = '本机缓存：' + (cached.name || cached.code) + '（瓶/件 ' + cached.perCase + ' · 件/托 ' + cached.perPallet + '）· 更新于 ' + formatCacheDate(cached.updatedAt)
+            } else if (this.productCode) {
+                this.orderMessage = '本地没有该产品的计算档案，登录后可载入；可手填「瓶/件」「件/托」继续计算。'
+            } else {
+                this.orderMessage = '离线模式：手填产品编码与「瓶/件」「件/托」即可计算；登录后可载入产品档案。'
+            }
+            this.calculateMaterial()
+        },
+        /** 离线不持久化卡片布局，避免覆盖已登录用户的偏好。 */
+        saveCardLayout() {
+            if (this.offline) return
+            CardLayoutMixin.methods.saveCardLayout.call(this)
+        },
         /** 从云端复核工单采用版本，再载入计算；本地传递数据不作为订单凭据。 */
         async loadOperationCalculation(context) {
+            if (this.offline) return
             if (this.orderLookupPending) return
             this.orderLookupPending = true; this.orderMessage = '正在复核工单及采用的订单版本…'
             const request = ++this.orderLookupRequest
@@ -261,15 +409,18 @@ export default {
         onBatchInput(v) {
             v = (v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)
             this.batchNo = v
+            if (this.offline) { this.offlineProductHint(); return }
             this.resolveProductOptions()
         },
         onProductInput(v) {
             if (this.linkedOrder) { uni.showToast({ title: '本批产品由已关联订单确定', icon: 'none' }); return }
             v = (v || '').replace(/\D/g, '').slice(0, 10)
             this.productCode = v
+            if (this.offline) { this.offlineProductHint(); return }
             this.applyProduct(v)
         },
         async resolveProductOptions(preserveManual = false) {
+            if (this.offline) { this.offlineProductHint(); return }
             const request = ++this.orderLookupRequest
             const batchNo = this.batchNo
             this.linkedOrder = null; this.orderMessage = ''; this.orderLookupFailed = false
@@ -285,6 +436,8 @@ export default {
                     this.perCase = perCase ? Number(perCase[1]) : ''
                     this.perPallet = order.pallet && order.pallet.status === 'confirmed' ? order.pallet.casesPerPallet : ''
                     this.orderMessage = '订单 ' + order.orderNo + ' · V' + (order.version || 1) + ' · ' + (order.customerName || '客户待选择') + (order.orderStatus !== 'confirmed' ? ' · 订单尚未确认' : '') + (!order.pallet || order.pallet.status !== 'confirmed' ? ' · 上托待补充，暂不计算托数' : ' · 采用本单上托要求')
+                    // 登录态查单成功：顺手把产品参数写入本机轻缓存，供离线只用（不含订单/客户/人员信息）
+                    try { upsertCachedProduct(uni, { code: order.productCode, name: order.productName, perCase: this.perCase, perPallet: this.perPallet }, Date.now()) } catch (e) { /* 缓存失败不影响主流程 */ }
                     return
                 }
             } catch (error) {
@@ -293,8 +446,9 @@ export default {
             } finally { if (this.batchNo === batchNo && this.orderLookupRequest === request) { this.orderLookupPending = false; this.calculateMaterial() } }
             if (this.batchNo === batchNo && this.orderLookupRequest === request) this.orderMessage = '未找到本批订单。请先导入指令单，或手工选择并核对产品和上托要求。'
         },
-        smartFill() { this.resolveProductOptions(true) },
+        smartFill() { if (this.offlineGuard()) return; this.resolveProductOptions(true) },
         chooseProduct() {
+            if (this.offlineGuard()) return
             if (this.linkedOrder || this.orderLookupPending || this.orderLookupFailed) { uni.showToast({ title: this.linkedOrder ? '本批产品由已关联订单确定' : '请先完成订单查询', icon: 'none' }); return }
             if (!this.batchValid) {
                 uni.showToast({ title: '请先输入有效批号', icon: 'none' })
@@ -427,6 +581,7 @@ export default {
         },
         // ===== 从帆软获取每桶件数：取数 → 预览 → 确认插入 =====
         async fetchFromFr() {
+            if (this.offlineGuard()) return
             if (!this.batchValid) {
                 uni.showToast({ title: '请先输入有效批号', icon: 'none' })
                 return
@@ -482,6 +637,7 @@ export default {
         },
         // ===== 云端（uniCloud）：App / 微信小程序通用 =====
         async fetchFromCloud() {
+            if (this.offlineGuard()) return
             if (!this.batchValid) {
                 uni.showToast({ title: '请先输入有效批号', icon: 'none' })
                 return
@@ -509,6 +665,7 @@ export default {
         },
         // ===== 草稿持久化 =====
         async save() {
+            if (this.offlineGuard()) return
             if (this.savingRecord || this.cloudFetching || this.fetching) return
             if (!this.batchValid) { uni.showToast({ title: '批号须为11位字母数字或追加B单后缀', icon: 'none' }); return }
             if (this.orderLookupPending || this.orderLookupFailed) { uni.showToast({ title: '请先完成订单查询后保存', icon: 'none' }); return }
@@ -540,6 +697,8 @@ export default {
             let hist = uni.getStorageSync(STORE_HISTORY) || []
             hist = [this.batchNo, ...hist.filter(x => x !== this.batchNo)].slice(0, 20)
             uni.setStorageSync(STORE_HISTORY, hist)
+            // 登录态保存一次即写入产品参数轻缓存（离线可复用；仅产品参数，不含订单/客户/人员）
+            try { upsertCachedProduct(uni, { code: this.productCode, name: this.weightProduct, perCase: this.perCase, perPallet: this.perPallet }, Date.now()) } catch (e) { /* 缓存失败不影响保存 */ }
             // 保存并上云（多端共享）
             this.savingRecord = true; this.saveMessage = ''; this.lastSavedBatch = rec.batchNo
             try {
@@ -561,6 +720,7 @@ export default {
         // ===== 历史记录 / 版本回滚 ===== 由 mixins/history.js 提供
         // 分享进入：按批号从云端拉取该批数据并载入
         loadSharedBatch(batchNo) {
+            if (this.offline) return
             fetchProductionRecord(batchNo, callCloud).then(rec => {
                 if (this.batchNo !== batchNo) return
                 if (rec) {
@@ -626,9 +786,9 @@ export default {
             uni.showToast({ title: '已清空', icon: 'none' })
         },
         // ===== 卡片折叠 / 排序 / 拖拽 ===== 由 mixins/card-layout.js 提供
-        goOrderSheet() { openPage('order-sheet', { purpose: 'order' }) },
-        goArchive() { openPage('archive') },
-        goHistory() { openPage('history') }
+        goOrderSheet() { if (this.offlineGuard()) return; openPage('order-sheet', { purpose: 'order' }) },
+        goArchive() { if (this.offlineGuard()) return; openPage('archive') },
+        goHistory() { if (this.offlineGuard()) return; openPage('history') }
     }
 }
 </script>
@@ -640,7 +800,8 @@ export default {
 .work-entries { display: flex;  margin-bottom: 20rpx; }.work-entries button { flex: 1; min-width: 0; text-align: left; padding: 20rpx; margin: 0; background: $surface; border-radius: 16rpx; line-height: 1.5; }.work-entries button::after { border: 0; }.entry-label { display: block; font-size: 28rpx; font-weight: 600; color: $primary; }.entry-note { display: block; font-size: 24rpx; color: $muted; margin-top: 8rpx; }
 .order-overview { background: $surface; padding: 20rpx; border-radius: 16rpx; margin-bottom: 20rpx; border-left: 8rpx solid $primary; }.order-overview-head { display: flex; align-items: center; justify-content: space-between;  font-size: 28rpx; font-weight: 600; }.order-product { display: block; font-size: 28rpx; line-height: 1.6; margin-top: 12rpx; }.order-tags { display: flex; flex-wrap: wrap;  font-size: 24rpx; margin-top: 12rpx; color: $muted; }.order-tags .pending { color: $warning; }
 .card { background: $surface; border-radius: 16rpx; margin-bottom: 18rpx; overflow: hidden; }.card-head { display: flex; align-items: center; justify-content: space-between; padding: 18rpx 20rpx; border-bottom: 1px solid $line; }.card-head-left { display: flex; flex-wrap: wrap; align-items: center;  flex: 1; min-width: 0; }.card-title { font-size: 32rpx; font-weight: 700; }.card-tools { display: flex; align-items: center;  margin-left: 6rpx; }.drag-hint { display: flex; align-items: center; padding: 6rpx; }.collapse-btn { min-width: 72rpx; min-height: 72rpx; display: flex; align-items: center; justify-content: center; background: $canvas; border-radius: 12rpx; }.card-body { padding: 20rpx; }.card.dragging { opacity: .92; transform: scale(1.01); border: 1px solid $primary; }
-.hint { font-size: 22rpx; color: $muted; }.chip { font-size: 22rpx; color: $primary; background: $primary-soft; padding: 4rpx 10rpx; border-radius: 8rpx; }.chip.active { background: $primary; color: $surface; }.fw-footer .fw-button.secondary { flex: 0 0 30%; padding: 0 6rpx; }
+.hint { font-size: 22rpx; color: $muted; }.chip { font-size: 22rpx; color: $primary; background: $primary-soft; padding: 4rpx 10rpx; border-radius: 8rpx; }.chip.active { background: $primary; color: $surface; }.fw-footer .fw-button.secondary { flex: 0 0 26%; padding: 0 6rpx; }
+.fw-footer .fw-button.secondary.footer-clear { flex: 0 0 auto; padding: 0 18rpx; }
 
 .work-header .share-button { margin-left: 16rpx; }
 .work-entries button + button { margin-left: 14rpx; }
@@ -648,5 +809,13 @@ export default {
 .order-tags > text { margin-right: 12rpx; }
 .card-head-left .hint, .card-head-left .chip { margin-left: 12rpx; }
 .card-tools > view + view { margin-left: 8rpx; }
+
+
+/* ===== 离线模式（no new tokens；复用 --state-warning / --state-warning-soft） ===== */
+.offline-bar { position: sticky; top: var(--window-top, 0px); z-index: 20; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; margin: -24rpx -24rpx 12rpx; padding: 0 var(--sp-24, 24rpx); height: 64rpx; background: var(--state-warning-soft, #FBEEE3); border-bottom: 1px solid $line; }
+.offline-bar-text { flex: 1; min-width: 0; font-size: var(--fs-22, 22rpx); line-height: 1.4; color: var(--state-warning, #A64B00); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.offline-bar-exit { flex-shrink: 0; min-width: 72rpx; text-align: right; font-size: var(--fs-24, 24rpx); font-weight: 600; color: var(--state-warning, #A64B00); }
+.offline-disabled { opacity: .45; }
+.fw-footer-text { flex: 1; min-width: 0; }
 
 </style>
