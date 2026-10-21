@@ -96,5 +96,8 @@ page {
     --state-neutral-soft: #F2F4F3;
     --state-danger: #B23B37;
     --state-danger-soft: #FBEBEA;
+
+    /* 表面层级：紧凑版式卡片浅底（输入格仍用 $surface 白），界面 2026-10-21 定稿 */
+    --surface-soft: #F7F9F8;
 }
 </style>

@@ -1,19 +1,17 @@
 <template>
     <page-meta :disable-scroll="dragMode"></page-meta>
     <view class="page" @touchmove="onDragMove" @touchend="endDrag" @touchcancel="endDrag">
-        <!-- 离线身份：64rpx 吸顶提示条（warning soft），右侧退出；离线不显示 tabBar（本页非 tab 页） -->
+        <!-- 离线身份：64rpx 吸顶提示条（warning soft），右侧退出 -->
         <view v-if="offline" class="offline-bar">
             <text class="offline-bar-text">离线模式 · 仅包材计算，数据不保存</text>
             <text class="offline-bar-exit" @tap="confirmExitOffline">退出</text>
         </view>
-        <view class="work-header"><view><text class="fw-subtitle">先确认批号和订单，再填写每桶件数。</text></view>
-            <!-- #ifdef MP-WEIXIN -->
-            <button class="fw-button secondary share-button" open-type="share">分享</button>
-            <!-- #endif -->
+        <!-- 页头：一行说明 + 更多（指令单录入/产品档案/小程序分享收纳） -->
+        <view class="page-head">
+            <text class="page-hint">{{ headerHint }}</text>
+            <view class="more-btn" aria-label="更多" @tap="openMore"><uni-icons type="more-filled" size="18" color="#5F6A65"></uni-icons></view>
         </view>
-        <view class="work-entries"><button :class="{ 'offline-disabled': offline }" @tap="goOrderSheet"><text class="entry-label">指令单录入</text><text class="entry-note">{{ offline ? '登录后可用' : '拍照识别订单 ›' }}</text></button><button :class="{ 'offline-disabled': offline }" @tap="goArchive"><text class="entry-label">产品档案</text><text class="entry-note">{{ offline ? '登录后可用' : '查看规格和物料 ›' }}</text></button></view>
         <view v-if="orderMessage" class="fw-notice" :class="{ warning: orderLookupFailed || (linkedOrder && linkedOrder.orderStatus !== 'confirmed') }">{{ orderMessage }}</view>
-        <view v-if="linkedOrder" class="order-overview"><view class="order-overview-head"><text>订单 {{ linkedOrder.orderNo }} · V{{ linkedOrder.version || 1 }}</text><text class="fw-badge" :class="{ warning: linkedOrder.orderStatus !== 'confirmed' }">{{ linkedOrder.orderStatus === 'confirmed' ? '正式订单' : '订单草稿' }}</text></view><text class="order-product">{{ linkedOrder.productName }} · {{ linkedOrder.productCode }}</text><view class="order-tags"><text>{{ linkedOrder.customerName || '未填写客户' }}</text><text :class="{ pending: palletPending }">{{ palletPending ? '上托待确认 · 暂不计算托数' : perPallet + ' 箱 / 托' }}</text></view></view>
         <view v-if="lastSavedBatch === batchNo && saveMessage" class="fw-notice" :class="{ warning: saveFailed }">上次保存：{{ saveMessage }}</view>
         <view v-for="(c, idx) in cardList" :key="c.key" class="card" :class="{ dragging: dragMode && c.key === dragKey }">
             <view class="card-head" @tap="toggleCard(c.key)" @longpress="startDrag(c.key, idx, $event)">
@@ -21,7 +19,7 @@
                     <text class="card-title">{{ c.title }}</text>
                     <text v-if="c.key==='buckets'" class="hint">按 A → J 顺序录入</text>
                     <text v-else-if="c.key==='prod'" class="hint">自动结果只读</text>
-                    <text v-else-if="c.key==='material'" class="chip">实用量自动</text>
+                    <text v-else-if="c.key==='material'" class="chip">实用自动</text>
                     <text v-else-if="c.key==='weight'" class="chip" :class="{active: !!weightProduct}">{{ weightProduct || '未选择产品' }}</text>
                     <text v-else-if="c.key==='pallet'" class="chip">{{ palletPage }}</text>
                 </view>
@@ -31,53 +29,50 @@
                 </view>
             </view>
             <view v-show="!c.collapsed" class="card-body">
-                <batch-card v-if="c.key==='batch'"
+                <mes-batch-body v-if="c.key==='batch'"
                     :product-code="productCode" :batch-no="batchNo" :batch-valid="batchValid"
                     :product-locked="!!linkedOrder" :order-loading="orderLookupPending" :disabled="savingRecord"
                     :is-android="isAndroid" :cloud-fetching="cloudFetching" :fetching="fetching"
                     :fr-msg="frMsg" :cloud-msg="cloudMsg" :offline="offline"
+                    :linked-order="linkedOrder" :order-not-ready="orderNotReady" :pallet-pending="palletPending"
+                    :per-pallet="perPallet"
                     @update:productCode="onProductInput" @update:batchNo="onBatchInput"
                     @scan="scanBatch" @smart-fill="smartFill" @choose-product="chooseProduct"
-                    @fetch-cloud="fetchFromCloud" @fetch-fr="fetchFromFr" />
-                <buckets-card :disabled="savingRecord" v-else-if="c.key==='buckets'"
-                    :legacy-layout="isAndroid"
+                    @fetch-cloud="fetchFromCloud" @fetch-fr="fetchFromFr" @view-order="viewOrder" />
+                <mes-buckets-body v-else-if="c.key==='buckets'" :disabled="savingRecord"
                     :buckets.sync="buckets" :bucket-keys="bucketKeys"
                     :zero-count.sync="zeroCount" :per-case.sync="perCase" :per-pallet.sync="perPallet"
-                    :pallet-locked="!!linkedOrder"
-                    @change="calculateMaterial" />
-                <prod-card v-else-if="c.key==='prod'"
-                    :legacy-layout="isAndroid"
+                    :pallet-locked="!!linkedOrder" @change="calculateMaterial" />
+                <mes-prod-body v-else-if="c.key==='prod'"
                     :inbound-count="inboundCount" :sample-count.sync="sampleCount"
                     :inner-issued="innerIssued" :bucket-count="bucketCount"
                     :case-count-text="caseCountText" :pallet-code="palletCode"
-                    :batch-status.sync="batchStatus" :hide-actions="true" :saving="savingRecord"
-                    @change="calculateMaterial" @save="save" @history="goHistory" @clear="clearAll" />
-                <material-card :disabled="savingRecord" v-else-if="c.key==='material'"
+                    :batch-status.sync="batchStatus" :saving="savingRecord" :offline="offline"
+                    :can-save="canSave"
+                    @change="calculateMaterial" @save="save" @history="goHistory" @clear="confirmClear" @copy="copyResult" />
+                <mes-material-body v-else-if="c.key==='material'" :disabled="savingRecord"
                     :label-extra.sync="labelExtra" :security-extra.sync="securityExtra"
                     :materials="materials" @change="calculateMaterial" />
-                <weight-card :disabled="savingRecord" v-else-if="c.key==='weight'"
+                <weight-card v-else-if="c.key==='weight'" :disabled="savingRecord"
                     :box-net-weight.sync="boxNetWeight" :bottle-weight.sync="bottleWeight"
                     :weight-range="weightRange" :bottle-weight-min.sync="bottleWeightMin"
-                    :box-net-weight-min.sync="boxNetWeightMin"
-                    @change="updateWeightRange" />
-                <pallet-card :disabled="savingRecord" v-else-if="c.key==='pallet'"
+                    :box-net-weight-min.sync="boxNetWeightMin" @change="updateWeightRange" />
+                <pallet-card v-else-if="c.key==='pallet'" :disabled="savingRecord"
                     :pallet-range="palletRange" :zero-box-info="zeroBoxInfo"
-                    :current-pallet="currentPallet" :total-pallets="totalPallets"
-                    :pending="palletPending"
+                    :current-pallet="currentPallet" :total-pallets="totalPallets" :pending="palletPending"
                     @go="goPallet" />
             </view>
         </view>
-        <view v-if="!keyboardVisible" class="fw-footer">
-            <view class="fw-footer-note">
-                <text class="fw-footer-text">{{ footerNote }}</text>
-            </view>
-            <view class="fw-actions">
-                <button class="fw-button secondary footer-clear" :disabled="savingRecord" @tap="confirmClear">清空</button>
-                <button v-if="!offline" class="fw-button secondary" :disabled="savingRecord" @tap="goHistory">查看历史</button>
-                <button v-else class="fw-button secondary" @tap="copyResult">复制结果</button>
-                <button class="fw-button primary" :class="{ 'offline-disabled': offline }" :disabled="savingRecord || (!offline && (!batchValid || orderLookupPending || orderLookupFailed || orderNotReady || cloudFetching || fetching))" @tap="save">{{ savingRecord ? '保存中…' : '保存生产记录' }}</button>
+        <!-- #ifdef MP-WEIXIN -->
+        <!-- 分享收进「更多」：微信不允许 JS 直接唤起转发面板，这里用原生 share 按钮承接 -->
+        <view v-if="shareSheet" class="share-mask" @tap="closeShareSheet">
+            <view class="share-panel" @tap.stop>
+                <text class="share-title">分享包材计算</text>
+                <button class="share-native" open-type="share">分享给微信好友</button>
+                <button class="share-cancel" @tap="closeShareSheet">取消</button>
             </view>
         </view>
+        <!-- #endif -->
     </view>
 </template>
 
@@ -94,25 +89,27 @@ import { openPage, pageUrl } from '@/utils/vk-migration.js'
 import { STORE_RESULTS, STORE_HISTORY, STORE_DRAFT, STORE_SHARE_BATCH, STORE_LOAD_RECORD, STORE_LAST_BATCH } from '@/utils/storage-keys.js'
 import { OFFLINE_BLOCK_TOAST, upsertCachedProduct, findCachedProduct, formatCacheDate } from '@/utils/offline.js'
 import CardLayoutMixin from '@/mixins/card-layout.js'
-import BatchCard from '@/components/batch-card/batch-card.vue'
-import BucketsCard from '@/components/buckets-card/buckets-card.vue'
-import ProdCard from '@/components/prod-card/prod-card.vue'
-import MaterialCard from '@/components/material-card/material-card.vue'
+import MesBatchBody from '@/components/vk/materials/MesBatchBody.vue'
+import MesBucketsBody from '@/components/vk/materials/MesBucketsBody.vue'
+import MesProdBody from '@/components/vk/materials/MesProdBody.vue'
+import MesMaterialBody from '@/components/vk/materials/MesMaterialBody.vue'
 import WeightCard from '@/components/weight-card/weight-card.vue'
 import PalletCard from '@/components/pallet-card/pallet-card.vue'
 
 const bucketKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
 
 export default {
-    components: { BatchCard, BucketsCard, ProdCard, MaterialCard, WeightCard, PalletCard },
+    components: { MesBatchBody, MesBucketsBody, MesProdBody, MesMaterialBody, WeightCard, PalletCard },
     mixins: [CardLayoutMixin],
     data() {
         const buckets = {}
         bucketKeys.forEach(k => { buckets[k] = '' })
         return {
-            keyboardVisible: false, savingRecord: false, saveMessage: '', saveFailed: false, lastSavedBatch: '',
+            savingRecord: false, saveMessage: '', saveFailed: false, lastSavedBatch: '',
             // 离线态：仅由登录页「离线使用」以页面参数 offline=1 进入（不写登录态/离线标志 storage）
             offline: false,
+            // 小程序「更多」里的分享入口（原生 share 按钮小弹层）
+            shareSheet: false,
             isAndroid: false,
             adminChecked: false,
             isAdminVerified: false,
@@ -161,16 +158,24 @@ export default {
             // 历史 / 版本 与 卡片布局 / 拖拽 状态由 mixins 提供
         }
     },
+    created() {
+        // vk 新版卡标题（不改 mixin：legacy 冻结页仍显示「包材用量」）
+        this.cardList = this.cardList.map(item => (item.key === 'material' ? { ...item, title: '包材卡片' } : item))
+    },
     computed: {
         orderNotReady() { return !!(this.linkedOrder && (this.linkedOrder.orderStatus !== 'confirmed' || this.linkedOrder.enabled === false)) },
         palletPending() { return this.orderLookupPending || this.orderLookupFailed || !!(this.linkedOrder && (!this.linkedOrder.pallet || this.linkedOrder.pallet.status !== 'confirmed')); },
         batchValid() {
             return batchIsValid(this.batchNo)
         },
-        /** footer 提示行：离线固定口径，登录态沿用原有状态提示。 */
-        footerNote() {
-            if (this.offline) return '离线模式：只计算，不保存；登录后可保存与查询。'
-            return this.orderLookupPending ? '正在查询订单，请稍候。' : this.orderLookupFailed ? '订单查询失败，请重试后保存。' : this.orderNotReady ? '请先确认并启用本次订单。' : this.cloudFetching || this.fetching ? '正在获取每桶件数，请稍候。' : this.palletPending ? '上托未确认，当前不计算托数。' : !this.batchValid ? '请输入完整批号后保存。' : '保存当前生产记录，并同步云端。'
+        /** 页头一行说明：登录/离线两版（离线文案修掉「先确认订单」的矛盾）。 */
+        headerHint() {
+            if (this.offline) return '离线计算：结果不保存，需自行记录'
+            return '先确认批号和订单，再填写每桶件数。'
+        },
+        /** Card3「保存」前置条件（footer 取消后由卡内按钮使用）。 */
+        canSave() {
+            return !!this.batchValid && !this.orderLookupPending && !this.orderLookupFailed && !this.orderNotReady && !this.cloudFetching && !this.fetching
         },
         isAdmin() {
             // 服务端复核结果优先；未复核完成时回退本地判断（避免闪烁）
@@ -194,8 +199,6 @@ export default {
             uni.reLaunch({ url: '/pages/login/login' })
             return
         }
-        this.keyboardHandler = event => { this.keyboardVisible = Number(event.height) > 0 }
-        if (uni.onKeyboardHeightChange) uni.onKeyboardHeightChange(this.keyboardHandler)
         // #ifdef APP-PLUS
         this.isAndroid = isAppAndroid()
         // #endif
@@ -259,7 +262,6 @@ export default {
         }
     },
     onUnload() {
-        if (uni.offKeyboardHeightChange && this.keyboardHandler) uni.offKeyboardHeightChange(this.keyboardHandler)
         // #ifdef H5
         if (this._offlinePopState) { window.removeEventListener('popstate', this._offlinePopState); this._offlinePopState = null }
         // #endif
@@ -294,6 +296,37 @@ export default {
         }
     },
     methods: {
+        /** 更多：收纳「指令单录入 / 产品档案」，小程序追加「分享」（微信不能 JS 唤起转发）。 */
+        openMore() {
+            const items = ['指令单录入', '产品档案']
+            // #ifdef MP-WEIXIN
+            items.push('分享')
+            // #endif
+            uni.showActionSheet({
+                itemList: items.map(label => (this.offline && label !== '分享' ? label + ' · 登录后可用' : label)),
+                success: result => {
+                    const label = items[result.tapIndex]
+                    if (label === '分享') { this.shareSheet = true; return }
+                    if (this.offlineGuard()) return
+                    if (label === '指令单录入') return this.goOrderSheet()
+                    if (label === '产品档案') return this.goArchive()
+                }
+            })
+        },
+        closeShareSheet() { this.shareSheet = false },
+        /** 极简订单行点击：弹订单摘要（无独立订单详情页）。 */
+        viewOrder() {
+            const order = this.linkedOrder
+            if (!order) return
+            const lines = [
+                '订单 ' + (order.orderNo || '—') + ' · V' + (order.version || 1),
+                order.productName ? order.productName + ' · ' + (order.productCode || '') : '',
+                order.customerName ? '客户：' + order.customerName : '',
+                this.orderNotReady ? '订单未确认：保存前需后台确认并启用' : '订单已确认',
+                this.palletPending ? '上托待确认：暂不计算托数' : '上托：' + (this.perPallet || '—') + ' 件 / 托'
+            ]
+            uni.showModal({ title: '订单信息', content: lines.filter(Boolean).join('\n'), showCancel: false, confirmText: '知道了' })
+        },
         /** H5：离线态压一条同 URL 历史记录兜底浏览器返回（返回时先弹退出确认，不直接丢输入）。 */
         ensureH5BackGuard() {
             // #ifdef H5
@@ -795,27 +828,42 @@ export default {
 
 <style lang="scss" scoped>
 @import '@/styles/field-work.scss';
-.page { box-sizing: border-box; padding: 24rpx 24rpx calc(176rpx + env(safe-area-inset-bottom)); color: $ink; }
-.work-header { display: flex; align-items: center; justify-content: space-between;  margin: 0 0 20rpx; }.work-header .fw-subtitle { font-size: 24rpx; line-height: 1.5; margin-top: 0; }.share-button { font-size: 24rpx; padding: 0 16rpx; flex-shrink: 0; margin-top: 4rpx; }
-.work-entries { display: flex;  margin-bottom: 20rpx; }.work-entries button { flex: 1; min-width: 0; text-align: left; padding: 20rpx; margin: 0; background: $surface; border-radius: 16rpx; line-height: 1.5; }.work-entries button::after { border: 0; }.entry-label { display: block; font-size: 28rpx; font-weight: 600; color: $primary; }.entry-note { display: block; font-size: 24rpx; color: $muted; margin-top: 8rpx; }
-.order-overview { background: $surface; padding: 20rpx; border-radius: 16rpx; margin-bottom: 20rpx; border-left: 8rpx solid $primary; }.order-overview-head { display: flex; align-items: center; justify-content: space-between;  font-size: 28rpx; font-weight: 600; }.order-product { display: block; font-size: 28rpx; line-height: 1.6; margin-top: 12rpx; }.order-tags { display: flex; flex-wrap: wrap;  font-size: 24rpx; margin-top: 12rpx; color: $muted; }.order-tags .pending { color: $warning; }
-.card { background: $surface; border-radius: 16rpx; margin-bottom: 18rpx; overflow: hidden; }.card-head { display: flex; align-items: center; justify-content: space-between; padding: 18rpx 20rpx; border-bottom: 1px solid $line; }.card-head-left { display: flex; flex-wrap: wrap; align-items: center;  flex: 1; min-width: 0; }.card-title { font-size: 32rpx; font-weight: 700; }.card-tools { display: flex; align-items: center;  margin-left: 6rpx; }.drag-hint { display: flex; align-items: center; padding: 6rpx; }.collapse-btn { min-width: 72rpx; min-height: 72rpx; display: flex; align-items: center; justify-content: center; background: $canvas; border-radius: 12rpx; }.card-body { padding: 20rpx; }.card.dragging { opacity: .92; transform: scale(1.01); border: 1px solid $primary; }
-.hint { font-size: 22rpx; color: $muted; }.chip { font-size: 22rpx; color: $primary; background: $primary-soft; padding: 4rpx 10rpx; border-radius: 8rpx; }.chip.active { background: $primary; color: $surface; }.fw-footer .fw-button.secondary { flex: 0 0 26%; padding: 0 6rpx; }
-.fw-footer .fw-button.secondary.footer-clear { flex: 0 0 auto; padding: 0 18rpx; }
 
-.work-header .share-button { margin-left: 16rpx; }
-.work-entries button + button { margin-left: 14rpx; }
-.order-overview-head .fw-badge { margin-left: 12rpx; }
-.order-tags > text { margin-right: 12rpx; }
+/* 紧凑版式：页边距 16rpx；卡片浅底（--surface-soft）、输入格白 */
+.page { box-sizing: border-box; padding: 16rpx 16rpx calc(24rpx + env(safe-area-inset-bottom)); color: $ink; }
+
+/* 页头：一行说明 + 「更多」（入口/分享收纳） */
+.page-head { display: flex; align-items: center; margin-bottom: 12rpx; }
+.page-hint { flex: 1; min-width: 0; font-size: 22rpx; line-height: 1.4; color: $muted; }
+.more-btn { flex-shrink: 0; margin-left: 12rpx; width: 72rpx; height: 72rpx; display: flex; align-items: center; justify-content: center; border-radius: 12rpx; background: $surface; }
+
+/* 卡片：浅底 + 拖拽/折叠卡头 */
+.card { background: var(--surface-soft, #F7F9F8); border-radius: 16rpx; margin-bottom: 12rpx; overflow: hidden; }
+.card-head { display: flex; align-items: center; justify-content: space-between; padding: 16rpx; border-bottom: 1px solid $line; }
+.card-head-left { display: flex; flex-wrap: wrap; align-items: center; flex: 1; min-width: 0; }
+.card-title { font-size: 30rpx; font-weight: 700; }
+.card-tools { display: flex; align-items: center; margin-left: 6rpx; }
+.drag-hint { display: flex; align-items: center; padding: 6rpx; }
+.collapse-btn { min-width: 64rpx; min-height: 64rpx; display: flex; align-items: center; justify-content: center; background: $surface; border-radius: 12rpx; }
+.card-body { padding: 16rpx; }
+.card.dragging { opacity: .92; transform: scale(1.01); border: 1px solid $primary; }
+.hint { font-size: 22rpx; color: $muted; }
+.chip { font-size: 22rpx; color: $primary; background: $primary-soft; padding: 4rpx 10rpx; border-radius: 8rpx; }
+.chip.active { background: $primary; color: $surface; }
 .card-head-left .hint, .card-head-left .chip { margin-left: 12rpx; }
 .card-tools > view + view { margin-left: 8rpx; }
 
-
-/* ===== 离线模式（no new tokens；复用 --state-warning / --state-warning-soft） ===== */
-.offline-bar { position: sticky; top: var(--window-top, 0px); z-index: 20; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; margin: -24rpx -24rpx 12rpx; padding: 0 var(--sp-24, 24rpx); height: 64rpx; background: var(--state-warning-soft, #FBEEE3); border-bottom: 1px solid $line; }
+/* 离线提示条（复刻现有 warning soft 口径；margin 对齐 16rpx 页边距） */
+.offline-bar { position: sticky; top: var(--window-top, 0px); z-index: 20; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; margin: -16rpx -16rpx 12rpx; padding: 0 var(--sp-16, 16rpx); height: 64rpx; background: var(--state-warning-soft, #FBEEE3); border-bottom: 1px solid $line; }
 .offline-bar-text { flex: 1; min-width: 0; font-size: var(--fs-22, 22rpx); line-height: 1.4; color: var(--state-warning, #A64B00); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .offline-bar-exit { flex-shrink: 0; min-width: 72rpx; text-align: right; font-size: var(--fs-24, 24rpx); font-weight: 600; color: var(--state-warning, #A64B00); }
 .offline-disabled { opacity: .45; }
-.fw-footer-text { flex: 1; min-width: 0; }
 
+/* 小程序分享弹层（原生 share 按钮承接转发） */
+.share-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 95; display: flex; align-items: flex-end; background: rgba(31, 38, 34, .42); }
+.share-panel { box-sizing: border-box; width: 100%; padding: 16rpx 24rpx calc(20rpx + env(safe-area-inset-bottom)); background: $surface; border-radius: 16rpx 16rpx 0 0; }
+.share-title { display: block; margin-bottom: 16rpx; font-size: 30rpx; font-weight: 700; text-align: center; }
+.share-native { margin: 0 0 12rpx; background: $primary; color: $surface; border-radius: 12rpx; font-size: 28rpx; font-weight: 600; line-height: 80rpx; }
+.share-native::after, .share-cancel::after { border: 0; }
+.share-cancel { margin: 0; background: $canvas; color: $ink; border-radius: 12rpx; font-size: 28rpx; line-height: 80rpx; }
 </style>
